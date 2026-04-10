@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Clinical Signal** is a web platform for functional health practitioners to securely upload patient records, perform AI-driven deep historical analysis of medical history, and generate clinical protocols. The primary user is a functional health practitioner who also runs a mentorship group and consults with other practitioners on integrating AI into clinical workflows.
+**Clinical Signal** is a web platform for functional health practitioners to securely upload patient records, perform AI-driven deep historical analysis of medical history, and generate clinical protocols. The primary user is a functional health practitioner.
 
 ### Core Workflow
 
