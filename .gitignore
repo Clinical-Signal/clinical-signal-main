@@ -1,0 +1,38 @@
+# Env
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Node
+node_modules/
+.next/
+out/
+dist/
+*.log
+npm-debug.log*
+.pnpm-debug.log*
+.turbo/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Docker
+.docker/
+
+# Build artifacts
+coverage/
+*.tsbuildinfo

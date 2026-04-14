@@ -1,0 +1,75 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-clinical_signal}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me_dev_only}
+      POSTGRES_DB: ${POSTGRES_DB:-clinical_signal}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init:/docker-entrypoint-initdb.d:ro
+      - ./database/migrations:/migrations:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-clinical_signal} -d ${POSTGRES_DB:-clinical_signal}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  analysis-engine:
+    build:
+      context: ./services/analysis-engine
+      dockerfile: ../../infrastructure/docker/Dockerfile.engine
+    environment:
+      # Engine connects as app_user so RLS applies on its writes.
+      DATABASE_URL: postgresql://app_user:app_user_dev_password@postgres:5432/${POSTGRES_DB:-clinical_signal}
+      PHI_ENCRYPTION_KEY: ${PHI_ENCRYPTION_KEY:-dev_only_change_me_phi_crypt_key}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-4-5}
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./services/analysis-engine/app:/app/app:ro
+      - ./services/analysis-engine/prompts:/app/prompts:ro
+      - uploads:/uploads
+
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: ../../infrastructure/docker/Dockerfile.web
+    environment:
+      NODE_ENV: development
+      # Web connects as app_user (NOSUPERUSER) so RLS policies actually apply.
+      DATABASE_URL: postgresql://app_user:app_user_dev_password@postgres:5432/${POSTGRES_DB:-clinical_signal}
+      ANALYSIS_ENGINE_URL: http://analysis-engine:8000
+      AUTH_SECRET: ${AUTH_SECRET:-dev_only_change_me_minimum_32_chars_long}
+      SESSION_IDLE_MINUTES: ${SESSION_IDLE_MINUTES:-15}
+      DEFAULT_TENANT_ID: ${DEFAULT_TENANT_ID:-00000000-0000-0000-0000-000000000001}
+      # Dev-only key for pgcrypto-based column encryption (name/DOB). Rotate
+      # via a KMS-backed key in production — the key never leaves secret
+      # storage there and is loaded per-request into session config.
+      PHI_ENCRYPTION_KEY: ${PHI_ENCRYPTION_KEY:-dev_only_change_me_phi_crypt_key}
+      UPLOADS_DIR: /uploads
+      # Path the engine sees for the same uploads volume. Lets the web service
+      # hand the engine an absolute path it can open without re-uploading.
+      ENGINE_UPLOADS_DIR: /uploads
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      analysis-engine:
+        condition: service_started
+    volumes:
+      - ./apps/web/app:/app/app:ro
+      - ./apps/web/components:/app/components:ro
+      - ./apps/web/lib:/app/lib:ro
+      - uploads:/uploads
+
+volumes:
+  postgres_data:
+  uploads:
