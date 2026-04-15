@@ -11,7 +11,9 @@ export type AuditAction =
   | "password_changed"
   | "session_expired"
   | "analysis_generated"
-  | "protocol_generated";
+  | "protocol_generated"
+  | "intake_saved"
+  | "intake_submitted";
 
 export interface AuditInput {
   action: AuditAction;

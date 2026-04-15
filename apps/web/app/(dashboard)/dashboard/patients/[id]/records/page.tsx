@@ -19,10 +19,15 @@ export default async function PatientRecordsPage({ params }: { params: { id: str
           <p className="text-sm text-slate-600">Upload lab PDFs for structured extraction.</p>
         </div>
         <div className="flex items-center gap-4">
+          <Link className="text-sm underline" href={`/dashboard/patients/${params.id}/intake/review`}>
+            Intake review →
+          </Link>
           <Link className="text-sm underline" href={`/dashboard/patients/${params.id}/protocol`}>
             Protocol →
           </Link>
-          <Link className="text-sm underline" href="/dashboard">Back to patients</Link>
+          <Link className="text-sm underline" href={`/dashboard/patients/${params.id}`}>
+            ← Patient
+          </Link>
         </div>
       </div>
 
