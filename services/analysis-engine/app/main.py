@@ -2,9 +2,15 @@ import logging
 import os
 from pathlib import Path
 
-from fastapi import BackgroundTasks, FastAPI, HTTPException
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Response
 from pydantic import BaseModel, Field
 
+from app.exporter.db import (
+    get_patient_name,
+    get_protocol_for_export,
+    insert_protocol_export_record,
+)
+from app.exporter.pdf import render_clinical_pdf, render_client_pdf
 from app.analyzer.db import (
     complete_analysis,
     fail_analysis,
@@ -14,6 +20,8 @@ from app.analyzer.db import (
 )
 from app.analyzer.gather import format_timeline_for_prompt, gather_patient_timeline
 from app.analyzer.llm import run_clinical_analysis, run_protocol_generation
+from app.knowledge.db import search_knowledge, traverse_graph
+from app.knowledge.embeddings import embed_one
 from app.pipeline.db import mark_complete, mark_failed, mark_processing
 from app.pipeline.llm import extract_structured_labs
 from app.pipeline.pdf import extract_pdf_text
@@ -133,9 +141,47 @@ async def analyze(req: AnalyzeRequest) -> AnalyzeResponse:
         raise HTTPException(status_code=500, detail=f"{type(err).__name__}: {err}")
 
 
+def _kb_query_from_findings(findings: dict) -> str:
+    """Compose a dense retrieval query from the analysis findings.
+
+    We concatenate the chief patterns, presenting symptoms, and key lab
+    findings. These are the same signals Dr. Laura's mentorship corpus tends
+    to organize around, so they embed well against that content.
+    """
+    parts: list[str] = []
+    cp = findings.get("clinical_picture") or {}
+    for p in cp.get("chief_patterns") or []:
+        parts.append(str(p))
+    for s in cp.get("presenting_symptoms") or []:
+        parts.append(str(s))
+    for sa in findings.get("systems_analysis") or []:
+        if isinstance(sa, dict) and sa.get("system"):
+            parts.append(str(sa["system"]))
+    for lf in findings.get("key_lab_findings") or []:
+        if isinstance(lf, dict):
+            name = lf.get("test_name")
+            val = lf.get("value")
+            if name:
+                parts.append(f"{name} {val or ''}".strip())
+    return "\n".join(p for p in parts if p).strip()[:4000]
+
+
+def _build_kb_context(tenant_id: str, findings: dict, k: int) -> list[dict]:
+    query = _kb_query_from_findings(findings)
+    if not query:
+        return []
+    qvec = embed_one(query)
+    return search_knowledge(tenant_id=tenant_id, query_embedding=qvec, k=k)
+
+
 class GenerateProtocolRequest(BaseModel):
     tenant_id: str
     analysis_id: str
+    # Optional override of the USE_KNOWLEDGE_BASE env flag. Lets us generate
+    # both KB-enhanced and baseline protocols for comparison without
+    # restarting the service.
+    use_knowledge_base: bool | None = None
+    knowledge_k: int = Field(default=6, ge=0, le=20)
 
 
 class GenerateProtocolResponse(BaseModel):
@@ -157,8 +203,34 @@ async def generate_protocol(req: GenerateProtocolRequest) -> GenerateProtocolRes
             detail=f"analysis status is {analysis['status']}, must be complete",
         )
 
+    # Knowledge-base retrieval. Gated by env (default on) and request override.
+    env_default = os.environ.get("USE_KNOWLEDGE_BASE", "1") not in ("0", "false", "")
+    use_kb = env_default if req.use_knowledge_base is None else req.use_knowledge_base
+    kb_context: list[dict] = []
+    if use_kb and req.knowledge_k > 0:
+        try:
+            kb_context = _build_kb_context(
+                req.tenant_id, analysis["findings"], req.knowledge_k
+            )
+            log.info(
+                "kb_context analysis=%s items=%d",
+                req.analysis_id,
+                len(kb_context),
+            )
+        except Exception as err:
+            # Non-fatal: fall back to no-KB generation but record that we
+            # tried. Never block a protocol because KB retrieval failed.
+            log.warning(
+                "kb retrieval failed analysis=%s err=%s",
+                req.analysis_id,
+                err,
+            )
+            kb_context = []
+
     try:
-        protocol, meta, _raw = run_protocol_generation(analysis["findings"])
+        protocol, meta, _raw = run_protocol_generation(
+            analysis["findings"], kb_context=kb_context
+        )
     except Exception as err:
         log.exception("protocol generation failed analysis=%s", req.analysis_id)
         raise HTTPException(status_code=500, detail=f"{type(err).__name__}: {err}")
@@ -169,6 +241,17 @@ async def generate_protocol(req: GenerateProtocolRequest) -> GenerateProtocolRes
     clinical_content.setdefault("_generation", {}).update(meta)
     if "meta" in protocol:
         clinical_content["_generation"]["model_meta"] = protocol["meta"]
+    if kb_context:
+        clinical_content["_generation"]["kb_sources"] = [
+            {
+                "id": it.get("id"),
+                "title": it.get("title"),
+                "category": it.get("category"),
+                "source_channel": it.get("source_channel"),
+                "similarity": it.get("similarity"),
+            }
+            for it in kb_context
+        ]
 
     protocol_id = insert_protocol(
         req.tenant_id,
@@ -189,4 +272,124 @@ async def generate_protocol(req: GenerateProtocolRequest) -> GenerateProtocolRes
         protocol_id=protocol_id,
         analysis_id=req.analysis_id,
         status="draft",
+    )
+
+
+class KnowledgeSearchRequest(BaseModel):
+    tenant_id: str
+    query: str
+    k: int = Field(default=5, ge=1, le=25)
+    categories: list[str] | None = None
+
+
+@app.post("/knowledge/search")
+async def knowledge_search(req: KnowledgeSearchRequest) -> dict:
+    if not req.query.strip():
+        raise HTTPException(status_code=400, detail="query is required")
+    qvec = embed_one(req.query)
+    results = search_knowledge(
+        tenant_id=req.tenant_id,
+        query_embedding=qvec,
+        k=req.k,
+        categories=req.categories,
+    )
+    return {"query": req.query, "results": results}
+
+
+class KnowledgeGraphRequest(BaseModel):
+    tenant_id: str
+    concept: str
+    depth: int = Field(default=2, ge=1, le=3)
+
+
+class ExportProtocolRequest(BaseModel):
+    tenant_id: str
+    protocol_id: str
+    audience: str = Field(..., description="'clinical' or 'client'")
+    practice_name: str = "Clinical Signal"
+
+
+@app.post("/export-protocol")
+async def export_protocol(req: ExportProtocolRequest) -> Response:
+    """Renders a finalized-or-draft protocol to PDF and returns the bytes.
+
+    Also writes a records row of type 'protocol_export' so the export shows
+    up in the patient's records list and can be re-downloaded.
+    """
+    if req.audience not in ("clinical", "client"):
+        raise HTTPException(status_code=400, detail="audience must be 'clinical' or 'client'")
+    phi_key = os.environ.get("PHI_ENCRYPTION_KEY")
+    if not phi_key:
+        raise HTTPException(status_code=500, detail="PHI_ENCRYPTION_KEY is not set")
+
+    proto = get_protocol_for_export(req.tenant_id, req.protocol_id)
+    if not proto:
+        raise HTTPException(status_code=404, detail="protocol not found")
+
+    patient_name = get_patient_name(req.tenant_id, proto["patient_id"], phi_key)
+
+    if req.audience == "clinical":
+        pdf_bytes = render_clinical_pdf(
+            practice_name=req.practice_name,
+            patient_name=patient_name,
+            protocol_title=proto["title"],
+            clinical_content=proto["clinical_content"],
+            generated_at=proto["created_at"],
+        )
+    else:
+        pdf_bytes = render_client_pdf(
+            practice_name=req.practice_name,
+            patient_name=patient_name,
+            protocol_title=proto["title"],
+            client_content=proto["client_content"],
+            generated_at=proto["created_at"],
+        )
+
+    # Persist the PDF to the uploads volume so the records row can point to
+    # it and the web tier can serve it later. The same volume already backs
+    # lab uploads.
+    uploads_dir = Path(os.environ.get("UPLOADS_DIR", "/uploads"))
+    rel_key = f"protocol_exports/{proto['id']}_{req.audience}_v{proto['version']}.pdf"
+    fs_path = uploads_dir / rel_key
+    fs_path.parent.mkdir(parents=True, exist_ok=True)
+    fs_path.write_bytes(pdf_bytes)
+    fs_path.chmod(0o600)
+
+    try:
+        insert_protocol_export_record(
+            tenant_id=req.tenant_id,
+            patient_id=proto["patient_id"],
+            file_key=rel_key,
+            audience=req.audience,
+            protocol_id=proto["id"],
+            protocol_version=proto["version"],
+        )
+    except Exception:
+        # Don't fail the download if the bookkeeping insert fails — the file
+        # is on disk and the response still ships. Log only.
+        log.exception(
+            "protocol_export records-row insert failed protocol=%s audience=%s",
+            proto["id"], req.audience,
+        )
+
+    filename = f"{(proto['title'] or 'protocol').replace(' ', '_')}_{req.audience}_v{proto['version']}.pdf"
+    log.info(
+        "protocol exported id=%s audience=%s bytes=%d",
+        proto["id"], req.audience, len(pdf_bytes),
+    )
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@app.post("/knowledge/graph")
+async def knowledge_graph(req: KnowledgeGraphRequest) -> dict:
+    if not req.concept.strip():
+        raise HTTPException(status_code=400, detail="concept is required")
+    return traverse_graph(
+        tenant_id=req.tenant_id,
+        start_name=req.concept.strip(),
+        depth=req.depth,
     )

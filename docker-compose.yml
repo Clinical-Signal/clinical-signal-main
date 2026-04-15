@@ -27,6 +27,9 @@ services:
       PHI_ENCRYPTION_KEY: ${PHI_ENCRYPTION_KEY:-dev_only_change_me_phi_crypt_key}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-4-5}
+      USE_KNOWLEDGE_BASE: ${USE_KNOWLEDGE_BASE:-1}
+      # Cache the sentence-transformers model across container rebuilds.
+      SENTENCE_TRANSFORMERS_HOME: /models
     ports:
       - "8000:8000"
     depends_on:
@@ -35,6 +38,13 @@ services:
     volumes:
       - ./services/analysis-engine/app:/app/app:ro
       - ./services/analysis-engine/prompts:/app/prompts:ro
+      - ./services/analysis-engine/scripts:/app/scripts:ro
+      - ./database/seed/knowledge:/knowledge_out
+      # Source corpus for knowledge ingestion. Point LAURA_CHANNELS_DIR at the
+      # directory of .txt channel exports to enable ingestion; defaults to the
+      # in-repo seed placeholder when unset.
+      - ${LAURA_CHANNELS_DIR:-./database/seed/knowledge}:/laura_channels:ro
+      - models_cache:/models
       - uploads:/uploads
 
   web:
@@ -73,3 +83,4 @@ services:
 volumes:
   postgres_data:
   uploads:
+  models_cache:

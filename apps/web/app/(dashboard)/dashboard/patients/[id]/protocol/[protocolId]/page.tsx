@@ -47,7 +47,7 @@ export default async function ProtocolViewPage({
   return (
     <section className="flex flex-col gap-5">
       <header className="flex flex-col gap-2">
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <h2 className="text-xl font-semibold">{p.title}</h2>
           <span
             className={`rounded px-2 py-0.5 text-xs font-medium ${statusClass}`}
@@ -55,6 +55,26 @@ export default async function ProtocolViewPage({
             {p.status}
           </span>
           <span className="text-xs text-slate-500">v{p.version}</span>
+          <div className="ml-auto flex items-center gap-2">
+            <Link
+              className="rounded border border-slate-300 px-3 py-1 text-xs hover:bg-slate-50"
+              href={`/dashboard/patients/${params.id}/protocol/${params.protocolId}/edit`}
+            >
+              Edit
+            </Link>
+            <a
+              className="rounded border border-slate-300 px-3 py-1 text-xs hover:bg-slate-50"
+              href={`/api/patients/${params.id}/protocol/${params.protocolId}/export?audience=clinical`}
+            >
+              Export PDF (clinical)
+            </a>
+            <a
+              className="rounded border border-slate-300 px-3 py-1 text-xs hover:bg-slate-50"
+              href={`/api/patients/${params.id}/protocol/${params.protocolId}/export?audience=client`}
+            >
+              Export PDF (client)
+            </a>
+          </div>
         </div>
         <p className="text-xs text-slate-500">
           Generated {new Date(p.createdAt).toLocaleString()}
