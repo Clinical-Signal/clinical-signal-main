@@ -13,7 +13,10 @@ export type AuditAction =
   | "analysis_generated"
   | "protocol_generated"
   | "intake_saved"
-  | "intake_submitted";
+  | "intake_submitted"
+  | "protocol_edited"
+  | "protocol_status_changed"
+  | "protocol_exported";
 
 export interface AuditInput {
   action: AuditAction;

@@ -2,9 +2,15 @@ import logging
 import os
 from pathlib import Path
 
-from fastapi import BackgroundTasks, FastAPI, HTTPException
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Response
 from pydantic import BaseModel, Field
 
+from app.exporter.db import (
+    get_patient_name,
+    get_protocol_for_export,
+    insert_protocol_export_record,
+)
+from app.exporter.pdf import render_clinical_pdf, render_client_pdf
 from app.analyzer.db import (
     complete_analysis,
     fail_analysis,
@@ -294,6 +300,88 @@ class KnowledgeGraphRequest(BaseModel):
     tenant_id: str
     concept: str
     depth: int = Field(default=2, ge=1, le=3)
+
+
+class ExportProtocolRequest(BaseModel):
+    tenant_id: str
+    protocol_id: str
+    audience: str = Field(..., description="'clinical' or 'client'")
+    practice_name: str = "Clinical Signal"
+
+
+@app.post("/export-protocol")
+async def export_protocol(req: ExportProtocolRequest) -> Response:
+    """Renders a finalized-or-draft protocol to PDF and returns the bytes.
+
+    Also writes a records row of type 'protocol_export' so the export shows
+    up in the patient's records list and can be re-downloaded.
+    """
+    if req.audience not in ("clinical", "client"):
+        raise HTTPException(status_code=400, detail="audience must be 'clinical' or 'client'")
+    phi_key = os.environ.get("PHI_ENCRYPTION_KEY")
+    if not phi_key:
+        raise HTTPException(status_code=500, detail="PHI_ENCRYPTION_KEY is not set")
+
+    proto = get_protocol_for_export(req.tenant_id, req.protocol_id)
+    if not proto:
+        raise HTTPException(status_code=404, detail="protocol not found")
+
+    patient_name = get_patient_name(req.tenant_id, proto["patient_id"], phi_key)
+
+    if req.audience == "clinical":
+        pdf_bytes = render_clinical_pdf(
+            practice_name=req.practice_name,
+            patient_name=patient_name,
+            protocol_title=proto["title"],
+            clinical_content=proto["clinical_content"],
+            generated_at=proto["created_at"],
+        )
+    else:
+        pdf_bytes = render_client_pdf(
+            practice_name=req.practice_name,
+            patient_name=patient_name,
+            protocol_title=proto["title"],
+            client_content=proto["client_content"],
+            generated_at=proto["created_at"],
+        )
+
+    # Persist the PDF to the uploads volume so the records row can point to
+    # it and the web tier can serve it later. The same volume already backs
+    # lab uploads.
+    uploads_dir = Path(os.environ.get("UPLOADS_DIR", "/uploads"))
+    rel_key = f"protocol_exports/{proto['id']}_{req.audience}_v{proto['version']}.pdf"
+    fs_path = uploads_dir / rel_key
+    fs_path.parent.mkdir(parents=True, exist_ok=True)
+    fs_path.write_bytes(pdf_bytes)
+    fs_path.chmod(0o600)
+
+    try:
+        insert_protocol_export_record(
+            tenant_id=req.tenant_id,
+            patient_id=proto["patient_id"],
+            file_key=rel_key,
+            audience=req.audience,
+            protocol_id=proto["id"],
+            protocol_version=proto["version"],
+        )
+    except Exception:
+        # Don't fail the download if the bookkeeping insert fails — the file
+        # is on disk and the response still ships. Log only.
+        log.exception(
+            "protocol_export records-row insert failed protocol=%s audience=%s",
+            proto["id"], req.audience,
+        )
+
+    filename = f"{(proto['title'] or 'protocol').replace(' ', '_')}_{req.audience}_v{proto['version']}.pdf"
+    log.info(
+        "protocol exported id=%s audience=%s bytes=%d",
+        proto["id"], req.audience, len(pdf_bytes),
+    )
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @app.post("/knowledge/graph")
