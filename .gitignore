@@ -36,3 +36,10 @@ venv/
 # Build artifacts
 coverage/
 *.tsbuildinfo
+
+# Claude Code local state
+.claude/
+
+# Extracted Dr. Laura mentorship knowledge (third-party IP; regenerated
+# via scripts/ingest_knowledge.py). Do not commit the extracted content.
+database/seed/knowledge/*.jsonl
