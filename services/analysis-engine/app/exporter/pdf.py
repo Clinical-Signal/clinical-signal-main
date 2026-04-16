@@ -29,36 +29,54 @@ from reportlab.platypus import (
     Paragraph,
     SimpleDocTemplate,
     Spacer,
+    Table,
+    TableStyle,
 )
 
 
 # ---------------------------------------------------------------------------
-# Styles
+# Styles — aligned with the web app design tokens. Warm stone greys (not
+# pure black on white) and a muted teal accent.
 # ---------------------------------------------------------------------------
 _BASE = getSampleStyleSheet()
-INK = HexColor("#0f172a")
-MUTED = HexColor("#475569")
-ACCENT = HexColor("#1e293b")
+INK = HexColor("#1c1917")        # stone-900
+MUTED = HexColor("#78716c")      # stone-500
+SUBTLE = HexColor("#a8a29e")     # stone-400
+RULE = HexColor("#e7e5e4")       # stone-200
+ACCENT = HexColor("#0f4c47")     # matches --color-accent in globals.css
 
 H1 = ParagraphStyle(
-    "h1", parent=_BASE["Heading1"], fontSize=18, leading=22,
-    textColor=INK, spaceAfter=4,
+    "h1", parent=_BASE["Heading1"], fontSize=20, leading=24,
+    textColor=INK, spaceAfter=2,
+    fontName="Times-Roman",
 )
 H2 = ParagraphStyle(
-    "h2", parent=_BASE["Heading2"], fontSize=13, leading=17,
-    textColor=ACCENT, spaceBefore=12, spaceAfter=4,
+    "h2", parent=_BASE["Heading2"], fontSize=11, leading=14,
+    textColor=MUTED, spaceBefore=14, spaceAfter=6,
+    fontName="Helvetica-Bold",
 )
 H3 = ParagraphStyle(
-    "h3", parent=_BASE["Heading3"], fontSize=11, leading=14,
-    textColor=ACCENT, spaceBefore=8, spaceAfter=2,
+    "h3", parent=_BASE["Heading3"], fontSize=10, leading=13,
+    textColor=INK, spaceBefore=6, spaceAfter=2,
+    fontName="Helvetica-Bold",
 )
 BODY = ParagraphStyle(
-    "body", parent=_BASE["BodyText"], fontSize=10, leading=14,
+    "body", parent=_BASE["BodyText"], fontSize=10, leading=14.5,
     textColor=INK, alignment=TA_LEFT, spaceAfter=4,
+    fontName="Helvetica",
 )
 META = ParagraphStyle(
     "meta", parent=_BASE["BodyText"], fontSize=9, leading=12,
     textColor=MUTED, spaceAfter=2,
+    fontName="Helvetica",
+)
+EYEBROW = ParagraphStyle(
+    "eyebrow", parent=_BASE["BodyText"], fontSize=8, leading=10,
+    textColor=MUTED, spaceAfter=4,
+    fontName="Helvetica-Bold",
+)
+META_RIGHT = ParagraphStyle(
+    "meta-right", parent=META, alignment=2,  # right
 )
 SECTION_LABEL = ParagraphStyle(
     "label", parent=BODY, fontSize=8, textColor=MUTED, spaceAfter=2,
@@ -99,15 +117,50 @@ def _para(style: ParagraphStyle, text: Any):
 
 def _header(story: list, practice: str, audience: str, patient_name: str | None,
             title: str, generated_at: str | None):
-    story.append(_para(META, practice))
+    """Letterhead block: practice on the left, date on the right, followed
+    by eyebrow, title, and a thin rule. Keeps its own spacing so pages
+    with page-breaks don't end up with stranded rules.
+    """
+    # Letterhead row — practice left, generated date right, in a 2-col table.
+    date_str = generated_at or ""
+    if date_str:
+        # Prefer a clean "Month D, YYYY" format for the date right side.
+        try:
+            from datetime import datetime
+            dt = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+            date_str = dt.strftime("%B %-d, %Y")
+        except Exception:
+            pass
+    letterhead = Table(
+        [[Paragraph(_esc(practice), META), Paragraph(_esc(date_str), META_RIGHT)]],
+        colWidths=["*", "*"],
+        style=TableStyle([
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+            ("TOPPADDING", (0, 0), (-1, -1), 0),
+            ("LEFTPADDING", (0, 0), (-1, -1), 0),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+        ]),
+    )
+    story.append(letterhead)
+    story.append(HRFlowable(width="100%", color=RULE, spaceBefore=6, spaceAfter=14, thickness=0.5))
+
+    story.append(_para(EYEBROW, audience.upper()))
     story.append(_para(H1, title))
-    bits: list[str] = [audience]
     if patient_name:
-        bits.append(f"Patient: {patient_name}")
-    if generated_at:
-        bits.append(f"Generated {generated_at}")
-    story.append(_para(META, " · ".join(bits)))
-    story.append(HRFlowable(width="100%", color=MUTED, spaceBefore=4, spaceAfter=10, thickness=0.5))
+        story.append(_para(META, f"Prepared for {_esc(patient_name)}"))
+    story.append(Spacer(1, 10))
+
+
+def _footer(canvas, doc):
+    """Page number footer. Called by SimpleDocTemplate per page."""
+    canvas.saveState()
+    canvas.setFont("Helvetica", 8)
+    canvas.setFillColor(MUTED)
+    page_w, _ = doc.pagesize
+    canvas.drawRightString(page_w - 0.8 * inch, 0.45 * inch, f"Page {doc.page}")
+    canvas.drawString(0.8 * inch, 0.45 * inch, "Clinical Signal")
+    canvas.restoreState()
 
 
 def _build(story: list[Any]) -> bytes:
@@ -115,13 +168,14 @@ def _build(story: list[Any]) -> bytes:
     doc = SimpleDocTemplate(
         buf,
         pagesize=LETTER,
-        leftMargin=0.8 * inch,
-        rightMargin=0.8 * inch,
-        topMargin=0.7 * inch,
-        bottomMargin=0.7 * inch,
+        leftMargin=0.9 * inch,
+        rightMargin=0.9 * inch,
+        topMargin=0.8 * inch,
+        bottomMargin=0.8 * inch,
         title="Clinical Protocol",
+        author="Clinical Signal",
     )
-    doc.build(story)
+    doc.build(story, onFirstPage=_footer, onLaterPages=_footer)
     return buf.getvalue()
 
 
