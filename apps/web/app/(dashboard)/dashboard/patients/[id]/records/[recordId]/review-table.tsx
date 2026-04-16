@@ -2,9 +2,22 @@
 
 import { useState, useTransition } from "react";
 import type { LabValue } from "@/lib/records";
+import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { saveLabsAction } from "./actions";
 
 const FLAGS: LabValue["flag"][] = ["normal", "high", "low", "unknown"];
+
+const FLAG_LABEL: Record<LabValue["flag"], string> = {
+  normal: "In range",
+  high: "High",
+  low: "Low",
+  unknown: "Unknown",
+};
+
+const cellInput =
+  "w-full rounded-md border border-line bg-surface px-2 py-1 text-sm text-ink " +
+  "transition-colors focus:border-accent focus:outline-none focus-visible:shadow-focus";
 
 export function LabReviewTable({
   recordId,
@@ -39,93 +52,121 @@ export function LabReviewTable({
 
   if (labs.length === 0) {
     return (
-      <p className="rounded border border-dashed border-slate-300 p-6 text-sm text-slate-600">
-        No lab values were extracted from this PDF.
-      </p>
+      <EmptyState
+        title="No values extracted"
+        description="The PDF may have been a scan with no readable text, or the report format wasn't recognized."
+      />
     );
   }
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="overflow-x-auto rounded border border-slate-200 bg-white">
+    <div className="flex flex-col gap-4">
+      <div className="overflow-x-auto rounded-xl border border-line bg-surface">
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-left text-xs uppercase text-slate-600">
+          <thead className="border-b border-line bg-surface-sunken/50 text-left text-xs font-medium uppercase tracking-wide text-ink-subtle">
             <tr>
-              <th className="px-3 py-2">Test</th>
-              <th className="px-3 py-2">Value</th>
-              <th className="px-3 py-2">Unit</th>
-              <th className="px-3 py-2">Reference</th>
-              <th className="px-3 py-2">Flag</th>
-              <th className="px-3 py-2" />
+              <th className="px-3 py-3 font-medium">Test</th>
+              <th className="px-3 py-3 font-medium">Value</th>
+              <th className="px-3 py-3 font-medium">Unit</th>
+              <th className="px-3 py-3 font-medium">Reference</th>
+              <th className="px-3 py-3 font-medium">Flag</th>
+              <th className="px-3 py-3" />
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
-            {labs.map((row, i) => (
-              <tr key={i}>
-                <td className="px-3 py-2">
-                  <input
-                    className="w-full rounded border border-slate-200 px-2 py-1"
-                    value={row.test_name}
-                    onChange={(e) => update(i, { test_name: e.target.value })}
-                  />
-                </td>
-                <td className="px-3 py-2">
-                  <input
-                    className="w-28 rounded border border-slate-200 px-2 py-1"
-                    value={row.value}
-                    onChange={(e) => update(i, { value: e.target.value })}
-                  />
-                </td>
-                <td className="px-3 py-2">
-                  <input
-                    className="w-24 rounded border border-slate-200 px-2 py-1"
-                    value={row.unit ?? ""}
-                    onChange={(e) => update(i, { unit: e.target.value || null })}
-                  />
-                </td>
-                <td className="px-3 py-2">
-                  <input
-                    className="w-32 rounded border border-slate-200 px-2 py-1"
-                    value={row.reference_range ?? ""}
-                    onChange={(e) => update(i, { reference_range: e.target.value || null })}
-                  />
-                </td>
-                <td className="px-3 py-2">
-                  <select
-                    className="rounded border border-slate-200 px-2 py-1"
-                    value={row.flag}
-                    onChange={(e) => update(i, { flag: e.target.value as LabValue["flag"] })}
-                  >
-                    {FLAGS.map((f) => (
-                      <option key={f} value={f}>{f}</option>
-                    ))}
-                  </select>
-                </td>
-                <td className="px-3 py-2 text-right">
-                  <button
-                    type="button"
-                    onClick={() => removeRow(i)}
-                    className="text-xs text-red-700 underline"
-                  >
-                    Remove
-                  </button>
-                </td>
-              </tr>
-            ))}
+          <tbody className="divide-y divide-line">
+            {labs.map((row, i) => {
+              // Out-of-range rows get a subtle amber tint, never a red
+              // shouting border. Calmer + more accurate ('out of range'
+              // is information, not an error).
+              const flagged = row.flag === "high" || row.flag === "low";
+              return (
+                <tr
+                  key={i}
+                  className={
+                    flagged ? "bg-warning-soft/40" : "transition-colors hover:bg-surface-sunken/40"
+                  }
+                >
+                  <td className="px-3 py-2 align-top">
+                    <input
+                      className={cellInput}
+                      value={row.test_name}
+                      onChange={(e) => update(i, { test_name: e.target.value })}
+                      aria-label="Test name"
+                    />
+                  </td>
+                  <td className="px-3 py-2 align-top">
+                    <input
+                      className={`${cellInput} w-28`}
+                      value={row.value}
+                      onChange={(e) => update(i, { value: e.target.value })}
+                      aria-label="Value"
+                    />
+                  </td>
+                  <td className="px-3 py-2 align-top">
+                    <input
+                      className={`${cellInput} w-24`}
+                      value={row.unit ?? ""}
+                      onChange={(e) => update(i, { unit: e.target.value || null })}
+                      aria-label="Unit"
+                    />
+                  </td>
+                  <td className="px-3 py-2 align-top">
+                    <input
+                      className={`${cellInput} w-32`}
+                      value={row.reference_range ?? ""}
+                      onChange={(e) => update(i, { reference_range: e.target.value || null })}
+                      aria-label="Reference range"
+                    />
+                  </td>
+                  <td className="px-3 py-2 align-top">
+                    <select
+                      className={`${cellInput} pr-7`}
+                      value={row.flag}
+                      onChange={(e) => update(i, { flag: e.target.value as LabValue["flag"] })}
+                      aria-label="Flag"
+                    >
+                      {FLAGS.map((f) => (
+                        <option key={f} value={f}>
+                          {FLAG_LABEL[f]}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  <td className="px-3 py-2 text-right align-top">
+                    <button
+                      type="button"
+                      onClick={() => removeRow(i)}
+                      className="text-xs text-ink-subtle transition-colors hover:text-danger"
+                    >
+                      Remove
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
-      <div className="flex items-center gap-3">
-        <button
-          type="button"
-          onClick={onSave}
-          disabled={pending}
-          className="rounded bg-slate-900 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
-        >
-          {pending ? "Saving…" : "Save corrections"}
-        </button>
-        {saved ? <span className="text-sm text-emerald-700">Saved.</span> : null}
-        {error ? <span className="text-sm text-red-700">{error}</span> : null}
+
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="text-xs text-ink-subtle">
+          Out-of-range values highlighted. Edits don&apos;t save until you click Save.
+        </div>
+        <div className="flex items-center gap-3">
+          {saved ? (
+            <span className="text-sm text-success">Saved.</span>
+          ) : null}
+          {error ? (
+            <span className="text-sm text-danger">{error}</span>
+          ) : null}
+          <Button
+            onClick={onSave}
+            loading={pending}
+            loadingText="Saving…"
+          >
+            Save corrections
+          </Button>
+        </div>
       </div>
     </div>
   );
