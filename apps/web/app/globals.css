@@ -1,3 +1,91 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Design tokens. Keep this list short — every token added here appears
+   in tailwind.config.ts and should be used somewhere. */
+@layer base {
+  :root {
+    /* surfaces */
+    --color-canvas: 250 250 249;         /* stone-50, not pure white */
+    --color-surface: 255 255 255;
+    --color-surface-sunken: 245 245 244; /* stone-100 */
+
+    /* ink */
+    --color-ink: 28 25 23;               /* stone-900, not pure black */
+    --color-ink-muted: 68 64 60;         /* stone-700 */
+    --color-ink-subtle: 120 113 108;     /* stone-500 */
+    --color-ink-faint: 168 162 158;      /* stone-400 */
+    --color-ink-inverse: 250 250 249;
+
+    /* lines */
+    --color-line: 231 229 228;           /* stone-200 */
+    --color-line-strong: 214 211 209;    /* stone-300 */
+
+    /* accent — muted teal. Clinical, trustworthy, not loud. */
+    --color-accent: 15 76 71;
+    --color-accent-hover: 17 94 89;
+    --color-accent-soft: 240 253 250;
+
+    /* semantic */
+    --color-danger: 185 28 28;
+    --color-danger-soft: 254 242 242;
+    --color-warning: 180 83 9;
+    --color-warning-soft: 254 249 231;
+    --color-success: 21 128 61;
+    --color-success-soft: 240 253 244;
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    color: rgb(var(--color-ink));
+    background-color: rgb(var(--color-canvas));
+    font-family: var(--font-sans), system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 16px;
+    line-height: 1.5;
+  }
+
+  h1, h2 {
+    font-family: var(--font-serif), Georgia, serif;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    line-height: 1.2;
+  }
+
+  h3, h4, h5, h6 {
+    font-weight: 600;
+    letter-spacing: -0.005em;
+    line-height: 1.3;
+  }
+
+  /* Consistent focus ring for keyboard users — visible but not loud. */
+  :focus-visible {
+    outline: 2px solid rgb(var(--color-accent));
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  :focus:not(:focus-visible) {
+    outline: none;
+  }
+}
+
+/* Reusable compositional classes. Keep these minimal — prefer Tailwind
+   utilities in components. */
+@layer components {
+  .card {
+    @apply rounded-xl border border-line bg-surface;
+  }
+
+  .divider {
+    @apply border-t border-line;
+  }
+
+  .prose-limit {
+    max-width: 68ch;
+  }
+}
