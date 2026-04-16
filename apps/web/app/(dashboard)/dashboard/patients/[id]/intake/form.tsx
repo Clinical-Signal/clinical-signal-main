@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { Button } from "@/components/ui/button";
+import { intakeCompletionPct } from "@/lib/intake-schema";
 import {
   emptyDiagnosis,
   emptyMedication,
@@ -29,44 +31,92 @@ interface Props {
 export function IntakeForm({ patientId, initial }: Props) {
   const [submitting, startSubmit] = useTransition();
   const [submitError, setSubmitError] = useState<string | null>(null);
+  // Track the latest draft snapshot so the sticky progress bar updates as
+  // the practitioner fills sections. Starts from the server-rendered
+  // `initial` and is patched by each section via onDraftChange.
+  const [draft, setDraft] = useState<IntakeData>(initial);
+  const pct = useMemo(() => intakeCompletionPct(draft), [draft]);
 
   return (
     <div className="flex flex-col gap-6">
+      <div className="sticky top-14 z-[5] -mx-4 rounded-xl border border-line bg-surface/90 px-4 py-3 backdrop-blur sm:-mx-8 sm:px-8">
+        <div className="flex items-center justify-between gap-4">
+          <div className="text-xs text-ink-subtle">
+            Intake progress ·{" "}
+            <span className="text-ink">{pct}% complete</span>
+          </div>
+          <div className="text-xs text-ink-subtle">
+            Auto-saves as you type
+          </div>
+        </div>
+        <div
+          role="progressbar"
+          aria-valuenow={pct}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          className="mt-2 h-1 overflow-hidden rounded-full bg-surface-sunken"
+        >
+          <div
+            className="h-full bg-accent transition-all"
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+      </div>
+
       <SymptomsSection
         patientId={patientId}
         initial={initial.symptoms}
+        onDraftChange={(v) => setDraft((d) => ({ ...d, symptoms: v }))}
       />
-      <HistorySection patientId={patientId} initial={initial.history} />
-      <MedicationsSection patientId={patientId} initial={initial.medications} />
-      <LifestyleSection patientId={patientId} initial={initial.lifestyle} />
-      <GoalsSection patientId={patientId} initial={initial.goals} />
+      <HistorySection
+        patientId={patientId}
+        initial={initial.history}
+        onDraftChange={(v) => setDraft((d) => ({ ...d, history: v }))}
+      />
+      <MedicationsSection
+        patientId={patientId}
+        initial={initial.medications}
+        onDraftChange={(v) => setDraft((d) => ({ ...d, medications: v }))}
+      />
+      <LifestyleSection
+        patientId={patientId}
+        initial={initial.lifestyle}
+        onDraftChange={(v) => setDraft((d) => ({ ...d, lifestyle: v }))}
+      />
+      <GoalsSection
+        patientId={patientId}
+        initial={initial.goals}
+        onDraftChange={(v) => setDraft((d) => ({ ...d, goals: v }))}
+      />
       <PreviousLabsSection
         patientId={patientId}
         initial={initial.previous_labs}
+        onDraftChange={(v) => setDraft((d) => ({ ...d, previous_labs: v }))}
       />
 
-      <div className="flex flex-col gap-2 rounded border border-slate-200 bg-slate-50 p-4">
-        <p className="text-sm text-slate-700">
-          Submitting marks intake as complete and advances the patient to{" "}
-          <em>labs pending</em>. You can still edit afterward.
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-surface-sunken/60 px-5 py-4">
+        <p className="max-w-md text-sm text-ink-muted">
+          Submitting advances the patient to <em>labs pending</em>. You can
+          edit intake afterwards — nothing is locked.
         </p>
-        <button
-          type="button"
-          disabled={submitting}
-          className="self-start rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
-          onClick={() =>
-            startSubmit(async () => {
-              setSubmitError(null);
-              const res = await submitIntakeAction(patientId);
-              if (res && !res.ok) setSubmitError(res.error);
-            })
-          }
-        >
-          {submitting ? "Submitting…" : "Submit intake"}
-        </button>
-        {submitError ? (
-          <p className="text-sm text-red-600">{submitError}</p>
-        ) : null}
+        <div className="flex flex-col items-end gap-1">
+          <Button
+            loading={submitting}
+            loadingText="Submitting…"
+            onClick={() =>
+              startSubmit(async () => {
+                setSubmitError(null);
+                const res = await submitIntakeAction(patientId);
+                if (res && !res.ok) setSubmitError(res.error);
+              })
+            }
+          >
+            Submit intake
+          </Button>
+          {submitError ? (
+            <p className="text-sm text-danger">{submitError}</p>
+          ) : null}
+        </div>
       </div>
     </div>
   );
@@ -115,20 +165,27 @@ function useDebouncedSave<T>(
 
 function SectionShell({
   title,
+  description,
   status,
   children,
 }: {
   title: string;
+  description?: string;
   status: { saving: boolean; savedAt: string | null; error: string | null };
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded border border-slate-200 bg-white p-4">
-      <header className="mb-3 flex items-baseline justify-between gap-3">
-        <h3 className="text-base font-semibold">{title}</h3>
+    <section className="rounded-xl border border-line bg-surface">
+      <header className="flex items-start justify-between gap-4 border-b border-line px-6 py-4">
+        <div>
+          <h3 className="text-base font-semibold text-ink">{title}</h3>
+          {description ? (
+            <p className="mt-0.5 text-xs text-ink-subtle">{description}</p>
+          ) : null}
+        </div>
         <SaveStatus {...status} />
       </header>
-      <div className="flex flex-col gap-3">{children}</div>
+      <div className="flex flex-col gap-4 px-6 py-5">{children}</div>
     </section>
   );
 }
@@ -142,15 +199,24 @@ function SaveStatus({
   savedAt: string | null;
   error: string | null;
 }) {
-  if (error) return <span className="text-xs text-red-600">Save failed: {error}</span>;
-  if (saving) return <span className="text-xs text-slate-500">Saving…</span>;
-  if (savedAt)
+  if (error)
     return (
-      <span className="text-xs text-slate-500">
-        Saved {new Date(savedAt).toLocaleTimeString()}
+      <span className="text-xs text-danger">Couldn&apos;t save: {error}</span>
+    );
+  if (saving)
+    return (
+      <span className="inline-flex items-center gap-1.5 text-xs text-ink-subtle">
+        <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-accent" />
+        Saving…
       </span>
     );
-  return <span className="text-xs text-slate-400">Not yet saved</span>;
+  if (savedAt)
+    return (
+      <span className="text-xs text-ink-subtle">
+        Saved {new Date(savedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+      </span>
+    );
+  return <span className="text-xs text-ink-faint">Not yet saved</span>;
 }
 
 // ---------------------------------------------------------------------------
@@ -158,8 +224,11 @@ function SaveStatus({
 // ---------------------------------------------------------------------------
 
 const inputClass =
-  "rounded border border-slate-300 px-2 py-1 text-sm focus:border-slate-500 focus:outline-none";
-const labelClass = "text-xs font-medium uppercase tracking-wide text-slate-500";
+  "w-full rounded-md border border-line-strong bg-surface px-3 py-2 text-sm text-ink " +
+  "placeholder:text-ink-faint " +
+  "transition-colors focus:border-accent focus:outline-none focus-visible:shadow-focus " +
+  "disabled:bg-surface-sunken disabled:text-ink-subtle";
+const labelClass = "text-xs font-medium uppercase tracking-wide text-ink-subtle";
 
 function TextField({
   label,
@@ -294,7 +363,7 @@ function SliderField({
   return (
     <label className="flex flex-col gap-1">
       <span className={labelClass}>
-        {label} <span className="ml-2 text-slate-700">{value ?? "—"}</span>
+        {label} <span className="ml-2 text-ink">{value ?? "—"}</span>
       </span>
       <input
         type="range"
@@ -312,7 +381,7 @@ function RemoveButton({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="self-start text-xs text-red-600 hover:underline"
+      className="self-start text-xs text-danger transition-colors hover:text-danger/80"
     >
       Remove
     </button>
@@ -324,7 +393,7 @@ function AddButton({ onClick, children }: { onClick: () => void; children: React
     <button
       type="button"
       onClick={onClick}
-      className="self-start rounded border border-dashed border-slate-400 px-3 py-1 text-xs text-slate-700 hover:bg-slate-50"
+      className="self-start rounded-md border border-dashed border-line-strong px-3 py-1.5 text-xs text-ink-muted transition-colors hover:bg-surface-sunken"
     >
       + {children}
     </button>
@@ -338,9 +407,11 @@ function AddButton({ onClick, children }: { onClick: () => void; children: React
 function SymptomsSection({
   patientId,
   initial,
+  onDraftChange,
 }: {
   patientId: string;
   initial: IntakeSymptomsSection | undefined;
+  onDraftChange?: (v: IntakeSymptomsSection) => void;
 }) {
   const [data, setData] = useState<IntakeSymptomsSection>(
     // Defensively coerce: legacy seed has `symptoms: { sleep: ..., energy: ... }`
@@ -351,6 +422,7 @@ function SymptomsSection({
       : { symptoms: [], top_concerns: initial?.top_concerns ?? "" },
   );
   const status = useDebouncedSave(patientId, "symptoms", data);
+  useEffect(() => { onDraftChange?.(data); }, [data, onDraftChange]);
 
   function patchSymptom(i: number, patch: Partial<IntakeSymptom>) {
     setData((d) => ({
@@ -360,15 +432,19 @@ function SymptomsSection({
   }
 
   return (
-    <SectionShell title="Current symptoms" status={status}>
+    <SectionShell
+      title="Current symptoms"
+      description="What the patient is experiencing right now. Severity on a 1–10 scale."
+      status={status}
+    >
       <div className="flex flex-col gap-3">
         {data.symptoms.length === 0 ? (
-          <p className="text-sm text-slate-500">No symptoms recorded yet.</p>
+          <p className="text-sm text-ink-subtle">No symptoms recorded yet.</p>
         ) : null}
         {data.symptoms.map((s, i) => (
           <div
             key={i}
-            className="rounded border border-slate-200 bg-slate-50 p-3"
+            className="rounded-lg border border-line bg-surface-sunken/50 p-3"
           >
             <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
               <TextField
@@ -448,9 +524,11 @@ function SymptomsSection({
 function HistorySection({
   patientId,
   initial,
+  onDraftChange,
 }: {
   patientId: string;
   initial: IntakeHistorySection | undefined;
+  onDraftChange?: (v: IntakeHistorySection) => void;
 }) {
   const [data, setData] = useState<IntakeHistorySection>(
     Array.isArray(initial?.diagnoses)
@@ -458,6 +536,7 @@ function HistorySection({
       : { diagnoses: [], surgeries: "", family_history: "" },
   );
   const status = useDebouncedSave(patientId, "history", data);
+  useEffect(() => { onDraftChange?.(data); }, [data, onDraftChange]);
 
   function patchDx(i: number, patch: Partial<IntakeDiagnosis>) {
     setData((d) => ({
@@ -467,11 +546,15 @@ function HistorySection({
   }
 
   return (
-    <SectionShell title="Health history" status={status}>
+    <SectionShell
+      title="Health history"
+      description="Prior diagnoses, surgeries, hospitalizations, and relevant family history."
+      status={status}
+    >
       {data.diagnoses.map((dx, i) => (
         <div
           key={i}
-          className="rounded border border-slate-200 bg-slate-50 p-3"
+          className="rounded-lg border border-line bg-surface-sunken/50 p-3"
         >
           <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
             <TextField
@@ -552,11 +635,11 @@ function MedicationList({
 }) {
   return (
     <div className="flex flex-col gap-3">
-      <h4 className="text-sm font-semibold text-slate-700">{label}</h4>
+      <h4 className="text-sm font-semibold text-ink">{label}</h4>
       {items.map((m, i) => (
         <div
           key={i}
-          className="rounded border border-slate-200 bg-slate-50 p-3"
+          className="rounded-lg border border-line bg-surface-sunken/50 p-3"
         >
           <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
             <TextField
@@ -604,9 +687,11 @@ function MedicationList({
 function MedicationsSection({
   patientId,
   initial,
+  onDraftChange,
 }: {
   patientId: string;
   initial: IntakeMedicationsSection | undefined;
+  onDraftChange?: (v: IntakeMedicationsSection) => void;
 }) {
   const [data, setData] = useState<IntakeMedicationsSection>(
     Array.isArray(initial?.prescriptions) || Array.isArray(initial?.supplements)
@@ -614,8 +699,13 @@ function MedicationsSection({
       : { prescriptions: [], supplements: [] },
   );
   const status = useDebouncedSave(patientId, "medications", data);
+  useEffect(() => { onDraftChange?.(data); }, [data, onDraftChange]);
   return (
-    <SectionShell title="Medications & supplements" status={status}>
+    <SectionShell
+      title="Medications & supplements"
+      description="Everything the patient is currently taking — prescription and non-prescription."
+      status={status}
+    >
       <MedicationList
         label="Prescription medications"
         items={data.prescriptions}
@@ -639,9 +729,11 @@ function MedicationsSection({
 function LifestyleSection({
   patientId,
   initial,
+  onDraftChange,
 }: {
   patientId: string;
   initial: IntakeLifestyleSection | undefined;
+  onDraftChange?: (v: IntakeLifestyleSection) => void;
 }) {
   const [data, setData] = useState<IntakeLifestyleSection>(
     initial && typeof initial.sleep === "object" && initial.sleep !== null
@@ -654,11 +746,16 @@ function LifestyleSection({
         },
   );
   const status = useDebouncedSave(patientId, "lifestyle", data);
+  useEffect(() => { onDraftChange?.(data); }, [data, onDraftChange]);
 
   return (
-    <SectionShell title="Lifestyle" status={status}>
-      <div className="rounded border border-slate-200 bg-slate-50 p-3">
-        <h4 className="mb-2 text-sm font-semibold text-slate-700">Sleep</h4>
+    <SectionShell
+      title="Lifestyle"
+      description="Sleep, nutrition, movement, and stress. Foundations that shape every downstream system."
+      status={status}
+    >
+      <div className="rounded-lg border border-line bg-surface-sunken/50 p-3">
+        <h4 className="mb-2 text-sm font-semibold text-ink">Sleep</h4>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           <NumberField
             label="Average hours / night"
@@ -694,8 +791,8 @@ function LifestyleSection({
         </div>
       </div>
 
-      <div className="rounded border border-slate-200 bg-slate-50 p-3">
-        <h4 className="mb-2 text-sm font-semibold text-slate-700">Nutrition</h4>
+      <div className="rounded-lg border border-line bg-surface-sunken/50 p-3">
+        <h4 className="mb-2 text-sm font-semibold text-ink">Nutrition</h4>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <SelectField
             label="Diet type"
@@ -746,8 +843,8 @@ function LifestyleSection({
         </div>
       </div>
 
-      <div className="rounded border border-slate-200 bg-slate-50 p-3">
-        <h4 className="mb-2 text-sm font-semibold text-slate-700">Exercise</h4>
+      <div className="rounded-lg border border-line bg-surface-sunken/50 p-3">
+        <h4 className="mb-2 text-sm font-semibold text-ink">Exercise</h4>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           <TextField
             label="Type"
@@ -782,8 +879,8 @@ function LifestyleSection({
         </div>
       </div>
 
-      <div className="rounded border border-slate-200 bg-slate-50 p-3">
-        <h4 className="mb-2 text-sm font-semibold text-slate-700">Stress</h4>
+      <div className="rounded-lg border border-line bg-surface-sunken/50 p-3">
+        <h4 className="mb-2 text-sm font-semibold text-ink">Stress</h4>
         <SliderField
           label="Stress level (1–10)"
           value={data.stress.level}
@@ -815,9 +912,11 @@ function LifestyleSection({
 function GoalsSection({
   patientId,
   initial,
+  onDraftChange,
 }: {
   patientId: string;
   initial: IntakeGoalsSection | undefined;
+  onDraftChange?: (v: IntakeGoalsSection) => void;
 }) {
   const [data, setData] = useState<IntakeGoalsSection>(
     initial && typeof initial.desired_outcomes === "string"
@@ -825,8 +924,13 @@ function GoalsSection({
       : { desired_outcomes: "", failed_approaches: "", commitment: null },
   );
   const status = useDebouncedSave(patientId, "goals", data);
+  useEffect(() => { onDraftChange?.(data); }, [data, onDraftChange]);
   return (
-    <SectionShell title="Health goals" status={status}>
+    <SectionShell
+      title="Health goals"
+      description="What the patient wants to achieve, and what they've already tried."
+      status={status}
+    >
       <TextArea
         label="What are you hoping to achieve?"
         value={data.desired_outcomes}
@@ -855,16 +959,23 @@ function GoalsSection({
 function PreviousLabsSection({
   patientId,
   initial,
+  onDraftChange,
 }: {
   patientId: string;
   initial: IntakePreviousLabsSection | undefined;
+  onDraftChange?: (v: IntakePreviousLabsSection) => void;
 }) {
   const [data, setData] = useState<IntakePreviousLabsSection>(
     initial ?? { has_previous_labs: null, remembered_results: "" },
   );
   const status = useDebouncedSave(patientId, "previous_labs", data);
+  useEffect(() => { onDraftChange?.(data); }, [data, onDraftChange]);
   return (
-    <SectionShell title="Previous labs" status={status}>
+    <SectionShell
+      title="Previous labs"
+      description="Anything they've had run before. Upload PDFs from the records page."
+      status={status}
+    >
       <fieldset className="flex gap-4 text-sm">
         <legend className={labelClass}>Do you have previous lab results?</legend>
         {[
@@ -882,7 +993,7 @@ function PreviousLabsSection({
         ))}
       </fieldset>
       {data.has_previous_labs ? (
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-ink-subtle">
           Upload PDFs from the{" "}
           <a className="underline" href={`/dashboard/patients/${patientId}/records`}>
             records page

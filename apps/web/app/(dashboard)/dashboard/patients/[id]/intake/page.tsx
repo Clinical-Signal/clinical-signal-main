@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { requireAuth } from "@/lib/auth";
 import { patientBelongsToTenant } from "@/lib/records";
 import { getIntake } from "@/lib/intake";
+import { Page, PageHeader } from "@/components/ui/page";
 import { IntakeForm } from "./form";
 
 export default async function IntakeFormPage({
@@ -16,23 +17,21 @@ export default async function IntakeFormPage({
   const initial = await getIntake(user.tenantId, params.id);
 
   return (
-    <section className="flex flex-col gap-4">
-      <header className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-semibold">Patient intake</h2>
-          <p className="text-sm text-slate-600">
-            Each section auto-saves as you complete it. Submit when finished to
-            advance the patient to lab ordering.
-          </p>
-        </div>
+    <Page>
+      <div className="mb-2">
         <Link
-          className="text-sm underline"
           href={`/dashboard/patients/${params.id}`}
+          className="text-sm text-ink-subtle transition-colors hover:text-ink"
         >
           ← Back to patient
         </Link>
-      </header>
+      </div>
+      <PageHeader
+        eyebrow="Patient intake"
+        title="Capture the baseline"
+        description="Each section auto-saves as you type. Submit when you're finished to advance to lab ordering — nothing is locked afterwards."
+      />
       <IntakeForm patientId={params.id} initial={initial} />
-    </section>
+    </Page>
   );
 }
