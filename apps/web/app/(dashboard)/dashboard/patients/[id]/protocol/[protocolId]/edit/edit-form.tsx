@@ -2,7 +2,8 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
+import { Button } from "@/components/ui/button";
 import {
   changeProtocolStatus,
   regenerateProtocol,
@@ -30,21 +31,54 @@ interface Props {
 }
 
 const inputClass =
-  "w-full rounded border border-slate-300 px-2 py-1 text-sm focus:border-slate-500 focus:outline-none";
+  "w-full rounded-md border border-line-strong bg-surface px-3 py-2 text-sm text-ink " +
+  "transition-colors focus:border-accent focus:outline-none focus-visible:shadow-focus";
 const labelClass =
-  "text-xs font-semibold uppercase tracking-wide text-slate-500";
+  "text-xs font-medium uppercase tracking-wide text-ink-subtle";
 
 export function EditForm(props: Props) {
   const router = useRouter();
+  const initialClinicalStripped = useMemo(
+    () => stripGen(props.initialClinical),
+    [props.initialClinical],
+  );
   const [title, setTitle] = useState(props.initialTitle);
   const [status, setStatus] = useState<Status>(props.initialStatus);
-  const [clinical, setClinical] = useState(stripGen(props.initialClinical));
+  const [clinical, setClinical] = useState(initialClinicalStripped);
   const [client, setClient] = useState(props.initialClient);
   const [saving, startSave] = useTransition();
   const [statusSaving, startStatus] = useTransition();
   const [regenerating, startRegen] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Track whether anything has been edited since the snapshot landed; lets
+  // the toolbar show a calm "Edited" pill rather than a noisy diff badge.
+  const dirty = useMemo(() => {
+    return (
+      title !== props.initialTitle ||
+      JSON.stringify(clinical) !== JSON.stringify(initialClinicalStripped) ||
+      JSON.stringify(client) !== JSON.stringify(props.initialClient)
+    );
+  }, [
+    title,
+    clinical,
+    client,
+    props.initialTitle,
+    props.initialClient,
+    initialClinicalStripped,
+  ]);
+
+  // Warn before navigating away with unsaved changes.
+  useEffect(() => {
+    if (!dirty) return;
+    function handler(e: BeforeUnloadEvent) {
+      e.preventDefault();
+      e.returnValue = "";
+    }
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [dirty]);
 
   function onSave() {
     setMessage(null);
@@ -109,15 +143,28 @@ export function EditForm(props: Props) {
         versions={props.versions}
         currentId={props.protocolId}
         patientId={props.patientId}
+        dirty={dirty}
       />
-      {message ? <p className="text-sm text-emerald-700">{message}</p> : null}
-      {error ? <p className="text-sm text-red-600">{error}</p> : null}
+      {message ? (
+        <p className="text-sm text-success">{message}</p>
+      ) : null}
+      {error ? (
+        <p className="text-sm text-danger">{error}</p>
+      ) : null}
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <Panel title="Output A — Clinical Protocol" tone="white">
+        <Panel
+          title="Output A · Clinical protocol"
+          subtitle="Practitioner copy"
+          tone="surface"
+        >
           <ClinicalEditor value={clinical} onChange={setClinical} />
         </Panel>
-        <Panel title="Output B — Phased Client Action Plan" tone="slate">
+        <Panel
+          title="Output B · Client action plan"
+          subtitle="Patient copy"
+          tone="sunken"
+        >
           <ClientEditor value={client} onChange={setClient} />
         </Panel>
       </div>
@@ -134,23 +181,25 @@ function stripGen(obj: Record<string, any>): Record<string, any> {
 
 function Panel({
   title,
+  subtitle,
   tone,
   children,
 }: {
   title: string;
-  tone: "white" | "slate";
+  subtitle?: string;
+  tone: "surface" | "sunken";
   children: React.ReactNode;
 }) {
+  const bg = tone === "surface" ? "bg-surface" : "bg-surface-sunken/40";
   return (
-    <article
-      className={`rounded border border-slate-200 p-4 ${
-        tone === "white" ? "bg-white" : "bg-slate-50"
-      }`}
-    >
-      <h3 className="mb-3 border-b border-slate-200 pb-2 text-base font-semibold">
-        {title}
-      </h3>
-      <div className="flex flex-col gap-4">{children}</div>
+    <article className={`rounded-xl border border-line ${bg} p-6`}>
+      <header className="mb-4 border-b border-line pb-3">
+        <h2 className="text-lg font-semibold text-ink">{title}</h2>
+        {subtitle ? (
+          <p className="mt-1 text-xs text-ink-subtle">{subtitle}</p>
+        ) : null}
+      </header>
+      <div className="flex flex-col gap-5">{children}</div>
     </article>
   );
 }
@@ -169,6 +218,7 @@ function Toolbar({
   versions,
   currentId,
   patientId,
+  dirty,
 }: {
   title: string;
   onTitleChange: (v: string) => void;
@@ -183,11 +233,12 @@ function Toolbar({
   versions: VersionRow[];
   currentId: string;
   patientId: string;
+  dirty: boolean;
 }) {
   const router = useRouter();
   return (
-    <div className="flex flex-wrap items-end gap-3 rounded border border-slate-200 bg-white p-3">
-      <label className="flex flex-1 flex-col gap-1 min-w-[260px]">
+    <div className="sticky top-14 z-[5] flex flex-wrap items-end gap-3 rounded-xl border border-line bg-surface/95 p-4 backdrop-blur">
+      <label className="flex min-w-[260px] flex-1 flex-col gap-1.5">
         <span className={labelClass}>Title</span>
         <input
           className={inputClass}
@@ -195,10 +246,10 @@ function Toolbar({
           onChange={(e) => onTitleChange(e.target.value)}
         />
       </label>
-      <label className="flex flex-col gap-1">
+      <label className="flex flex-col gap-1.5">
         <span className={labelClass}>Status (v{currentVersion})</span>
         <select
-          className={inputClass}
+          className={`${inputClass} h-10`}
           value={status}
           disabled={statusSaving}
           onChange={(e) => onStatusChange(e.target.value as Status)}
@@ -208,10 +259,10 @@ function Toolbar({
           <option value="finalized">Finalized</option>
         </select>
       </label>
-      <label className="flex flex-col gap-1">
+      <label className="flex flex-col gap-1.5">
         <span className={labelClass}>Version</span>
         <select
-          className={inputClass}
+          className={`${inputClass} h-10`}
           value={currentId}
           onChange={(e) => {
             const id = e.target.value;
@@ -227,23 +278,30 @@ function Toolbar({
           ))}
         </select>
       </label>
-      <button
-        type="button"
-        className="rounded bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
-        disabled={saving}
-        onClick={onSave}
-      >
-        {saving ? "Saving…" : "Save as new version"}
-      </button>
-      <button
-        type="button"
-        className="rounded border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50 disabled:opacity-60"
-        disabled={regenerating}
-        onClick={onRegenerate}
-        title="Re-run protocol generation against the linked analysis"
-      >
-        {regenerating ? "Regenerating…" : "Regenerate"}
-      </button>
+      <div className="ml-auto flex items-center gap-2">
+        {dirty ? (
+          <span className="inline-flex items-center gap-1.5 rounded-md bg-warning-soft px-2 py-1 text-xs font-medium text-warning">
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-warning" />
+            Unsaved changes
+          </span>
+        ) : null}
+        <Button
+          variant="secondary"
+          loading={regenerating}
+          loadingText="Regenerating…"
+          onClick={onRegenerate}
+          title="Re-run protocol generation against the linked analysis"
+        >
+          Regenerate
+        </Button>
+        <Button
+          loading={saving}
+          loadingText="Saving…"
+          onClick={onSave}
+        >
+          Save as new version
+        </Button>
+      </div>
     </div>
   );
 }
@@ -316,7 +374,7 @@ function StringList({
             />
             <button
               type="button"
-              className="text-xs text-red-600"
+              className="text-xs text-danger transition-colors hover:text-danger/80"
               onClick={() => onChange(list.filter((_, idx) => idx !== i))}
             >
               Remove
@@ -325,7 +383,7 @@ function StringList({
         ))}
         <button
           type="button"
-          className="self-start rounded border border-dashed border-slate-400 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50"
+          className="self-start rounded-md border border-dashed border-line-strong px-2.5 py-1 text-xs text-ink-muted transition-colors hover:bg-surface-sunken"
           onClick={() => onChange([...list, ""])}
         >
           + Add
@@ -357,14 +415,14 @@ function ItemList<T extends Record<string, any>>({
       {list.map((it, i) => (
         <div
           key={i}
-          className="rounded border border-slate-200 bg-white p-2 shadow-sm"
+          className="rounded-lg border border-line bg-surface p-3"
         >
           {renderItem(it, (patch) =>
             onChange(list.map((x, idx) => (idx === i ? { ...x, ...patch } : x))),
           )}
           <button
             type="button"
-            className="mt-1 text-xs text-red-600"
+            className="mt-1 text-xs text-danger transition-colors hover:text-danger/80"
             onClick={() => onChange(list.filter((_, idx) => idx !== i))}
           >
             Remove
@@ -373,7 +431,7 @@ function ItemList<T extends Record<string, any>>({
       ))}
       <button
         type="button"
-        className="self-start rounded border border-dashed border-slate-400 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50"
+        className="self-start rounded-md border border-dashed border-line-strong px-2.5 py-1 text-xs text-ink-muted transition-colors hover:bg-surface-sunken"
         onClick={() => onChange([...list, empty()])}
       >
         + {addLabel ?? "Add"}

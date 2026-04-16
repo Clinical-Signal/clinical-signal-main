@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { requireAuth } from "@/lib/auth";
 import { patientBelongsToTenant } from "@/lib/records";
 import { getProtocol, listProtocolVersions } from "@/lib/protocols";
+import { Page, PageHeader } from "@/components/ui/page";
 import { EditForm } from "./edit-form";
 
 export default async function ProtocolEditPage({
@@ -18,30 +19,20 @@ export default async function ProtocolEditPage({
   const versions = await listProtocolVersions(user.tenantId, params.id);
 
   return (
-    <section className="flex flex-col gap-4">
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-xl font-semibold">Edit protocol</h2>
-          <p className="text-sm text-slate-600">
-            Saving creates a new version. Status changes apply to this version
-            in place.
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <Link
-            className="text-sm underline"
-            href={`/dashboard/patients/${params.id}/protocol/${params.protocolId}`}
-          >
-            View
-          </Link>
-          <Link
-            className="text-sm underline"
-            href={`/dashboard/patients/${params.id}`}
-          >
-            ← Patient
-          </Link>
-        </div>
-      </header>
+    <Page>
+      <div className="mb-2 flex items-center gap-3">
+        <Link
+          href={`/dashboard/patients/${params.id}/protocol/${params.protocolId}`}
+          className="text-sm text-ink-subtle transition-colors hover:text-ink"
+        >
+          ← Back to view
+        </Link>
+      </div>
+      <PageHeader
+        eyebrow="Editor"
+        title="Edit protocol"
+        description="Save creates a new version (history is retained). Status changes apply to this version in place."
+      />
       <EditForm
         patientId={params.id}
         protocolId={params.protocolId}
@@ -57,6 +48,6 @@ export default async function ProtocolEditPage({
           createdAt: v.createdAt.toISOString(),
         }))}
       />
-    </section>
+    </Page>
   );
 }
