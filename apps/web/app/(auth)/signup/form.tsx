@@ -1,42 +1,45 @@
 "use client";
 
 import { useFormState, useFormStatus } from "react-dom";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Field } from "@/components/ui/field";
 import { signupAction } from "./actions";
 
 export function SignupForm() {
   const [state, action] = useFormState(signupAction, undefined);
   return (
-    <form action={action} className="flex flex-col gap-3">
-      <label className="flex flex-col gap-1 text-sm">
-        Name
-        <input name="name" required className="rounded border border-slate-300 px-3 py-2" />
-      </label>
-      <label className="flex flex-col gap-1 text-sm">
-        Email
-        <input
+    <form action={action} className="flex flex-col gap-4">
+      <Field label="Your name" htmlFor="signup-name">
+        <Input id="signup-name" name="name" required />
+      </Field>
+      <Field label="Email" htmlFor="signup-email">
+        <Input
+          id="signup-email"
           type="email"
           name="email"
           autoComplete="email"
           required
-          className="rounded border border-slate-300 px-3 py-2"
         />
-      </label>
-      <label className="flex flex-col gap-1 text-sm">
-        Password
-        <input
+      </Field>
+      <Field
+        label="Password"
+        htmlFor="signup-password"
+        hint="Minimum 12 characters. Checked against the HaveIBeenPwned breach corpus."
+      >
+        <Input
+          id="signup-password"
           type="password"
           name="password"
           autoComplete="new-password"
           minLength={12}
           required
-          className="rounded border border-slate-300 px-3 py-2"
         />
-        <span className="text-xs text-slate-500">
-          Minimum 12 characters. Checked against the HaveIBeenPwned breach corpus.
-        </span>
-      </label>
+      </Field>
       {state?.error ? (
-        <p className="text-sm text-red-700" role="alert">{state.error}</p>
+        <p className="text-sm text-danger" role="alert">
+          {state.error}
+        </p>
       ) : null}
       <SubmitButton />
     </form>
@@ -46,12 +49,8 @@ export function SignupForm() {
 function SubmitButton() {
   const { pending } = useFormStatus();
   return (
-    <button
-      type="submit"
-      disabled={pending}
-      className="rounded bg-slate-900 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
-    >
-      {pending ? "Creating account…" : "Create account"}
-    </button>
+    <Button type="submit" loading={pending} loadingText="Creating account…">
+      Create account
+    </Button>
   );
 }

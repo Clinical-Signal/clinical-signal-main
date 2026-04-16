@@ -1,24 +1,28 @@
 "use client";
 
 import { useFormState, useFormStatus } from "react-dom";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Field } from "@/components/ui/field";
 import { requestResetAction } from "./actions";
 
 export function ResetForm() {
   const [state, action] = useFormState(requestResetAction, undefined);
   return (
-    <form action={action} className="flex flex-col gap-3">
-      <label className="flex flex-col gap-1 text-sm">
-        Email
-        <input
+    <form action={action} className="flex flex-col gap-4">
+      <Field label="Email" htmlFor="reset-email">
+        <Input
+          id="reset-email"
           type="email"
           name="email"
           autoComplete="email"
           required
-          className="rounded border border-slate-300 px-3 py-2"
         />
-      </label>
+      </Field>
       {state?.message ? (
-        <p className="text-sm text-slate-700" role="status">{state.message}</p>
+        <p className="text-sm text-ink-muted" role="status">
+          {state.message}
+        </p>
       ) : null}
       <SubmitButton />
     </form>
@@ -28,12 +32,8 @@ export function ResetForm() {
 function SubmitButton() {
   const { pending } = useFormStatus();
   return (
-    <button
-      type="submit"
-      disabled={pending}
-      className="rounded bg-slate-900 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
-    >
-      {pending ? "Sending…" : "Send reset link"}
-    </button>
+    <Button type="submit" loading={pending} loadingText="Sending…">
+      Send reset link
+    </Button>
   );
 }

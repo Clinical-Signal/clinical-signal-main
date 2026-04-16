@@ -75,16 +75,10 @@
 }
 
 /* Reusable compositional classes. Keep these minimal — prefer Tailwind
-   utilities in components. */
+   utilities in components. Note: @apply with custom CSS-var-based theme
+   colors fails at build time (Tailwind can't resolve them during
+   @apply expansion), so these use raw CSS. */
 @layer components {
-  .card {
-    @apply rounded-xl border border-line bg-surface;
-  }
-
-  .divider {
-    @apply border-t border-line;
-  }
-
   .prose-limit {
     max-width: 68ch;
   }

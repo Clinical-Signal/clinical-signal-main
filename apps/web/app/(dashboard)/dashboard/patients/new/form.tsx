@@ -1,38 +1,36 @@
 "use client";
 
 import { useFormState, useFormStatus } from "react-dom";
+import { Button } from "@/components/ui/button";
+import { Input, Textarea } from "@/components/ui/input";
+import { Field } from "@/components/ui/field";
 import { createPatientAction } from "./actions";
 
 export function NewPatientForm() {
   const [state, action] = useFormState(createPatientAction, undefined);
   return (
-    <form action={action} className="flex flex-col gap-3">
-      <label className="flex flex-col gap-1 text-sm">
-        Full name
-        <input
-          name="name"
-          required
-          className="rounded border border-slate-300 px-3 py-2"
-        />
-      </label>
-      <label className="flex flex-col gap-1 text-sm">
-        Date of birth
-        <input
-          type="date"
-          name="dob"
-          className="rounded border border-slate-300 px-3 py-2"
-        />
-      </label>
-      <label className="flex flex-col gap-1 text-sm">
-        Private notes
-        <textarea
-          name="notes"
-          rows={3}
-          className="rounded border border-slate-300 px-3 py-2"
-        />
-      </label>
+    <form action={action} className="flex flex-col gap-4">
+      <Field label="Full name" htmlFor="patient-name">
+        <Input id="patient-name" name="name" required />
+      </Field>
+      <Field
+        label="Date of birth"
+        htmlFor="patient-dob"
+        hint="Optional, but useful for age-based reference ranges."
+      >
+        <Input id="patient-dob" type="date" name="dob" />
+      </Field>
+      <Field
+        label="Private notes"
+        htmlFor="patient-notes"
+        hint="Visible only to you. Referral source, first-call impressions — whatever helps you remember."
+      >
+        <Textarea id="patient-notes" name="notes" rows={3} />
+      </Field>
       {state?.error ? (
-        <p className="text-sm text-red-700" role="alert">{state.error}</p>
+        <p className="text-sm text-danger" role="alert">
+          {state.error}
+        </p>
       ) : null}
       <Submit />
     </form>
@@ -42,12 +40,10 @@ export function NewPatientForm() {
 function Submit() {
   const { pending } = useFormStatus();
   return (
-    <button
-      type="submit"
-      disabled={pending}
-      className="self-start rounded bg-slate-900 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
-    >
-      {pending ? "Creating…" : "Create patient"}
-    </button>
+    <div>
+      <Button type="submit" loading={pending} loadingText="Creating…">
+        Create patient
+      </Button>
+    </div>
   );
 }
