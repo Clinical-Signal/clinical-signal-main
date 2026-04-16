@@ -1,35 +1,38 @@
 "use client";
 
 import { useFormState, useFormStatus } from "react-dom";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Field } from "@/components/ui/field";
 import { loginAction } from "./actions";
 
 export function LoginForm({ next }: { next: string }) {
   const [state, action] = useFormState(loginAction, undefined);
   return (
-    <form action={action} className="flex flex-col gap-3">
+    <form action={action} className="flex flex-col gap-4">
       <input type="hidden" name="next" value={next} />
-      <label className="flex flex-col gap-1 text-sm">
-        Email
-        <input
+      <Field label="Email" htmlFor="login-email">
+        <Input
+          id="login-email"
           type="email"
           name="email"
           autoComplete="email"
           required
-          className="rounded border border-slate-300 px-3 py-2"
         />
-      </label>
-      <label className="flex flex-col gap-1 text-sm">
-        Password
-        <input
+      </Field>
+      <Field label="Password" htmlFor="login-password">
+        <Input
+          id="login-password"
           type="password"
           name="password"
           autoComplete="current-password"
           required
-          className="rounded border border-slate-300 px-3 py-2"
         />
-      </label>
+      </Field>
       {state?.error ? (
-        <p className="text-sm text-red-700" role="alert">{state.error}</p>
+        <p className="text-sm text-danger" role="alert">
+          {state.error}
+        </p>
       ) : null}
       <SubmitButton />
     </form>
@@ -39,12 +42,8 @@ export function LoginForm({ next }: { next: string }) {
 function SubmitButton() {
   const { pending } = useFormStatus();
   return (
-    <button
-      type="submit"
-      disabled={pending}
-      className="rounded bg-slate-900 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
-    >
-      {pending ? "Signing in…" : "Sign in"}
-    </button>
+    <Button type="submit" loading={pending} loadingText="Signing in…">
+      Sign in
+    </Button>
   );
 }
