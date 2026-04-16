@@ -16,7 +16,7 @@ import {
   type IntakeSectionKey,
   type IntakeSymptom,
   type IntakeSymptomsSection,
-} from "@/lib/intake";
+} from "@/lib/intake-schema";
 import { saveSectionAction, submitIntakeAction } from "./actions";
 
 const SAVE_DEBOUNCE_MS = 1500;
@@ -343,7 +343,12 @@ function SymptomsSection({
   initial: IntakeSymptomsSection | undefined;
 }) {
   const [data, setData] = useState<IntakeSymptomsSection>(
-    initial ?? { symptoms: [], top_concerns: "" },
+    // Defensively coerce: legacy seed has `symptoms: { sleep: ..., energy: ... }`
+    // (object) instead of `{ symptoms: [], top_concerns: "" }`. Treat any
+    // non-conforming shape as empty so the form renders.
+    Array.isArray(initial?.symptoms)
+      ? (initial as IntakeSymptomsSection)
+      : { symptoms: [], top_concerns: initial?.top_concerns ?? "" },
   );
   const status = useDebouncedSave(patientId, "symptoms", data);
 
@@ -448,7 +453,9 @@ function HistorySection({
   initial: IntakeHistorySection | undefined;
 }) {
   const [data, setData] = useState<IntakeHistorySection>(
-    initial ?? { diagnoses: [], surgeries: "", family_history: "" },
+    Array.isArray(initial?.diagnoses)
+      ? (initial as IntakeHistorySection)
+      : { diagnoses: [], surgeries: "", family_history: "" },
   );
   const status = useDebouncedSave(patientId, "history", data);
 
@@ -602,7 +609,9 @@ function MedicationsSection({
   initial: IntakeMedicationsSection | undefined;
 }) {
   const [data, setData] = useState<IntakeMedicationsSection>(
-    initial ?? { prescriptions: [], supplements: [] },
+    Array.isArray(initial?.prescriptions) || Array.isArray(initial?.supplements)
+      ? (initial as IntakeMedicationsSection)
+      : { prescriptions: [], supplements: [] },
   );
   const status = useDebouncedSave(patientId, "medications", data);
   return (
@@ -635,12 +644,14 @@ function LifestyleSection({
   initial: IntakeLifestyleSection | undefined;
 }) {
   const [data, setData] = useState<IntakeLifestyleSection>(
-    initial ?? {
-      sleep: { average_hours: null, quality: "", issues: "" },
-      nutrition: { diet_type: "", restrictions: "", sensitivities: "", water_oz_per_day: null },
-      exercise: { type: "", frequency_per_week: null, intensity: "" },
-      stress: { level: null, sources: "", management: "" },
-    },
+    initial && typeof initial.sleep === "object" && initial.sleep !== null
+      ? initial
+      : {
+          sleep: { average_hours: null, quality: "", issues: "" },
+          nutrition: { diet_type: "", restrictions: "", sensitivities: "", water_oz_per_day: null },
+          exercise: { type: "", frequency_per_week: null, intensity: "" },
+          stress: { level: null, sources: "", management: "" },
+        },
   );
   const status = useDebouncedSave(patientId, "lifestyle", data);
 
@@ -809,7 +820,9 @@ function GoalsSection({
   initial: IntakeGoalsSection | undefined;
 }) {
   const [data, setData] = useState<IntakeGoalsSection>(
-    initial ?? { desired_outcomes: "", failed_approaches: "", commitment: null },
+    initial && typeof initial.desired_outcomes === "string"
+      ? initial
+      : { desired_outcomes: "", failed_approaches: "", commitment: null },
   );
   const status = useDebouncedSave(patientId, "goals", data);
   return (

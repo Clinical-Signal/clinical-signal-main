@@ -204,29 +204,29 @@ function LifestyleBlock({ data }: { data: IntakeData }) {
           <h4 className="text-sm font-semibold text-slate-700">Sleep</h4>
           <Field
             label="Average hours / night"
-            value={ls.sleep.average_hours ?? ""}
+            value={ls.sleep?.average_hours ?? ""}
           />
-          <Field label="Quality" value={ls.sleep.quality} />
-          <Field label="Issues" value={ls.sleep.issues} />
+          <Field label="Quality" value={ls.sleep?.quality ?? ""} />
+          <Field label="Issues" value={ls.sleep?.issues ?? ""} />
         </div>
         <div>
           <h4 className="text-sm font-semibold text-slate-700">Nutrition</h4>
-          <Field label="Diet type" value={ls.nutrition.diet_type} />
-          <Field label="Daily water (oz)" value={ls.nutrition.water_oz_per_day ?? ""} />
-          <Field label="Restrictions" value={ls.nutrition.restrictions} />
-          <Field label="Sensitivities" value={ls.nutrition.sensitivities} />
+          <Field label="Diet type" value={ls.nutrition?.diet_type ?? ""} />
+          <Field label="Daily water (oz)" value={ls.nutrition?.water_oz_per_day ?? ""} />
+          <Field label="Restrictions" value={ls.nutrition?.restrictions ?? ""} />
+          <Field label="Sensitivities" value={ls.nutrition?.sensitivities ?? ""} />
         </div>
         <div>
           <h4 className="text-sm font-semibold text-slate-700">Exercise</h4>
-          <Field label="Type" value={ls.exercise.type} />
-          <Field label="Sessions / week" value={ls.exercise.frequency_per_week ?? ""} />
-          <Field label="Intensity" value={ls.exercise.intensity} />
+          <Field label="Type" value={ls.exercise?.type ?? ""} />
+          <Field label="Sessions / week" value={ls.exercise?.frequency_per_week ?? ""} />
+          <Field label="Intensity" value={ls.exercise?.intensity ?? ""} />
         </div>
         <div>
           <h4 className="text-sm font-semibold text-slate-700">Stress</h4>
-          <Field label="Level (1–10)" value={ls.stress.level ?? ""} />
-          <Field label="Sources" value={ls.stress.sources} />
-          <Field label="Management" value={ls.stress.management} />
+          <Field label="Level (1–10)" value={ls.stress?.level ?? ""} />
+          <Field label="Sources" value={ls.stress?.sources ?? ""} />
+          <Field label="Management" value={ls.stress?.management ?? ""} />
         </div>
       </div>
     </Block>

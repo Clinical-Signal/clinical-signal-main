@@ -39,15 +39,30 @@ export async function withTenant<T>(
 ): Promise<T> {
   const client = await pool.connect();
   let errored = false;
+  let inTx = false;
   try {
+    // RLS policies read the tenant id from a per-transaction GUC. set_config
+    // with is_local=true only survives inside a transaction; we ran in
+    // autocommit before, so the SET reverted before the next query and RLS
+    // saw an empty string (which '' :: uuid then rejected). Wrap fn in an
+    // explicit BEGIN/COMMIT so the tenant binding actually persists.
+    await client.query("BEGIN");
+    inTx = true;
     await client.query("SELECT set_config('app.current_tenant_id', $1, true)", [tenantId]);
-    return await fn(client);
+    const result = await fn(client);
+    await client.query("COMMIT");
+    inTx = false;
+    return result;
   } catch (err) {
     errored = true;
+    if (inTx) {
+      try { await client.query("ROLLBACK"); } catch { /* swallow */ }
+    }
     throw err;
   } finally {
     // `release(true)` tells pg to destroy rather than return-to-pool the
-    // client, guaranteeing no tenant GUC residue on a future checkout.
+    // client on error, guaranteeing no tenant GUC residue on a future
+    // checkout. Successful txns committed cleanly, so reuse is safe.
     client.release(errored || undefined);
   }
 }
