@@ -3,19 +3,33 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { RecordSummary, ProcessingStatus } from "@/lib/records";
+import { Badge, StatusDot } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
 
-const STATUS_STYLES: Record<ProcessingStatus, string> = {
-  pending: "bg-slate-100 text-slate-700",
-  processing: "bg-blue-100 text-blue-800",
-  complete: "bg-emerald-100 text-emerald-800",
-  failed: "bg-red-100 text-red-800",
+const STATUS_TONE: Record<
+  ProcessingStatus,
+  "neutral" | "accent" | "warning" | "success" | "danger"
+> = {
+  pending: "neutral",
+  processing: "accent",
+  complete: "success",
+  failed: "danger",
 };
 
 const STATUS_LABELS: Record<ProcessingStatus, string> = {
   pending: "Queued",
-  processing: "Processing",
-  complete: "Complete",
+  processing: "Extracting",
+  complete: "Ready",
   failed: "Failed",
+};
+
+const RECORD_TYPE_LABELS: Record<string, string> = {
+  lab: "Lab report",
+  clinical_note: "Clinical note",
+  imaging: "Imaging",
+  intake_form: "Intake",
+  protocol_export: "Protocol PDF",
+  other: "Other",
 };
 
 export function RecordsList({
@@ -57,42 +71,55 @@ export function RecordsList({
 
   if (records.length === 0) {
     return (
-      <p className="rounded border border-dashed border-slate-300 p-6 text-sm text-slate-600">
-        No records yet. Upload a lab PDF to get started.
-      </p>
+      <EmptyState
+        title="No records yet"
+        description="Upload a lab PDF and we'll extract structured values for review."
+      />
     );
   }
 
   return (
-    <ul className="divide-y divide-slate-200 rounded border border-slate-200 bg-white">
-      {records.map((r) => (
-        <li key={r.id} className="flex items-center justify-between px-4 py-3">
-          <div>
-            <div className="text-sm font-medium">
-              {r.recordType === "lab" ? "Lab report" : r.recordType}
+    <div className="overflow-hidden rounded-xl border border-line bg-surface">
+      <ul className="divide-y divide-line">
+        {records.map((r) => (
+          <li
+            key={r.id}
+            className="flex items-center justify-between gap-4 px-5 py-3"
+          >
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 text-sm">
+                <span className="font-medium text-ink">
+                  {RECORD_TYPE_LABELS[r.recordType] ?? r.recordType}
+                </span>
+                <span className="inline-flex items-center gap-1.5 text-xs text-ink-subtle">
+                  <StatusDot tone={STATUS_TONE[r.status]} />
+                  {STATUS_LABELS[r.status]}
+                </span>
+              </div>
+              <div className="mt-0.5 text-xs text-ink-subtle">
+                Uploaded {new Date(r.uploadedAt).toLocaleString()}
+              </div>
+              {r.status === "failed" && r.processingError ? (
+                <div className="mt-1 max-w-xl text-xs text-danger">
+                  {r.processingError}
+                </div>
+              ) : null}
             </div>
-            <div className="text-xs text-slate-500">
-              Uploaded {new Date(r.uploadedAt).toLocaleString()}
+            <div className="flex items-center gap-3">
+              {r.status === "complete" ? (
+                <Link
+                  className="text-sm text-ink-muted transition-colors hover:text-ink"
+                  href={`/dashboard/patients/${patientId}/records/${r.id}`}
+                >
+                  Review →
+                </Link>
+              ) : r.status === "processing" ? (
+                <Badge tone="accent">working…</Badge>
+              ) : null}
             </div>
-            {r.status === "failed" && r.processingError ? (
-              <div className="mt-1 text-xs text-red-700">{r.processingError}</div>
-            ) : null}
-          </div>
-          <div className="flex items-center gap-3">
-            <span className={`rounded-full px-2 py-0.5 text-xs ${STATUS_STYLES[r.status]}`}>
-              {STATUS_LABELS[r.status]}
-            </span>
-            {r.status === "complete" ? (
-              <Link
-                className="text-sm underline"
-                href={`/dashboard/patients/${patientId}/records/${r.id}`}
-              >
-                Review
-              </Link>
-            ) : null}
-          </div>
-        </li>
-      ))}
-    </ul>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }

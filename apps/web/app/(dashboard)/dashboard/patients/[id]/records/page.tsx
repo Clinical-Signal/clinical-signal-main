@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireAuth } from "@/lib/auth";
 import { listRecords, patientBelongsToTenant } from "@/lib/records";
+import { Page, PageHeader } from "@/components/ui/page";
 import { RecordsList } from "./records-list";
 import { UploadForm } from "./upload-form";
 
@@ -12,28 +13,25 @@ export default async function PatientRecordsPage({ params }: { params: { id: str
   const initial = await listRecords(user.tenantId, params.id);
 
   return (
-    <section className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-semibold">Records</h2>
-          <p className="text-sm text-slate-600">Upload lab PDFs for structured extraction.</p>
-        </div>
-        <div className="flex items-center gap-4">
-          <Link className="text-sm underline" href={`/dashboard/patients/${params.id}/intake/review`}>
-            Intake review →
-          </Link>
-          <Link className="text-sm underline" href={`/dashboard/patients/${params.id}/protocol`}>
-            Protocol →
-          </Link>
-          <Link className="text-sm underline" href={`/dashboard/patients/${params.id}`}>
-            ← Patient
-          </Link>
-        </div>
+    <Page>
+      <div className="mb-2">
+        <Link
+          href={`/dashboard/patients/${params.id}`}
+          className="text-sm text-ink-subtle transition-colors hover:text-ink"
+        >
+          ← Back to patient
+        </Link>
       </div>
+      <PageHeader
+        eyebrow="Lab records"
+        title="Records"
+        description="Upload PDF lab reports — Clinical Signal extracts structured values for review."
+      />
 
-      <UploadForm patientId={params.id} />
-
-      <RecordsList patientId={params.id} initial={initial} />
-    </section>
+      <div className="flex flex-col gap-6">
+        <UploadForm patientId={params.id} />
+        <RecordsList patientId={params.id} initial={initial} />
+      </div>
+    </Page>
   );
 }
