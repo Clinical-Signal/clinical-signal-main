@@ -2,25 +2,26 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireAuth } from "@/lib/auth";
 import { getPatientSummary } from "@/lib/intake";
+import { Button } from "@/components/ui/button";
+import { Badge, StatusDot } from "@/components/ui/badge";
+import { Page, PageHeader } from "@/components/ui/page";
 
-const STATUS_LABELS: Record<string, string> = {
-  new: "New",
-  intake_pending: "Intake pending",
-  labs_pending: "Labs pending",
-  analysis_ready: "Ready for analysis",
-  protocol_draft: "Protocol draft",
-  active: "Active",
-  archived: "Archived",
+type Tone = "neutral" | "accent" | "warning" | "success" | "danger";
+
+const STATUS_COPY: Record<string, { label: string; tone: Tone }> = {
+  new: { label: "New", tone: "neutral" },
+  intake_pending: { label: "Intake in progress", tone: "warning" },
+  labs_pending: { label: "Labs pending", tone: "warning" },
+  analysis_ready: { label: "Ready for analysis", tone: "accent" },
+  protocol_draft: { label: "Protocol draft", tone: "accent" },
+  active: { label: "Active", tone: "success" },
+  archived: { label: "Archived", tone: "neutral" },
 };
 
-const STATUS_COLORS: Record<string, string> = {
-  new: "bg-slate-100 text-slate-800",
-  intake_pending: "bg-amber-100 text-amber-900",
-  labs_pending: "bg-amber-100 text-amber-900",
-  analysis_ready: "bg-blue-100 text-blue-900",
-  protocol_draft: "bg-blue-100 text-blue-900",
-  active: "bg-emerald-100 text-emerald-900",
-  archived: "bg-slate-100 text-slate-600",
+const PROTOCOL_TONE: Record<string, Tone> = {
+  draft: "warning",
+  review: "accent",
+  finalized: "success",
 };
 
 export default async function PatientDetailPage({
@@ -32,118 +33,164 @@ export default async function PatientDetailPage({
   const summary = await getPatientSummary(user.tenantId, params.id);
   if (!summary) notFound();
 
-  return (
-    <section className="flex flex-col gap-5">
-      <header className="flex flex-wrap items-baseline justify-between gap-3">
-        <div>
-          <h2 className="text-xl font-semibold">{summary.name}</h2>
-          <p className="text-sm text-slate-600">
-            {summary.dob ? `DOB ${summary.dob}` : "DOB not recorded"}
-          </p>
-        </div>
-        <span
-          className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-            STATUS_COLORS[summary.status] ?? "bg-slate-100 text-slate-800"
-          }`}
-        >
-          {STATUS_LABELS[summary.status] ?? summary.status}
-        </span>
-      </header>
+  const status = STATUS_COPY[summary.status] ?? {
+    label: summary.status,
+    tone: "neutral" as Tone,
+  };
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card
+  return (
+    <Page>
+      <div className="mb-2">
+        <Link
+          href="/dashboard"
+          className="text-sm text-ink-subtle transition-colors hover:text-ink"
+        >
+          ← All patients
+        </Link>
+      </div>
+
+      <PageHeader
+        title={summary.name}
+        eyebrow={
+          <span className="inline-flex items-center gap-2">
+            <StatusDot tone={status.tone} />
+            {status.label}
+          </span>
+        }
+        description={summary.dob ? `Date of birth: ${summary.dob}` : "Date of birth not recorded"}
+      />
+
+      <section aria-label="Care stages" className="grid gap-4 md:grid-cols-3">
+        <HubCard
           title="Intake"
-          status={
-            summary.intake.submittedAt
-              ? `Submitted ${new Date(summary.intake.submittedAt).toLocaleDateString()}`
-              : `${summary.intake.completionPct}% complete`
+          status={intakeStatus(summary)}
+          body={
+            <ProgressBar value={summary.intake.completionPct} />
           }
-          href={
-            summary.intake.submittedAt
+          primary={{
+            href: summary.intake.submittedAt
               ? `/dashboard/patients/${params.id}/intake/review`
-              : `/dashboard/patients/${params.id}/intake`
-          }
-          ctaLabel={summary.intake.submittedAt ? "Review intake" : "Continue intake"}
+              : `/dashboard/patients/${params.id}/intake`,
+            label: summary.intake.submittedAt ? "Review intake" : "Continue intake",
+          }}
           secondary={
             summary.intake.submittedAt
               ? {
-                  label: "Edit",
                   href: `/dashboard/patients/${params.id}/intake`,
+                  label: "Edit",
                 }
               : null
           }
         />
-        <Card
-          title="Records"
+        <HubCard
+          title="Lab records"
           status={
             summary.recordCount === 0
               ? "No records uploaded"
               : `${summary.recordCount} record${summary.recordCount === 1 ? "" : "s"}`
           }
-          href={`/dashboard/patients/${params.id}/records`}
-          ctaLabel="Manage records"
+          body={null}
+          primary={{
+            href: `/dashboard/patients/${params.id}/records`,
+            label: summary.recordCount === 0 ? "Upload lab results" : "Manage records",
+          }}
         />
-        <Card
+        <HubCard
           title="Protocol"
           status={
             summary.protocol
-              ? `${summary.protocol.status} · v${summary.protocol.version}`
+              ? `v${summary.protocol.version} · ${summary.protocol.status}`
               : "Not yet generated"
           }
-          href={
-            summary.protocol
-              ? `/dashboard/patients/${params.id}/protocol/${summary.protocol.id}`
-              : `/dashboard/patients/${params.id}/protocol`
+          body={
+            summary.protocol ? (
+              <Badge tone={PROTOCOL_TONE[summary.protocol.status] ?? "neutral"}>
+                {summary.protocol.status}
+              </Badge>
+            ) : null
           }
-          ctaLabel={summary.protocol ? "Open protocol" : "Generate protocol"}
+          primary={{
+            href: summary.protocol
+              ? `/dashboard/patients/${params.id}/protocol/${summary.protocol.id}`
+              : `/dashboard/patients/${params.id}/protocol`,
+            label: summary.protocol ? "Open protocol" : "Generate protocol",
+          }}
           secondary={
             summary.protocol
               ? {
-                  label: "All drafts",
                   href: `/dashboard/patients/${params.id}/protocol`,
+                  label: "All versions",
                 }
               : null
           }
         />
-      </div>
-
-      <Link className="text-sm underline" href="/dashboard">
-        ← Back to all patients
-      </Link>
-    </section>
+      </section>
+    </Page>
   );
 }
 
-function Card({
+function intakeStatus(s: {
+  intake: { completionPct: number; submittedAt: string | null };
+}): string {
+  if (s.intake.submittedAt)
+    return `Submitted ${new Date(s.intake.submittedAt).toLocaleDateString()}`;
+  if (s.intake.completionPct === 0) return "Not started";
+  return `${s.intake.completionPct}% complete`;
+}
+
+function HubCard({
   title,
   status,
-  href,
-  ctaLabel,
+  body,
+  primary,
   secondary,
 }: {
   title: string;
   status: string;
-  href: string;
-  ctaLabel: string;
-  secondary?: { label: string; href: string } | null;
+  body: React.ReactNode;
+  primary: { href: string; label: string };
+  secondary?: { href: string; label: string } | null;
 }) {
   return (
-    <article className="flex flex-col gap-3 rounded border border-slate-200 bg-white p-4">
-      <h3 className="text-sm font-semibold text-slate-700">{title}</h3>
-      <p className="text-xs text-slate-500">{status}</p>
-      <div className="mt-auto flex items-center justify-between gap-2">
-        <Link
-          href={href}
-          className="rounded bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800"
-        >
-          {ctaLabel}
+    <article className="flex flex-col gap-4 rounded-xl border border-line bg-surface p-5">
+      <div>
+        <h3 className="text-sm font-semibold text-ink">{title}</h3>
+        <p className="mt-1 text-xs text-ink-subtle">{status}</p>
+      </div>
+      {body ? <div>{body}</div> : <div className="flex-1" />}
+      <div className="mt-auto flex items-center justify-between gap-3">
+        <Link href={primary.href}>
+          <Button variant="secondary" size="sm">
+            {primary.label}
+          </Button>
         </Link>
         {secondary ? (
-          <Link className="text-xs underline" href={secondary.href}>
+          <Link
+            className="text-xs text-ink-subtle transition-colors hover:text-ink"
+            href={secondary.href}
+          >
             {secondary.label}
           </Link>
         ) : null}
       </div>
     </article>
+  );
+}
+
+function ProgressBar({ value }: { value: number }) {
+  const v = Math.max(0, Math.min(100, value));
+  return (
+    <div
+      role="progressbar"
+      aria-valuenow={v}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      className="h-1.5 w-full overflow-hidden rounded-full bg-surface-sunken"
+    >
+      <div
+        className="h-full bg-accent transition-all"
+        style={{ width: `${v}%` }}
+      />
+    </div>
   );
 }
