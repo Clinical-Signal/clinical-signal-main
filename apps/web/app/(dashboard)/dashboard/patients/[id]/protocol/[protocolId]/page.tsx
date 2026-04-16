@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { requireAuth } from "@/lib/auth";
 import { patientBelongsToTenant } from "@/lib/records";
 import { getProtocol } from "@/lib/protocols";
+import { Page, PageHeader } from "@/components/ui/page";
+import { Badge } from "@/components/ui/badge";
 import { RenderSections } from "./render";
 
 const CLINICAL_ORDER = [
@@ -24,10 +26,10 @@ const CLIENT_ORDER = [
   "if_something_feels_off",
 ];
 
-const STATUS_COLORS: Record<string, string> = {
-  draft: "bg-amber-100 text-amber-900",
-  review: "bg-blue-100 text-blue-900",
-  finalized: "bg-emerald-100 text-emerald-900",
+const STATUS_TONE: Record<string, "warning" | "accent" | "success" | "neutral"> = {
+  draft: "warning",
+  review: "accent",
+  finalized: "success",
 };
 
 export default async function ProtocolViewPage({
@@ -42,54 +44,58 @@ export default async function ProtocolViewPage({
   const p = await getProtocol(user.tenantId, params.protocolId);
   if (!p || p.patientId !== params.id) notFound();
 
-  const statusClass = STATUS_COLORS[p.status] ?? "bg-slate-100 text-slate-900";
-
   return (
-    <section className="flex flex-col gap-5">
-      <header className="flex flex-col gap-2">
-        <div className="flex flex-wrap items-center gap-3">
-          <h2 className="text-xl font-semibold">{p.title}</h2>
-          <span
-            className={`rounded px-2 py-0.5 text-xs font-medium ${statusClass}`}
-          >
-            {p.status}
+    <Page>
+      <div className="mb-2">
+        <Link
+          href={`/dashboard/patients/${params.id}/protocol`}
+          className="text-sm text-ink-subtle transition-colors hover:text-ink"
+        >
+          ← All versions
+        </Link>
+      </div>
+      <PageHeader
+        eyebrow={
+          <span className="inline-flex items-center gap-3">
+            <Badge tone={STATUS_TONE[p.status] ?? "neutral"}>{p.status}</Badge>
+            <span>v{p.version}</span>
+            <span>·</span>
+            <span>Generated {new Date(p.createdAt).toLocaleString()}</span>
           </span>
-          <span className="text-xs text-slate-500">v{p.version}</span>
-          <div className="ml-auto flex items-center gap-2">
+        }
+        title={p.title}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
             <Link
-              className="rounded border border-slate-300 px-3 py-1 text-xs hover:bg-slate-50"
               href={`/dashboard/patients/${params.id}/protocol/${params.protocolId}/edit`}
+              className="inline-flex h-10 items-center justify-center rounded-md border border-line-strong bg-surface px-4 text-sm font-medium text-ink transition-colors hover:bg-surface-sunken"
             >
               Edit
             </Link>
             <a
-              className="rounded border border-slate-300 px-3 py-1 text-xs hover:bg-slate-50"
               href={`/api/patients/${params.id}/protocol/${params.protocolId}/export?audience=clinical`}
+              className="inline-flex h-10 items-center justify-center rounded-md border border-line-strong bg-surface px-4 text-sm font-medium text-ink transition-colors hover:bg-surface-sunken"
             >
-              Export PDF (clinical)
+              Clinical PDF
             </a>
             <a
-              className="rounded border border-slate-300 px-3 py-1 text-xs hover:bg-slate-50"
               href={`/api/patients/${params.id}/protocol/${params.protocolId}/export?audience=client`}
+              className="inline-flex h-10 items-center justify-center rounded-md bg-accent px-4 text-sm font-medium text-ink-inverse transition-colors hover:bg-accent-hover"
             >
-              Export PDF (client)
+              Client PDF
             </a>
           </div>
-        </div>
-        <p className="text-xs text-slate-500">
-          Generated {new Date(p.createdAt).toLocaleString()}
-        </p>
-      </header>
+        }
+      />
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <article className="rounded border border-slate-200 bg-white p-4">
-          <h3 className="mb-4 border-b border-slate-200 pb-2 text-lg font-semibold">
-            Output A — Clinical Protocol
-          </h3>
-          <p className="mb-4 text-xs text-slate-500">
-            Practitioner-facing. Full mechanisms, supplement dosages, and
-            clinical reasoning.
-          </p>
+        <article className="rounded-xl border border-line bg-surface p-6">
+          <header className="mb-4 border-b border-line pb-3">
+            <h2 className="text-lg font-semibold text-ink">Output A · Clinical protocol</h2>
+            <p className="mt-1 text-xs text-ink-subtle">
+              Practitioner copy. Mechanisms, dosages, clinical reasoning.
+            </p>
+          </header>
           <RenderSections
             content={p.clinicalContent}
             order={CLINICAL_ORDER}
@@ -97,23 +103,16 @@ export default async function ProtocolViewPage({
           />
         </article>
 
-        <article className="rounded border border-slate-200 bg-slate-50 p-4">
-          <h3 className="mb-4 border-b border-slate-200 pb-2 text-lg font-semibold">
-            Output B — Phased Client Action Plan
-          </h3>
-          <p className="mb-4 text-xs text-slate-500">
-            Patient-facing. Plain-language, phased, with expected outcomes.
-          </p>
+        <article className="rounded-xl border border-line bg-surface-sunken/40 p-6">
+          <header className="mb-4 border-b border-line pb-3">
+            <h2 className="text-lg font-semibold text-ink">Output B · Client action plan</h2>
+            <p className="mt-1 text-xs text-ink-subtle">
+              Patient copy. Plain language, phased, with desired outcomes.
+            </p>
+          </header>
           <RenderSections content={p.clientContent} order={CLIENT_ORDER} />
         </article>
       </div>
-
-      <Link
-        className="text-sm underline"
-        href={`/dashboard/patients/${params.id}/protocol`}
-      >
-        ← All protocols for this patient
-      </Link>
-    </section>
+    </Page>
   );
 }

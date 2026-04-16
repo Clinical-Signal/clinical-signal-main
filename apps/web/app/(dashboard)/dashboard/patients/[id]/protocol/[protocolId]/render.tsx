@@ -11,7 +11,7 @@ function titleize(key: string): string {
 
 export function RenderValue({ value }: { value: unknown }): React.ReactElement {
   if (value === null || value === undefined) {
-    return <span className="text-slate-400">—</span>;
+    return <span className="text-ink-faint">—</span>;
   }
   if (typeof value === "string") {
     return <span className="whitespace-pre-wrap">{value}</span>;
@@ -20,7 +20,7 @@ export function RenderValue({ value }: { value: unknown }): React.ReactElement {
     return <span>{String(value)}</span>;
   }
   if (Array.isArray(value)) {
-    if (value.length === 0) return <span className="text-slate-400">(none)</span>;
+    if (value.length === 0) return <span className="text-ink-faint">(none)</span>;
     const allPrimitive = value.every(
       (v) => v === null || ["string", "number", "boolean"].includes(typeof v),
     );
@@ -38,7 +38,7 @@ export function RenderValue({ value }: { value: unknown }): React.ReactElement {
     return (
       <div className="flex flex-col gap-3">
         {value.map((v, i) => (
-          <div key={i} className="rounded border border-slate-200 p-3">
+          <div key={i} className="rounded-lg border border-line bg-surface p-3">
             <RenderValue value={v} />
           </div>
         ))}
@@ -51,7 +51,7 @@ export function RenderValue({ value }: { value: unknown }): React.ReactElement {
     <dl className="flex flex-col gap-2">
       {Object.entries(obj).map(([k, v]) => (
         <div key={k}>
-          <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+          <dt className="text-xs font-medium uppercase tracking-wide text-ink-subtle">
             {titleize(k)}
           </dt>
           <dd className="mt-1 text-sm">
@@ -72,8 +72,10 @@ export function ProtocolSection({
 }) {
   return (
     <section>
-      <h3 className="mb-2 text-base font-semibold text-slate-800">{title}</h3>
-      <div className="text-sm text-slate-700">
+      <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-ink-subtle">
+        {title}
+      </h3>
+      <div className="text-sm text-ink-muted">
         <RenderValue value={content} />
       </div>
     </section>

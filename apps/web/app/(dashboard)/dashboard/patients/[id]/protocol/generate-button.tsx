@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { Button } from "@/components/ui/button";
 import { generateProtocolAction } from "./actions";
 
 export function GenerateProtocolButton({ patientId }: { patientId: string }) {
@@ -9,10 +10,9 @@ export function GenerateProtocolButton({ patientId }: { patientId: string }) {
 
   return (
     <div className="flex flex-col gap-2">
-      <button
-        type="button"
-        disabled={pending}
-        className="self-start rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
+      <Button
+        loading={pending}
+        loadingText="Generating protocol…"
         onClick={() => {
           setError(null);
           startTransition(async () => {
@@ -20,17 +20,20 @@ export function GenerateProtocolButton({ patientId }: { patientId: string }) {
             if (res && !res.ok) setError(res.error);
           });
         }}
+        className="self-start"
       >
-        {pending ? "Generating protocol… (30–60s)" : "Generate Protocol"}
-      </button>
+        Generate protocol
+      </Button>
       {pending ? (
-        <p className="text-xs text-slate-500">
-          Analyzing intake + records, then drafting both the clinical protocol and
-          the phased client action plan. This typically takes 30–60 seconds.
+        <p className="text-xs text-ink-subtle">
+          Analyzing intake + lab records, then drafting both outputs.
+          Typically takes 30–60 seconds — you can leave the page open.
         </p>
       ) : null}
       {error ? (
-        <p className="text-sm text-red-600">Protocol generation failed: {error}</p>
+        <p className="text-sm text-danger">
+          Couldn&apos;t generate protocol: {error}
+        </p>
       ) : null}
     </div>
   );
