@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { requireAuth } from "@/lib/auth";
 import { writeAudit } from "@/lib/audit";
 import { patientBelongsToTenant } from "@/lib/records";
-import { runAnalyze, runGenerateProtocol } from "@/lib/protocols";
+import { analyzeAndGenerate } from "@/lib/analysis";
 
 export async function generateProtocolAction(
   patientId: string,
@@ -14,21 +14,17 @@ export async function generateProtocolAction(
   if (!ok) return { ok: false, error: "Patient not found." };
 
   try {
-    const { analysisId } = await runAnalyze({
+    const { analysisId, protocolId } = await analyzeAndGenerate({
       tenantId: user.tenantId,
       patientId,
       practitionerId: user.practitionerId,
     });
+
     await writeAudit({
       action: "analysis_generated",
       tenantId: user.tenantId,
       practitionerId: user.practitionerId,
       metadata: { patient_id: patientId, analysis_id: analysisId },
-    });
-
-    const { protocolId } = await runGenerateProtocol({
-      tenantId: user.tenantId,
-      analysisId,
     });
     await writeAudit({
       action: "protocol_generated",
@@ -39,7 +35,7 @@ export async function generateProtocolAction(
 
     redirect(`/dashboard/patients/${patientId}/protocol/${protocolId}`);
   } catch (err) {
-    if (err && typeof err === "object" && "digest" in err) throw err; // Next redirect
+    if (err && typeof err === "object" && "digest" in err) throw err;
     const msg = err instanceof Error ? err.message : String(err);
     return { ok: false, error: msg };
   }
