@@ -1,0 +1,10 @@
+{
+  "functions": {
+    "app/(dashboard)/dashboard/patients/[id]/protocol/actions.ts": {
+      "maxDuration": 60
+    },
+    "app/(dashboard)/dashboard/patients/[id]/protocol/[protocolId]/edit/actions.ts": {
+      "maxDuration": 60
+    }
+  }
+}

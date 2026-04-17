@@ -4,9 +4,9 @@ import { redirect } from "next/navigation";
 import { requireAuth } from "@/lib/auth";
 import { writeAudit } from "@/lib/audit";
 import { patientBelongsToTenant } from "@/lib/records";
+import { getAnalysisFindings, runProtocolGeneration, insertProtocol } from "@/lib/analysis";
 import {
   type ProtocolStatus,
-  runGenerateProtocol,
   saveNewProtocolVersion,
   updateProtocolStatus,
 } from "@/lib/protocols";
@@ -94,9 +94,26 @@ export async function regenerateProtocol(
         error: "This protocol has no linked analysis. Run analysis first.",
       };
     }
-    const { protocolId } = await runGenerateProtocol({
+    const analysis = await getAnalysisFindings(user.tenantId, analysisId);
+    if (!analysis) {
+      return { ok: false, error: "Analysis not found or not complete." };
+    }
+    const { protocol, meta } = await runProtocolGeneration(analysis.findings);
+    const title = (protocol.title as string) || "Draft Protocol";
+    const cc = (protocol.clinical_protocol ?? {}) as Record<string, unknown>;
+    const cl = (protocol.client_action_plan ?? {}) as Record<string, unknown>;
+    (cc as Record<string, unknown>)._generation = {
+      ...meta,
+      ...(protocol.meta ? { model_meta: protocol.meta } : {}),
+    };
+    const protocolId = await insertProtocol({
       tenantId: user.tenantId,
+      patientId,
+      practitionerId: user.practitionerId,
       analysisId,
+      title,
+      clinicalContent: cc,
+      clientContent: cl,
     });
     await writeAudit({
       action: "protocol_generated",
