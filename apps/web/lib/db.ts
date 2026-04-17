@@ -19,16 +19,23 @@ function getPool(): Pool {
     connectionString,
     max: 10,
     idleTimeoutMillis: 30_000,
+    ssl: connectionString.includes("sslmode=require")
+      ? { rejectUnauthorized: false }
+      : undefined,
   });
-  if (process.env.NODE_ENV !== "production") {
-    global.__pgPool = p;
-  }
+  global.__pgPool = p;
   return p;
 }
 
+// Proxy so `pool` can be imported at build time (where DATABASE_URL is
+// absent). Methods are bound to the real pool so `this` is correct when
+// pg internals call `this._clients` etc.
 export const pool = new Proxy({} as Pool, {
-  get(_target, prop, receiver) {
-    return Reflect.get(getPool(), prop, receiver);
+  get(_target, prop) {
+    const real = getPool();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const val = (real as any)[prop];
+    return typeof val === "function" ? (val as Function).bind(real) : val;
   },
 });
 
