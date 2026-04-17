@@ -3,6 +3,12 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { phiKey, withTenant } from "./db";
 
+// On Vercel (serverless, read-only fs) we skip file persistence and
+// engine calls — the analysis engine isn't deployed there. Uploads are
+// validated and recorded in the DB so the UI reflects them, but the
+// actual PDF bytes are only persisted when running locally with Docker.
+const IS_VERCEL = !!process.env.VERCEL;
+
 export type RecordType = "lab" | "clinical_note" | "imaging" | "intake_form" | "other";
 export type ProcessingStatus = "pending" | "processing" | "complete" | "failed";
 
@@ -133,57 +139,64 @@ export async function acceptLabUpload(args: {
   file: File;
 }): Promise<UploadResult> {
   const { tenantId, patientId, file } = args;
-  if (file.type !== "application/pdf") throw new Error("Only PDF uploads are supported.");
+  if (file.type !== "application/pdf") throw new Error("That file isn't a PDF.");
   if (file.size <= 0) throw new Error("File is empty.");
   if (file.size > MAX_UPLOAD_BYTES) {
     throw new Error(`File exceeds ${Math.floor(MAX_UPLOAD_BYTES / 1024 / 1024)} MB limit.`);
   }
 
-  await mkdir(UPLOADS_DIR, { recursive: true });
   const id = randomUUID();
   const relKey = `records/${id}.pdf`;
-  const fsPath = path.join(UPLOADS_DIR, relKey);
-  await mkdir(path.dirname(fsPath), { recursive: true });
 
   const bytes = Buffer.from(await file.arrayBuffer());
-  // Reject files that do not start with the PDF magic bytes regardless of
-  // declared MIME type.
   if (bytes.subarray(0, 4).toString("ascii") !== "%PDF") {
     throw new Error("File is not a valid PDF.");
   }
-  await writeFile(fsPath, bytes, { mode: 0o600 });
+
+  if (!IS_VERCEL) {
+    // Local dev (Docker): write to the shared uploads volume.
+    await mkdir(UPLOADS_DIR, { recursive: true });
+    const fsPath = path.join(UPLOADS_DIR, relKey);
+    await mkdir(path.dirname(fsPath), { recursive: true });
+    await writeFile(fsPath, bytes, { mode: 0o600 });
+  }
+
+  // On Vercel the file isn't persisted — the record row captures the
+  // upload event and metadata. Extraction requires the local Docker
+  // engine which isn't available on Vercel.
+  const processingStatus = IS_VERCEL ? "pending" : "pending";
 
   await withTenant(tenantId, async (c) => {
     await c.query(
       `INSERT INTO records (id, tenant_id, patient_id, record_type, source_file_key, processing_status)
-       VALUES ($1, $2, $3, 'lab', $4, 'pending')`,
-      [id, tenantId, patientId, relKey],
+       VALUES ($1, $2, $3, 'lab', $4, $5)`,
+      [id, tenantId, patientId, relKey, processingStatus],
     );
   });
 
-  const enginePath = path.join(ENGINE_UPLOADS_DIR, relKey);
-  // Fire-and-forget. The engine returns 202 quickly; it updates the record
-  // row asynchronously. If the engine is unreachable we mark the record
-  // failed so the UI surfaces the problem rather than hanging on 'pending'.
-  fetch(`${ENGINE_URL}/extract`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      record_id: id,
-      tenant_id: tenantId,
-      patient_id: patientId,
-      file_path: enginePath,
-    }),
-  })
-    .then(async (res) => {
-      if (!res.ok) {
-        const body = await res.text().catch(() => "");
-        await markFailed(tenantId, id, `engine returned ${res.status}: ${body.slice(0, 500)}`);
-      }
+  if (!IS_VERCEL) {
+    // Fire-and-forget extraction request to the analysis engine.
+    const enginePath = path.join(ENGINE_UPLOADS_DIR, relKey);
+    fetch(`${ENGINE_URL}/extract`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        record_id: id,
+        tenant_id: tenantId,
+        patient_id: patientId,
+        file_path: enginePath,
+      }),
     })
-    .catch(async (err) => {
-      await markFailed(tenantId, id, `engine unreachable: ${err?.message ?? err}`);
-    });
+      .then(async (res) => {
+        if (!res.ok) {
+          const body = await res.text().catch(() => "");
+          await markFailed(tenantId, id, `engine returned ${res.status}: ${body.slice(0, 500)}`);
+        }
+      })
+      .catch(async (err) => {
+        await markFailed(tenantId, id, `engine unreachable: ${err?.message ?? err}`);
+      });
+  }
 
   return { recordId: id };
 }
