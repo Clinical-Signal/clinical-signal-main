@@ -5,22 +5,32 @@ declare global {
   var __pgPool: Pool | undefined;
 }
 
-const connectionString = process.env.DATABASE_URL;
-if (!connectionString) {
-  throw new Error("DATABASE_URL is not set");
-}
-
-export const pool =
-  global.__pgPool ??
-  new Pool({
+// Lazy pool — defers construction until the first query so the module can
+// be imported at Next.js build time without DATABASE_URL being set. Every
+// runtime call goes through getPool(), which throws on the first real
+// query if the env var is missing (not on import).
+function getPool(): Pool {
+  if (global.__pgPool) return global.__pgPool;
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString) {
+    throw new Error("DATABASE_URL is not set");
+  }
+  const p = new Pool({
     connectionString,
     max: 10,
     idleTimeoutMillis: 30_000,
   });
-
-if (process.env.NODE_ENV !== "production") {
-  global.__pgPool = pool;
+  if (process.env.NODE_ENV !== "production") {
+    global.__pgPool = p;
+  }
+  return p;
 }
+
+export const pool = new Proxy({} as Pool, {
+  get(_target, prop, receiver) {
+    return Reflect.get(getPool(), prop, receiver);
+  },
+});
 
 export async function query<T extends Record<string, unknown> = Record<string, unknown>>(
   text: string,
