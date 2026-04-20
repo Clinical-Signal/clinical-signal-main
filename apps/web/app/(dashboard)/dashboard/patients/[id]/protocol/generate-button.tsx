@@ -99,6 +99,8 @@ export function GenerateProtocolButton({ patientId }: { patientId: string }) {
       setStatus("Drafting protocol and action plan...");
       setDetail(null);
 
+      let redirectUrl: string | null = null;
+
       const protoResult = await readStream(
         "/api/patients/" + patientId + "/generate-from-analysis",
         {
@@ -109,16 +111,31 @@ export function GenerateProtocolButton({ patientId }: { patientId: string }) {
         (evt) => {
           if (evt.status) setStatus(evt.status);
           if (evt.detail) setDetail(evt.detail);
+          if (evt.redirect) redirectUrl = evt.redirect;
+          if (evt.protocolId && !redirectUrl) {
+            redirectUrl = "/dashboard/patients/" + patientId + "/protocol/" + evt.protocolId;
+          }
         },
       );
 
-      if (protoResult?.redirect) {
+      // Use redirect from event callback (most reliable) or return value.
+      const target =
+        redirectUrl ??
+        protoResult?.redirect ??
+        (protoResult?.protocolId
+          ? "/dashboard/patients/" + patientId + "/protocol/" + protoResult.protocolId
+          : null);
+
+      if (target) {
         setPhase("Done");
         setStatus("Opening protocol...");
-        router.push(protoResult.redirect);
+        router.push(target);
         router.refresh();
       } else {
-        throw new Error("Protocol generated but no redirect was returned.");
+        throw new Error(
+          "Protocol may have been generated — check the versions list. " +
+          "The redirect event was not received.",
+        );
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
