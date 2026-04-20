@@ -1,4 +1,4 @@
-import { requireAuth } from "@/lib/auth";
+import { apiAuth } from "@/lib/auth";
 import { writeAudit } from "@/lib/audit";
 import { patientBelongsToTenant } from "@/lib/records";
 import {
@@ -14,7 +14,8 @@ export async function POST(
   _req: Request,
   ctx: { params: { id: string } },
 ) {
-  const user = await requireAuth();
+  const user = await apiAuth();
+  if (!user) return Response.json({ error: "Not authenticated." }, { status: 401 });
   const ok = await patientBelongsToTenant(user.tenantId, ctx.params.id);
   if (!ok) return Response.json({ error: "not found" }, { status: 404 });
 

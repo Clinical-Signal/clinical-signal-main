@@ -21,6 +21,15 @@ export async function requireAuth(): Promise<SessionUser> {
   return user;
 }
 
+/**
+ * API-safe auth: returns null instead of redirecting to /login.
+ * Use this in API route handlers (route.ts) to avoid returning HTML
+ * when the session is expired — the caller should return a 401 JSON response.
+ */
+export async function apiAuth(): Promise<SessionUser | null> {
+  return auth();
+}
+
 export type AuthResult = { ok: true } | { ok: false; error: string };
 
 interface PractitionerRow {
