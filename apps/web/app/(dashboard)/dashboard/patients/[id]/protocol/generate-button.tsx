@@ -47,6 +47,21 @@ async function readStream(
       }
     }
   }
+
+  // Flush any remaining data in the buffer after the stream closes.
+  // The final event can land here if the server closes the stream
+  // immediately after enqueuing the last chunk.
+  if (buffer.trim()) {
+    try {
+      const evt: StreamEvent = JSON.parse(buffer);
+      last = evt;
+      onEvent(evt);
+      if (evt.error) throw new Error(evt.error);
+    } catch (e) {
+      if (e instanceof Error && e.message) throw e;
+    }
+  }
+
   return last;
 }
 
