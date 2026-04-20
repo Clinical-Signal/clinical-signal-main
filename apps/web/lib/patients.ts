@@ -16,6 +16,9 @@ export interface PatientListRow {
   dob: string | null;
   status: PatientStatus;
   updatedAt: Date;
+  docCount: number;
+  hasPrepBrief: boolean;
+  protocolStatus: string | null;
 }
 
 export interface CreatePatientInput {
@@ -38,15 +41,21 @@ export async function listPatients(tenantId: string): Promise<PatientListRow[]> 
       dob: string | null;
       status: PatientStatus;
       updated_at: Date;
+      doc_count: string;
+      has_prep_brief: boolean;
+      protocol_status: string | null;
     }>(
-      `SELECT id,
-              pgp_sym_decrypt(name_encrypted, $1)::text AS name,
-              CASE WHEN dob_encrypted IS NULL THEN NULL
-                   ELSE pgp_sym_decrypt(dob_encrypted, $1)::text END AS dob,
-              status,
-              updated_at
-         FROM patients
-        ORDER BY updated_at DESC`,
+      `SELECT p.id,
+              pgp_sym_decrypt(p.name_encrypted, $1)::text AS name,
+              CASE WHEN p.dob_encrypted IS NULL THEN NULL
+                   ELSE pgp_sym_decrypt(p.dob_encrypted, $1)::text END AS dob,
+              p.status,
+              p.updated_at,
+              COALESCE((SELECT COUNT(*)::text FROM intake_documents d WHERE d.patient_id = p.id), '0') AS doc_count,
+              EXISTS(SELECT 1 FROM intake_documents d WHERE d.patient_id = p.id AND d.metadata->>'type' = 'prep_brief') AS has_prep_brief,
+              (SELECT pr.status FROM protocols pr WHERE pr.patient_id = p.id ORDER BY pr.created_at DESC LIMIT 1) AS protocol_status
+         FROM patients p
+        ORDER BY p.updated_at DESC`,
       [phiKey()],
     );
     return rows.map((r) => ({
@@ -55,6 +64,9 @@ export async function listPatients(tenantId: string): Promise<PatientListRow[]> 
       dob: r.dob,
       status: r.status,
       updatedAt: r.updated_at,
+      docCount: parseInt(r.doc_count, 10) || 0,
+      hasPrepBrief: r.has_prep_brief,
+      protocolStatus: r.protocol_status,
     }));
   });
 }
