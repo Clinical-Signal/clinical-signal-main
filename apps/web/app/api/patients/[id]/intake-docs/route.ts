@@ -82,9 +82,10 @@ export async function POST(
     if (name.endsWith(".pdf")) {
       docType = "pdf";
       try {
-        // pdf-parse exports vary between CJS/ESM; handle both.
+        // Import the inner module to skip pdf-parse's canvas/DOMMatrix
+        // dependency which doesn't exist in Vercel's serverless runtime.
         // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const pdfParse = require("pdf-parse");
+        const pdfParse = require("pdf-parse/lib/pdf-parse.js");
         const result = await pdfParse(bytes);
         extractedText = result.text;
       } catch (err) {
