@@ -436,45 +436,42 @@ function formatTimelineForPrompt(t: PatientTimeline): string {
 
 export async function runClinicalAnalysis(
   timelineText: string,
+  onProgress?: () => void,
 ): Promise<{ findings: Record<string, unknown>; meta: Record<string, unknown>; raw: string }> {
   const system = loadPrompt("clinical_analysis_v1");
   const claude = await createClient();
-  const abort = new AbortController();
-  const timer = setTimeout(() => abort.abort(), 270_000);
-  let msg;
-  try {
-    msg = await claude.messages.create(
+
+  const stream = claude.messages.stream({
+    model: MODEL,
+    max_tokens: 16000,
+    system,
+    messages: [
       {
-        model: MODEL,
-        max_tokens: 16000,
-        system,
-        messages: [
-          {
-            role: "user",
-            content:
-              "Analyze the following patient data. Respond with JSON only per the output contract.\n\n<patient_data>\n" +
-              timelineText +
-              "\n</patient_data>",
-          },
-        ],
+        role: "user",
+        content:
+          "Analyze the following patient data. Respond with JSON only per the output contract.\n\n<patient_data>\n" +
+          timelineText +
+          "\n</patient_data>",
       },
-      { signal: abort.signal },
-    );
-  } finally {
-    clearTimeout(timer);
+    ],
+  });
+
+  let raw = "";
+  for await (const event of stream) {
+    if (event.type === "content_block_delta" && "delta" in event && "text" in event.delta) {
+      raw += event.delta.text;
+      onProgress?.();
+    }
   }
 
-  const raw = msg.content
-    .filter((b) => b.type === "text")
-    .map((b) => ("text" in b ? b.text : ""))
-    .join("");
+  const finalMessage = await stream.finalMessage();
   const findings = JSON.parse(stripCodeFences(raw));
   const meta = {
     model_id: MODEL,
     prompt_version: "clinical_analysis_v1",
     token_usage: {
-      input_tokens: msg.usage.input_tokens,
-      output_tokens: msg.usage.output_tokens,
+      input_tokens: finalMessage.usage.input_tokens,
+      output_tokens: finalMessage.usage.output_tokens,
     },
   };
   return { findings, meta, raw };
@@ -487,6 +484,7 @@ export async function runClinicalAnalysis(
 export async function runProtocolGeneration(
   findings: Record<string, unknown>,
   kbContext?: Array<Record<string, unknown>>,
+  onProgress?: () => void,
 ): Promise<{ protocol: Record<string, unknown>; meta: Record<string, unknown>; raw: string }> {
   const system = loadPrompt("protocol_generation_v1");
   let userContent =
@@ -499,41 +497,37 @@ export async function runProtocolGeneration(
   }
 
   const claude = await createClient();
-  const abort = new AbortController();
-  const timer = setTimeout(() => abort.abort(), 270_000);
-  let msg;
-  try {
-    msg = await claude.messages.create(
-      {
-        model: MODEL,
-        max_tokens: 12000,
-        system,
-        messages: [{ role: "user", content: userContent }],
-      },
-      { signal: abort.signal },
-    );
-  } finally {
-    clearTimeout(timer);
+
+  const stream = claude.messages.stream({
+    model: MODEL,
+    max_tokens: 16000,
+    system,
+    messages: [{ role: "user", content: userContent }],
+  });
+
+  let raw = "";
+  for await (const event of stream) {
+    if (event.type === "content_block_delta" && "delta" in event && "text" in event.delta) {
+      raw += event.delta.text;
+      onProgress?.();
+    }
   }
 
-  if (msg.stop_reason === "max_tokens") {
+  const finalMessage = await stream.finalMessage();
+  if (finalMessage.stop_reason === "max_tokens") {
     throw new Error(
-      "Protocol generation was truncated (output exceeded 12000 tokens). " +
-      "The protocol may need to be regenerated with a simpler analysis.",
+      "Protocol generation was truncated (output exceeded token limit). " +
+      "Try regenerating — results vary by run.",
     );
   }
 
-  const raw = msg.content
-    .filter((b) => b.type === "text")
-    .map((b) => ("text" in b ? b.text : ""))
-    .join("");
   const protocol = JSON.parse(stripCodeFences(raw));
   const meta = {
     model_id: MODEL,
     prompt_version: "protocol_generation_v1",
     token_usage: {
-      input_tokens: msg.usage.input_tokens,
-      output_tokens: msg.usage.output_tokens,
+      input_tokens: finalMessage.usage.input_tokens,
+      output_tokens: finalMessage.usage.output_tokens,
     },
     kb_context_size: kbContext?.length ?? 0,
   };
