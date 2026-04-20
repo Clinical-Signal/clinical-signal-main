@@ -119,9 +119,10 @@ export async function POST(
         });
       } catch (err) {
         send({ error: err instanceof Error ? err.message : String(err) });
-      } finally {
-        controller.close();
       }
+      // Yield a microtask so the last enqueued chunk flushes before close.
+      await new Promise((r) => setTimeout(r, 50));
+      controller.close();
     },
   });
 

@@ -671,6 +671,94 @@ export async function getAnalysisFindings(
 }
 
 // ---------------------------------------------------------------------------
+// Pre-call prep brief
+// ---------------------------------------------------------------------------
+
+const PREP_BRIEF_PROMPT = `You are a clinical preparation assistant for a functional medicine practitioner. You are given all available patient data — intake forms, uploaded documents, call transcripts, practitioner notes, and lab records. Your job is to produce a concise **pre-call prep brief** that the practitioner reads before their consultation call with this patient.
+
+## Output format
+
+Return a valid JSON object with exactly this shape. No prose, no code fences.
+
+{
+  "patient_summary": "string — 3-5 sentence synthesis of everything known about this patient. Clinical picture, chief concerns, relevant history.",
+  "preliminary_observations": [
+    "string — pattern, connection, or red flag you see in the data. Be specific."
+  ],
+  "suggested_lab_panels": [
+    {
+      "panel": "string — specific lab panel or test",
+      "reasoning": "string — why this would be informative for THIS patient"
+    }
+  ],
+  "questions_to_ask": [
+    {
+      "question": "string — specific question to ask during the call",
+      "why": "string — what gap or ambiguity this addresses"
+    }
+  ],
+  "working_hypotheses": [
+    {
+      "hypothesis": "string — possible clinical picture to explore",
+      "supporting_evidence": "string — what in the data supports this",
+      "would_rule_out": "string — what would disconfirm this"
+    }
+  ],
+  "call_agenda": [
+    "string — suggested topic or section for the call, in order"
+  ]
+}
+
+## Rules
+- Ground every observation in the patient data provided. Do not fabricate.
+- If data is sparse, say so and focus questions_to_ask on filling gaps.
+- Think in functional medicine systems: root causes, interconnections, sequencing.
+- Be concise — this is a quick-reference document, not a full analysis.
+- Do not include PHI identifiers in the output.`;
+
+export async function generatePrepBrief(
+  timelineText: string,
+  onProgress?: () => void,
+): Promise<{ brief: Record<string, unknown>; meta: Record<string, unknown>; raw: string }> {
+  const claude = await createClient();
+
+  const stream = claude.messages.stream({
+    model: MODEL,
+    max_tokens: 8000,
+    system: PREP_BRIEF_PROMPT,
+    messages: [
+      {
+        role: "user",
+        content:
+          "Generate a pre-call prep brief for the following patient. Respond with JSON only.\n\n<patient_data>\n" +
+          timelineText +
+          "\n</patient_data>",
+      },
+    ],
+  });
+
+  let raw = "";
+  for await (const event of stream) {
+    if (event.type === "content_block_delta" && "delta" in event && "text" in event.delta) {
+      raw += event.delta.text;
+      onProgress?.();
+    }
+  }
+
+  const finalMessage = await stream.finalMessage();
+  const brief = JSON.parse(stripCodeFences(raw));
+  const meta = {
+    model_id: MODEL,
+    prompt_version: "prep_brief_v1",
+    token_usage: {
+      input_tokens: finalMessage.usage.input_tokens,
+      output_tokens: finalMessage.usage.output_tokens,
+    },
+  };
+  return { brief, meta, raw };
+}
+
+// ---------------------------------------------------------------------------
 // Knowledge base search (Postgres full-text search — no embedding dep)
 // ---------------------------------------------------------------------------
 
