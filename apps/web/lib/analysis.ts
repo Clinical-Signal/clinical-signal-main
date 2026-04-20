@@ -506,7 +506,7 @@ export async function runProtocolGeneration(
     msg = await claude.messages.create(
       {
         model: MODEL,
-        max_tokens: 8000,
+        max_tokens: 12000,
         system,
         messages: [{ role: "user", content: userContent }],
       },
@@ -514,6 +514,13 @@ export async function runProtocolGeneration(
     );
   } finally {
     clearTimeout(timer);
+  }
+
+  if (msg.stop_reason === "max_tokens") {
+    throw new Error(
+      "Protocol generation was truncated (output exceeded 12000 tokens). " +
+      "The protocol may need to be regenerated with a simpler analysis.",
+    );
   }
 
   const raw = msg.content
