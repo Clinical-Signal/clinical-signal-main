@@ -5,6 +5,7 @@ import {
   getAnalysisFindings,
   runProtocolGeneration,
   insertProtocol,
+  searchKnowledgeBase,
 } from "@/lib/analysis";
 
 export const maxDuration = 300;
@@ -41,7 +42,21 @@ export async function POST(
           return;
         }
 
-        send({ status: "Drafting clinical protocol and client action plan..." });
+        send({ status: "Searching knowledge base..." });
+
+        let kbContext: Array<Record<string, unknown>> = [];
+        try {
+          kbContext = await searchKnowledgeBase(user.tenantId, analysis.findings, 12);
+          if (kbContext.length > 0) {
+            send({
+              status: "Drafting protocol with " + kbContext.length + " knowledge base insights...",
+            });
+          } else {
+            send({ status: "Drafting clinical protocol and client action plan..." });
+          }
+        } catch {
+          send({ status: "Drafting clinical protocol and client action plan..." });
+        }
 
         let lastPing = Date.now();
         const onProgress = () => {
@@ -54,7 +69,7 @@ export async function POST(
 
         const { protocol, meta } = await runProtocolGeneration(
           analysis.findings,
-          undefined,
+          kbContext.length > 0 ? kbContext : undefined,
           onProgress,
         );
 
@@ -64,6 +79,16 @@ export async function POST(
         (clinicalContent as Record<string, unknown>)._generation = {
           ...meta,
           ...(protocol.meta ? { model_meta: protocol.meta } : {}),
+          ...(kbContext.length > 0
+            ? {
+                kb_sources: kbContext.map((k) => ({
+                  id: k.id,
+                  title: k.title,
+                  category: k.category,
+                  source_channel: k.source_channel,
+                })),
+              }
+            : {}),
         };
 
         const protocolId = await insertProtocol({

@@ -647,6 +647,78 @@ export async function getAnalysisFindings(
 }
 
 // ---------------------------------------------------------------------------
+// Knowledge base search (Postgres full-text search — no embedding dep)
+// ---------------------------------------------------------------------------
+
+function buildSearchQuery(findings: Record<string, unknown>): string {
+  const terms: string[] = [];
+  const cp = (findings.clinical_picture ?? {}) as Record<string, unknown>;
+  for (const p of (cp.chief_patterns ?? []) as string[]) terms.push(p);
+  for (const s of (cp.presenting_symptoms ?? []) as string[]) terms.push(s);
+  for (const sa of (findings.systems_analysis ?? []) as Record<string, unknown>[]) {
+    if (sa.system) terms.push(String(sa.system));
+    for (const f of (sa.findings ?? []) as string[]) terms.push(f);
+  }
+  for (const lf of (findings.key_lab_findings ?? []) as Record<string, unknown>[]) {
+    if (lf.test_name) terms.push(String(lf.test_name));
+  }
+  const seq = (findings.clinical_sequencing ?? {}) as Record<string, unknown>;
+  for (const a of (seq.address_first ?? []) as string[]) terms.push(a);
+  // Extract meaningful words, deduplicate, limit size
+  const words = terms
+    .join(" ")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s'-]/g, " ")
+    .split(/\s+/)
+    .filter((w) => w.length > 2)
+    .filter((w) => !["the", "and", "for", "with", "this", "that", "from", "are", "not", "but"].includes(w));
+  const unique = [...new Set(words)].slice(0, 30);
+  return unique.join(" | ");
+}
+
+export async function searchKnowledgeBase(
+  tenantId: string,
+  findings: Record<string, unknown>,
+  limit: number = 12,
+): Promise<Array<Record<string, unknown>>> {
+  const query = buildSearchQuery(findings);
+  if (!query) return [];
+
+  return withTenant(tenantId, async (c) => {
+    const { rows } = await c.query<{
+      id: string;
+      category: string;
+      title: string;
+      content: string;
+      metadata: Record<string, unknown>;
+      source_channel: string;
+      rank: number;
+    }>(
+      `SELECT id, category, title, content, metadata, source_channel,
+              ts_rank_cd(
+                to_tsvector('english', title || ' ' || content || ' ' || COALESCE(metadata->>'clinical_reasoning', '')),
+                to_tsquery('english', $1)
+              ) AS rank
+         FROM clinical_knowledge
+        WHERE to_tsvector('english', title || ' ' || content || ' ' || COALESCE(metadata->>'clinical_reasoning', ''))
+              @@ to_tsquery('english', $1)
+        ORDER BY rank DESC
+        LIMIT $2`,
+      [query, limit],
+    );
+    return rows.map((r) => ({
+      id: r.id,
+      category: r.category,
+      title: r.title,
+      content: r.content,
+      metadata: r.metadata,
+      source_channel: r.source_channel,
+      rank: r.rank,
+    }));
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Orchestration — full analyze → generate pipeline
 // ---------------------------------------------------------------------------
 
@@ -671,7 +743,18 @@ export async function analyzeAndGenerate(args: {
     raw: aRaw,
   });
 
-  const { protocol, meta: pMeta } = await runProtocolGeneration(findings);
+  // Query knowledge base for relevant clinical insights
+  let kbContext: Array<Record<string, unknown>> = [];
+  try {
+    kbContext = await searchKnowledgeBase(args.tenantId, findings, 12);
+  } catch {
+    // Non-fatal: generate without KB if search fails
+  }
+
+  const { protocol, meta: pMeta } = await runProtocolGeneration(
+    findings,
+    kbContext.length > 0 ? kbContext : undefined,
+  );
 
   const title = (protocol.title as string) || "Draft Protocol";
   const clinicalContent = (protocol.clinical_protocol ?? {}) as Record<string, unknown>;
@@ -679,6 +762,17 @@ export async function analyzeAndGenerate(args: {
   (clinicalContent as Record<string, unknown>)._generation = {
     ...pMeta,
     ...(protocol.meta ? { model_meta: protocol.meta } : {}),
+    ...(kbContext.length > 0
+      ? {
+          kb_sources: kbContext.map((k) => ({
+            id: k.id,
+            title: k.title,
+            category: k.category,
+            source_channel: k.source_channel,
+            rank: k.rank,
+          })),
+        }
+      : {}),
   };
 
   const protocolId = await insertProtocol({
