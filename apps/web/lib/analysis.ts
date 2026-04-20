@@ -341,7 +341,7 @@ async function createClient() {
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) throw new Error("ANTHROPIC_API_KEY is not set");
   const { default: Anthropic } = await import("@anthropic-ai/sdk");
-  return new Anthropic({ apiKey: key });
+  return new Anthropic({ apiKey: key, timeout: 240_000 });
 }
 
 function stripCodeFences(s: string): string {
