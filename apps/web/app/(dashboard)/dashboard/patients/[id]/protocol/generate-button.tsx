@@ -22,7 +22,18 @@ async function readStream(
   const res = await fetch(url, opts);
   if (!res.ok || !res.body) {
     const text = await res.text().catch(() => "");
-    throw new Error(text || "Server returned " + res.status);
+    // Try to extract a readable error message from JSON responses.
+    let msg = "Server returned " + res.status;
+    try {
+      const json = JSON.parse(text);
+      msg = json.error || json.message || msg;
+    } catch {
+      if (text) msg = text;
+    }
+    if (res.status === 401) {
+      msg = "Your session has expired. Please log out and log back in, then try again.";
+    }
+    throw new Error(msg);
   }
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
