@@ -6,6 +6,43 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import type { IntakeDocSummary, DocType } from "@/lib/intake-documents";
 
+// Client-side PDF text extraction using pdf.js from CDN.
+// Loaded dynamically on first PDF upload — no server dependency.
+let pdfjsLoaded: Promise<void> | null = null;
+
+function loadPdfJs(): Promise<void> {
+  if (pdfjsLoaded) return pdfjsLoaded;
+  pdfjsLoaded = new Promise((resolve, reject) => {
+    if (typeof window !== "undefined" && (window as any).pdfjsLib) {
+      resolve();
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+    script.onload = () => {
+      (window as any).pdfjsLib.GlobalWorkerOptions.workerSrc =
+        "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+      resolve();
+    };
+    script.onerror = () => reject(new Error("Failed to load PDF.js"));
+    document.head.appendChild(script);
+  });
+  return pdfjsLoaded;
+}
+
+async function extractPdfTextInBrowser(file: File): Promise<string> {
+  await loadPdfJs();
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await (window as any).pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  const pages: string[] = [];
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    pages.push(content.items.map((item: any) => item.str).join(" "));
+  }
+  return pages.join("\n");
+}
+
 const DOC_TYPE_LABELS: Record<string, string> = {
   transcript: "Transcript",
   pdf: "PDF",
@@ -305,19 +342,48 @@ function FileUpload({
     setError(null);
     setResult(null);
     try {
-      const fd = new FormData();
-      fd.set("file", file);
-      const res = await fetch("/api/patients/" + patientId + "/intake-docs", {
-        method: "POST",
-        body: fd,
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Upload failed");
-      setResult(
-        data.extracted
-          ? "File processed \u2014 text extracted."
-          : "File stored (no text extraction for this type).",
-      );
+      if (file.name.toLowerCase().endsWith(".pdf")) {
+        // Extract text CLIENT-SIDE using pdf.js from CDN — avoids all
+        // server-side PDF library issues on Vercel serverless.
+        setResult("Extracting text from PDF...");
+        const text = await extractPdfTextInBrowser(file);
+        if (!text.trim()) throw new Error("No readable text found in this PDF.");
+        setResult("Uploading extracted text (" + Math.ceil(text.length / 1024) + " KB)...");
+        const res = await fetch("/api/patients/" + patientId + "/intake-docs", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: "transcript",
+            text,
+            title: file.name,
+          }),
+        });
+        const contentType = res.headers.get("content-type") ?? "";
+        if (!contentType.includes("application/json")) {
+          throw new Error("Server returned an unexpected response (status " + res.status + "). Try logging out and back in.");
+        }
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? "Upload failed");
+        setResult("PDF processed \u2014 " + data.chunks + " chunks extracted.");
+      } else {
+        const fd = new FormData();
+        fd.set("file", file);
+        const res = await fetch("/api/patients/" + patientId + "/intake-docs", {
+          method: "POST",
+          body: fd,
+        });
+        const contentType = res.headers.get("content-type") ?? "";
+        if (!contentType.includes("application/json")) {
+          throw new Error("Server returned an unexpected response (status " + res.status + "). Try logging out and back in.");
+        }
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? "Upload failed");
+        setResult(
+          data.extracted
+            ? "File processed \u2014 text extracted."
+            : "File stored (no text extraction for this type).",
+        );
+      }
       setFile(null);
       onSuccess();
     } catch (err) {

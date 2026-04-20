@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";
+import { apiAuth } from "@/lib/auth";
 import { writeAudit } from "@/lib/audit";
 import { patientBelongsToTenant } from "@/lib/records";
 import { fetchProtocolPdf } from "@/lib/protocols";
@@ -8,7 +8,8 @@ export async function GET(
   req: Request,
   ctx: { params: { id: string; protocolId: string } },
 ) {
-  const user = await requireAuth();
+  const user = await apiAuth();
+  if (!user) return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
   const ok = await patientBelongsToTenant(user.tenantId, ctx.params.id);
   if (!ok) return NextResponse.json({ error: "not found" }, { status: 404 });
 
