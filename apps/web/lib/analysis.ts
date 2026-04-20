@@ -506,7 +506,7 @@ export async function runProtocolGeneration(
     msg = await claude.messages.create(
       {
         model: MODEL,
-        max_tokens: 16000,
+        max_tokens: 8000,
         system,
         messages: [{ role: "user", content: userContent }],
       },
