@@ -413,7 +413,15 @@ export async function gatherPatientTimeline(
   });
 }
 
-function formatTimelineForPrompt(t: PatientTimeline): string {
+async function getDocumentTexts(tenantId: string, patientId: string): Promise<string[]> {
+  const { getDocumentText } = await import("./intake-documents");
+  return getDocumentText(tenantId, patientId);
+}
+
+function formatTimelineForPrompt(
+  t: PatientTimeline,
+  documentTexts?: string[],
+): string {
   const sections: string[] = [];
   sections.push("## Intake");
   sections.push(JSON.stringify(t.intakeData, null, 2));
@@ -421,12 +429,28 @@ function formatTimelineForPrompt(t: PatientTimeline): string {
   if (t.records.length === 0) {
     sections.push("\n## Records\n(none)");
   } else {
-    sections.push(`\n## Records (${t.records.length} complete)`);
+    sections.push("\n## Records (" + t.records.length + " complete)");
     for (const r of t.records) {
-      sections.push(`### ${r.recordType} — ${r.recordDate ?? "undated"} (id ${r.recordId})`);
+      sections.push("### " + r.recordType + " — " + (r.recordDate ?? "undated") + " (id " + r.recordId + ")");
       sections.push(JSON.stringify(r.structuredData, null, 2));
     }
   }
+
+  if (documentTexts && documentTexts.length > 0) {
+    sections.push("\n## Uploaded documents & transcripts (" + documentTexts.length + ")");
+    sections.push(
+      "The following are practitioner-uploaded call transcripts, clinical notes, " +
+      "and extracted document text. They contain direct clinical observations " +
+      "and treatment reasoning that should inform the analysis."
+    );
+    for (let i = 0; i < documentTexts.length; i++) {
+      const text = documentTexts[i]!;
+      // Cap each doc to ~8000 chars to keep the prompt manageable
+      sections.push("\n### Document " + (i + 1));
+      sections.push(text.length > 8000 ? text.slice(0, 8000) + "\n...(truncated)" : text);
+    }
+  }
+
   return sections.join("\n");
 }
 
@@ -728,7 +752,14 @@ export async function analyzeAndGenerate(args: {
   practitionerId: string;
 }): Promise<{ analysisId: string; protocolId: string }> {
   const timeline = await gatherPatientTimeline(args.tenantId, args.patientId);
-  const timelineText = formatTimelineForPrompt(timeline);
+
+  // Include uploaded documents (transcripts, notes, PDFs) in the analysis
+  let docTexts: string[] = [];
+  try {
+    docTexts = await getDocumentTexts(args.tenantId, args.patientId);
+  } catch { /* non-fatal */ }
+
+  const timelineText = formatTimelineForPrompt(timeline, docTexts);
 
   const { findings, meta: aMeta, raw: aRaw } = await runClinicalAnalysis(timelineText);
 

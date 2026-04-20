@@ -83,16 +83,16 @@ export default async function PatientDetailPage({
           }
         />
         <HubCard
-          title="Lab records"
-          status={
-            summary.recordCount === 0
-              ? "No records uploaded"
-              : `${summary.recordCount} record${summary.recordCount === 1 ? "" : "s"}`
-          }
+          title="Documents"
+          status="Transcripts, notes, and files"
           body={null}
           primary={{
+            href: `/dashboard/patients/${params.id}/intake-hub`,
+            label: "Intake hub",
+          }}
+          secondary={{
             href: `/dashboard/patients/${params.id}/records`,
-            label: summary.recordCount === 0 ? "Upload lab results" : "Manage records",
+            label: "Lab records",
           }}
         />
         <HubCard
