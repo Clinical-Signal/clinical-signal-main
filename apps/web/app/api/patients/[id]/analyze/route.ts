@@ -70,9 +70,9 @@ export async function POST(
         send({ done: true, analysisId });
       } catch (err) {
         send({ error: err instanceof Error ? err.message : String(err) });
-      } finally {
-        controller.close();
       }
+      await new Promise((r) => setTimeout(r, 50));
+      controller.close();
     },
   });
 
