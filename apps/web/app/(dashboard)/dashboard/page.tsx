@@ -56,7 +56,7 @@ export default async function DashboardPage() {
               <tr>
                 <th className="px-5 py-3 font-medium">Name</th>
                 <th className="px-5 py-3 font-medium">Status</th>
-                <th className="hidden px-5 py-3 font-medium sm:table-cell">DOB</th>
+                <th className="hidden px-5 py-3 font-medium md:table-cell">Progress</th>
                 <th className="hidden px-5 py-3 font-medium sm:table-cell">
                   Updated
                 </th>
@@ -80,6 +80,9 @@ export default async function DashboardPage() {
                       >
                         {p.name}
                       </Link>
+                      {p.dob ? (
+                        <div className="text-xs text-ink-faint">DOB {p.dob}</div>
+                      ) : null}
                     </td>
                     <td className="px-5 py-3">
                       <span className="inline-flex items-center gap-2 text-ink-muted">
@@ -87,8 +90,30 @@ export default async function DashboardPage() {
                         {status.label}
                       </span>
                     </td>
-                    <td className="hidden px-5 py-3 text-ink-muted sm:table-cell">
-                      {p.dob ?? "—"}
+                    <td className="hidden px-5 py-3 md:table-cell">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {p.docCount > 0 ? (
+                          <span className="rounded bg-surface-sunken px-1.5 py-0.5 text-xs text-ink-subtle">
+                            {p.docCount} doc{p.docCount === 1 ? "" : "s"}
+                          </span>
+                        ) : null}
+                        {p.hasPrepBrief ? (
+                          <span className="rounded bg-accent-soft px-1.5 py-0.5 text-xs text-accent">
+                            Brief
+                          </span>
+                        ) : null}
+                        {p.protocolStatus ? (
+                          <span className={`rounded px-1.5 py-0.5 text-xs ${
+                            p.protocolStatus === "finalized"
+                              ? "bg-success-soft text-success"
+                              : p.protocolStatus === "review"
+                                ? "bg-accent-soft text-accent"
+                                : "bg-warning-soft text-warning"
+                          }`}>
+                            Protocol {p.protocolStatus}
+                          </span>
+                        ) : null}
+                      </div>
                     </td>
                     <td className="hidden px-5 py-3 text-ink-subtle sm:table-cell">
                       {new Date(p.updatedAt).toLocaleDateString()}
