@@ -1,62 +1,35 @@
-# UI Polish Notes — sprint-5/ui-polish
+# UI Polish Notes
 
-Running log of things discovered during the UI polish pass that are
-out-of-scope for this branch. Each entry is a standalone note — pick and
-prioritize from the morning review.
+## Completed overnight (this session)
 
-## Bugs found but not fixed (scope: polish-only)
+### Intake hub polish
+- Document list: type-filter chips, expandable text previews, file type icons, expand chevron
+- Tab indicators: full-width on mobile, smoother hover
+- File upload: larger drop zone with scale transition, file type icon preview
+- Token estimate shown while typing transcripts
 
-- **Tailwind `@apply` with CSS-var custom colors fails.** Can't use
-  `@apply border-line` in globals.css because Tailwind can't resolve
-  runtime CSS vars during the `@apply` expansion phase. Removed the
-  `.card` and `.divider` `@apply` shortcuts; all components use inline
-  Tailwind utilities directly instead. Not a real limitation — the
-  component kit doesn't need `@apply` shortcuts.
+### Prep brief polish
+- Print button (window.print with print:* utilities)
+- Copy to clipboard (formatted plain text)
+- Collapsible/expandable sections with toggle chevrons
+- "Regenerate" label after first brief generated
 
-## Deeper redesigns deferred
+### Dashboard improvements
+- New "Progress" column with mini pill badges for doc count, prep brief status, protocol status
+- DOB moved under patient name to save horizontal space
 
-- **Login page landing graphic.** Auth layout currently has just the
-  wordmark + tagline + form. A half-screen illustration or testimonial
-  panel (common in clinical SaaS) would elevate the first impression but
-  requires a design asset we don't have.
+## Deferred — protocol editor improvements
 
-- **Mobile navigation.** The sticky header collapses gracefully at 390px
-  but there's no hamburger or bottom nav for mobile. Desktop-first per the
-  spec, but if Dr. Laura ever checks on her phone it'll feel flat.
+These require deeper structural changes:
 
-- **Protocol editor rich text.** Per-field textarea editing preserves the
-  JSONB schema (which the PDF exporter and knowledge graph depend on), but
-  a practitioner might expect inline formatting (bold, lists) in the
-  clinical-reasoning or closing-note fields. That needs a lightweight
-  editor (Tiptap or similar) plus a serialization strategy — deeper than
-  polish scope.
+- **Auto-save with debounce**: currently each save creates a new protocol version (INSERT, not UPDATE). Debounced auto-save would create version spam. Needs either: (a) a separate "save draft in place" mutation that UPDATEs the current row, reserving "Save as new version" for explicit versioning, or (b) a dirty-state persistence layer (localStorage or DB drafts table).
 
-- **Lab review "Add row" button.** The review table lets practitioners
-  delete and edit rows but has no way to add a row the AI missed. Would
-  need a small addition to review-table.tsx (not a restyle).
+- **Edit/Preview toggle**: would benefit from a markdown renderer (like react-markdown) for the free-text fields (clinical_reasoning, closing_note). Without a renderer, "preview" would just show the same text without the textarea chrome — not valuable enough to justify the component complexity.
 
-## Notable decisions
+- **Version comparison (diff)**: meaningful diff between protocol versions would require a JSON-aware diff algorithm since the content is structured JSONB. A naive text diff would be noisy. Consider using json-diff or a custom section-by-section comparison UI.
 
-- **Palette: stone, not slate.** Stone-50 canvas (#fafaf9) is warmer than
-  slate-50 (#f8fafc). Clinical environments tend warmer — the cool blue
-  cast of slate reads as "developer theme" to non-technical users.
+## Known issues
 
-- **Serif display font: Fraunces.** Google Font, variable, loaded via
-  `next/font` (self-hosted at build). Used only for H1/H2 display — body
-  and UI stay on Inter. The serif signals "professional" without competing
-  with the data-dense UI.
+- Protocol generation takes 90-280s total (two streaming API calls). The progress UI (Step 1/2, Step 2/2 with ping updates) is functional but the raw duration will surprise practitioners. Consider: (a) using a faster model for one step, (b) caching analyses so regeneration only needs step 2, (c) background generation with email/push notification on completion.
 
-- **StatusDot instead of Badge in dense lists.** The patient list and
-  records list use a 6px dot + text label instead of a rounded pill badge.
-  Badges are reserved for headers and protocol-status contexts where
-  the state deserves more visual weight.
-
-- **"Unsaved changes" pill in protocol editor.** Computed from a JSON
-  snapshot diff (initial vs current). Adds a `beforeunload` listener so
-  the browser confirms before navigating away. Calm warning-soft tint,
-  not an alarming red alert.
-
-- **PDF letterhead.** Practice name left-aligned, formatted date
-  right-aligned in a 2-col table. Uppercase eyebrow for the audience
-  ("CLINICAL PROTOCOL — PRACTITIONER COPY"). "Prepared for <name>".
-  Page footer: "Clinical Signal" left, "Page N" right.
+- Vercel Blob store was never linked for file uploads. Uploaded files are validated and recorded but the PDF bytes aren't persisted on Vercel (only locally in Docker). For production, either link the blob store interactively or switch to storing PDFs as bytea in Neon.
