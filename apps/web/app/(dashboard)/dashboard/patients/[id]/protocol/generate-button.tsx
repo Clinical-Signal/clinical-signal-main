@@ -119,12 +119,40 @@ export function GenerateProtocolButton({ patientId }: { patientId: string }) {
       );
 
       // Use redirect from event callback (most reliable) or return value.
-      const target =
+      let target =
         redirectUrl ??
         protoResult?.redirect ??
         (protoResult?.protocolId
           ? "/dashboard/patients/" + patientId + "/protocol/" + protoResult.protocolId
           : null);
+
+      // Fallback: if the stream ended without a redirect (e.g. Vercel
+      // timeout killed the function mid-generation), poll to check if a
+      // protocol was actually created in the background.
+      if (!target) {
+        setStatus("Checking for generated protocol...");
+        for (let attempt = 0; attempt < 6; attempt++) {
+          await new Promise((r) => setTimeout(r, 5000));
+          try {
+            const checkRes = await fetch(
+              "/api/patients/" + patientId + "/protocols?limit=1",
+            );
+            if (checkRes.ok) {
+              const protocols = await checkRes.json();
+              if (protocols.length > 0) {
+                const latest = protocols[0];
+                // Only use it if created recently (within last 10 minutes)
+                const age = Date.now() - new Date(latest.createdAt).getTime();
+                if (age < 10 * 60 * 1000) {
+                  target = "/dashboard/patients/" + patientId + "/protocol/" + latest.id;
+                  break;
+                }
+              }
+            }
+          } catch { /* retry */ }
+          setStatus("Still checking... (" + (attempt + 1) + "/6)");
+        }
+      }
 
       if (target) {
         setPhase("Done");
@@ -133,8 +161,8 @@ export function GenerateProtocolButton({ patientId }: { patientId: string }) {
         router.refresh();
       } else {
         throw new Error(
-          "Protocol may have been generated — check the versions list. " +
-          "The redirect event was not received.",
+          "Protocol generation may still be running. Wait a minute, " +
+          "then refresh this page to check the versions list.",
         );
       }
     } catch (err) {
