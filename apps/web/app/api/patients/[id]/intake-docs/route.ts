@@ -82,12 +82,18 @@ export async function POST(
     if (name.endsWith(".pdf")) {
       docType = "pdf";
       try {
-        // Import the inner module to skip pdf-parse's canvas/DOMMatrix
-        // dependency which doesn't exist in Vercel's serverless runtime.
+        // pdfjs-dist in legacy/node mode — no canvas dependency.
         // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const pdfParse = require("pdf-parse/lib/pdf-parse.js");
-        const result = await pdfParse(bytes);
-        extractedText = result.text;
+        const pdfjsLib = require("pdfjs-dist/legacy/build/pdf.js");
+        const doc = await pdfjsLib.getDocument({ data: bytes }).promise;
+        const pages: string[] = [];
+        for (let i = 1; i <= doc.numPages; i++) {
+          const page = await doc.getPage(i);
+          const content = await page.getTextContent();
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          pages.push(content.items.map((item: any) => item.str).join(" "));
+        }
+        extractedText = pages.join("\n");
       } catch (err) {
         return NextResponse.json(
           { error: "Could not parse PDF: " + (err instanceof Error ? err.message : String(err)) },
