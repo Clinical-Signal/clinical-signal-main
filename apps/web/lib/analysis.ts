@@ -440,7 +440,7 @@ export async function runClinicalAnalysis(
   const system = loadPrompt("clinical_analysis_v1");
   const claude = await createClient();
   const abort = new AbortController();
-  const timer = setTimeout(() => abort.abort(), 180_000);
+  const timer = setTimeout(() => abort.abort(), 270_000);
   let msg;
   try {
     msg = await claude.messages.create(
@@ -500,7 +500,7 @@ export async function runProtocolGeneration(
 
   const claude = await createClient();
   const abort = new AbortController();
-  const timer = setTimeout(() => abort.abort(), 180_000);
+  const timer = setTimeout(() => abort.abort(), 270_000);
   let msg;
   try {
     msg = await claude.messages.create(
