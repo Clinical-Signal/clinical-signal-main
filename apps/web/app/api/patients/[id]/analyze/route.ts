@@ -36,19 +36,18 @@ export async function POST(
           detail: `${timeline.records.length} completed record(s)`,
         });
 
-        // Send keepalive pings every 15s while Claude is thinking so the
-        // client knows the connection is alive.
-        const keepalive = setInterval(() => {
-          send({ ping: true, status: "Still analyzing — Claude is thinking..." });
-        }, 15_000);
-
         const timelineText = formatTimeline(timeline);
-        let findings, meta, raw;
-        try {
-          ({ findings, meta, raw } = await runClinicalAnalysis(timelineText));
-        } finally {
-          clearInterval(keepalive);
-        }
+
+        let lastPing = Date.now();
+        const onProgress = () => {
+          const now = Date.now();
+          if (now - lastPing > 5_000) {
+            send({ ping: true, status: "Analyzing — receiving results..." });
+            lastPing = now;
+          }
+        };
+
+        const { findings, meta, raw } = await runClinicalAnalysis(timelineText, onProgress);
 
         const analysisId = await insertAnalysis({
           tenantId: user.tenantId,
