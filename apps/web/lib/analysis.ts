@@ -439,20 +439,30 @@ export async function runClinicalAnalysis(
 ): Promise<{ findings: Record<string, unknown>; meta: Record<string, unknown>; raw: string }> {
   const system = loadPrompt("clinical_analysis_v1");
   const claude = await createClient();
-  const msg = await claude.messages.create({
-    model: MODEL,
-    max_tokens: 16000,
-    system,
-    messages: [
+  const abort = new AbortController();
+  const timer = setTimeout(() => abort.abort(), 180_000);
+  let msg;
+  try {
+    msg = await claude.messages.create(
       {
-        role: "user",
-        content:
-          "Analyze the following patient data. Respond with JSON only per the output contract.\n\n<patient_data>\n" +
-          timelineText +
-          "\n</patient_data>",
+        model: MODEL,
+        max_tokens: 16000,
+        system,
+        messages: [
+          {
+            role: "user",
+            content:
+              "Analyze the following patient data. Respond with JSON only per the output contract.\n\n<patient_data>\n" +
+              timelineText +
+              "\n</patient_data>",
+          },
+        ],
       },
-    ],
-  });
+      { signal: abort.signal },
+    );
+  } finally {
+    clearTimeout(timer);
+  }
 
   const raw = msg.content
     .filter((b) => b.type === "text")
@@ -489,12 +499,22 @@ export async function runProtocolGeneration(
   }
 
   const claude = await createClient();
-  const msg = await claude.messages.create({
-    model: MODEL,
-    max_tokens: 16000,
-    system,
-    messages: [{ role: "user", content: userContent }],
-  });
+  const abort = new AbortController();
+  const timer = setTimeout(() => abort.abort(), 180_000);
+  let msg;
+  try {
+    msg = await claude.messages.create(
+      {
+        model: MODEL,
+        max_tokens: 16000,
+        system,
+        messages: [{ role: "user", content: userContent }],
+      },
+      { signal: abort.signal },
+    );
+  } finally {
+    clearTimeout(timer);
+  }
 
   const raw = msg.content
     .filter((b) => b.type === "text")

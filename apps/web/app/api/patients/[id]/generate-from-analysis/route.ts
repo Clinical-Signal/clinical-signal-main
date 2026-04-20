@@ -43,7 +43,16 @@ export async function POST(
 
         send({ status: "Drafting clinical protocol and client action plan..." });
 
-        const { protocol, meta } = await runProtocolGeneration(analysis.findings);
+        const keepalive = setInterval(() => {
+          send({ ping: true, status: "Still drafting — Claude is writing the protocol..." });
+        }, 15_000);
+
+        let protocol, meta;
+        try {
+          ({ protocol, meta } = await runProtocolGeneration(analysis.findings));
+        } finally {
+          clearInterval(keepalive);
+        }
 
         const title = (protocol.title as string) || "Draft Protocol";
         const clinicalContent = (protocol.clinical_protocol ?? {}) as Record<string, unknown>;
