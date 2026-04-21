@@ -210,20 +210,20 @@ export function EditForm(props: Props) {
       ) : null}
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <Panel
+        <PanelWithPreview
           title="Output A · Clinical protocol"
           subtitle="Practitioner copy"
           tone="surface"
-        >
-          <ClinicalEditor value={clinical} onChange={setClinical} />
-        </Panel>
-        <Panel
+          editor={<ClinicalEditor value={clinical} onChange={setClinical} />}
+          preview={<JsonPreview data={clinical} />}
+        />
+        <PanelWithPreview
           title="Output B · Client action plan"
           subtitle="Patient copy"
           tone="sunken"
-        >
-          <ClientEditor value={client} onChange={setClient} />
-        </Panel>
+          editor={<ClientEditor value={client} onChange={setClient} />}
+          preview={<JsonPreview data={client} />}
+        />
       </div>
     </div>
   );
@@ -258,6 +258,128 @@ function Panel({
       </header>
       <div className="flex flex-col gap-5">{children}</div>
     </article>
+  );
+}
+
+function PanelWithPreview({
+  title,
+  subtitle,
+  tone,
+  editor,
+  preview,
+}: {
+  title: string;
+  subtitle?: string;
+  tone: "surface" | "sunken";
+  editor: React.ReactNode;
+  preview: React.ReactNode;
+}) {
+  const [mode, setMode] = useState<"edit" | "preview">("edit");
+  const bg = tone === "surface" ? "bg-surface" : "bg-surface-sunken/40";
+  return (
+    <article className={`rounded-xl border border-line ${bg} p-6`}>
+      <header className="mb-4 flex items-start justify-between border-b border-line pb-3">
+        <div>
+          <h2 className="text-lg font-semibold text-ink">{title}</h2>
+          {subtitle ? <p className="mt-1 text-xs text-ink-subtle">{subtitle}</p> : null}
+        </div>
+        <div className="flex rounded-md border border-line-strong">
+          <button
+            type="button"
+            onClick={() => setMode("edit")}
+            className={`rounded-l-md px-3 py-1 text-xs font-medium transition-colors ${
+              mode === "edit"
+                ? "bg-surface text-ink"
+                : "text-ink-subtle hover:text-ink"
+            }`}
+          >
+            Edit
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode("preview")}
+            className={`rounded-r-md px-3 py-1 text-xs font-medium transition-colors ${
+              mode === "preview"
+                ? "bg-surface text-ink"
+                : "text-ink-subtle hover:text-ink"
+            }`}
+          >
+            Preview
+          </button>
+        </div>
+      </header>
+      <div className="flex flex-col gap-5">
+        {mode === "edit" ? editor : preview}
+      </div>
+    </article>
+  );
+}
+
+function JsonPreview({ data }: { data: Record<string, any> }) {
+  return (
+    <div className="flex flex-col gap-4 text-sm">
+      {Object.entries(data).map(([key, value]) => {
+        if (key.startsWith("_")) return null;
+        return (
+          <div key={key}>
+            <h3 className="mb-1 text-xs font-medium uppercase tracking-wide text-ink-subtle">
+              {key.replace(/_/g, " ")}
+            </h3>
+            <div className="text-ink-muted">
+              <RenderPreviewValue value={value} />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function RenderPreviewValue({ value }: { value: unknown }): React.ReactElement {
+  if (value === null || value === undefined) {
+    return <span className="text-ink-faint">\u2014</span>;
+  }
+  if (typeof value === "string") {
+    return <p className="whitespace-pre-wrap leading-relaxed">{value}</p>;
+  }
+  if (typeof value === "number" || typeof value === "boolean") {
+    return <span>{String(value)}</span>;
+  }
+  if (Array.isArray(value)) {
+    if (value.length === 0) return <span className="text-ink-faint">(none)</span>;
+    const allPrimitive = value.every(
+      (v) => v === null || ["string", "number", "boolean"].includes(typeof v),
+    );
+    if (allPrimitive) {
+      return (
+        <ul className="ml-4 list-disc space-y-0.5">
+          {value.map((v, i) => (
+            <li key={i}>{String(v)}</li>
+          ))}
+        </ul>
+      );
+    }
+    return (
+      <div className="flex flex-col gap-2">
+        {value.map((v, i) => (
+          <div key={i} className="rounded-lg border border-line bg-surface/60 p-2">
+            <RenderPreviewValue value={v} />
+          </div>
+        ))}
+      </div>
+    );
+  }
+  // object
+  const obj = value as Record<string, unknown>;
+  return (
+    <dl className="flex flex-col gap-1.5 pl-2">
+      {Object.entries(obj).map(([k, v]) => (
+        <div key={k}>
+          <dt className="text-xs font-medium text-ink-subtle">{k.replace(/_/g, " ")}</dt>
+          <dd className="text-sm"><RenderPreviewValue value={v} /></dd>
+        </div>
+      ))}
+    </dl>
   );
 }
 
