@@ -486,6 +486,24 @@ function Toolbar({
         >
           Save as new version
         </Button>
+        <a
+          href={`/api/patients/${patientId}/protocol/${currentId}/export?audience=clinical`}
+          target="_blank"
+          rel="noopener"
+          className="inline-flex h-8 items-center rounded-md border border-line-strong bg-surface px-2 text-xs text-ink-subtle transition-colors hover:text-ink hover:bg-surface-sunken"
+          title="Preview clinical PDF"
+        >
+          Clinical PDF
+        </a>
+        <a
+          href={`/api/patients/${patientId}/protocol/${currentId}/export?audience=client`}
+          target="_blank"
+          rel="noopener"
+          className="inline-flex h-8 items-center rounded-md border border-line-strong bg-surface px-2 text-xs text-ink-subtle transition-colors hover:text-ink hover:bg-surface-sunken"
+          title="Preview client PDF"
+        >
+          Client PDF
+        </a>
       </div>
     </div>
   );
@@ -629,6 +647,48 @@ function ItemList<T extends Record<string, any>>({
 // Clinical editor
 // ---------------------------------------------------------------------------
 
+const CLINICAL_SECTIONS = [
+  { key: "summary_of_findings", label: "Summary" },
+  { key: "systems_analysis", label: "Systems" },
+  { key: "dietary_recommendations", label: "Diet" },
+  { key: "supplement_protocol", label: "Supplements" },
+  { key: "lifestyle_modifications", label: "Lifestyle" },
+  { key: "lab_retesting", label: "Lab retesting" },
+  { key: "follow_up_timeline", label: "Follow-up" },
+  { key: "clinical_reasoning", label: "Reasoning" },
+  { key: "areas_of_uncertainty", label: "Uncertainty" },
+];
+
+const CLIENT_SECTIONS = [
+  { key: "intro", label: "Intro" },
+  { key: "phases", label: "Phases" },
+  { key: "closing_note", label: "Closing" },
+  { key: "if_something_feels_off", label: "If issues" },
+];
+
+function SectionNav({ sections, data }: { sections: { key: string; label: string }[]; data: Record<string, any> }) {
+  return (
+    <nav className="mb-3 flex flex-wrap gap-1 border-b border-line pb-3">
+      {sections.map((s) => {
+        const val = data[s.key];
+        const filled = val && (typeof val === "string" ? val.trim() : Array.isArray(val) ? val.length > 0 : true);
+        return (
+          <button
+            key={s.key}
+            type="button"
+            onClick={() => document.getElementById("sec-" + s.key)?.scrollIntoView({ behavior: "smooth", block: "start" })}
+            className={`rounded-md px-2 py-1 text-xs font-medium transition-colors ${
+              filled ? "bg-accent-soft text-accent" : "bg-surface-sunken text-ink-faint"
+            } hover:bg-accent-soft hover:text-accent`}
+          >
+            {s.label}
+          </button>
+        );
+      })}
+    </nav>
+  );
+}
+
 function ClinicalEditor({
   value,
   onChange,
@@ -642,12 +702,15 @@ function ClinicalEditor({
 
   return (
     <>
+      <SectionNav sections={CLINICAL_SECTIONS} data={value} />
+      <span id="sec-summary_of_findings" className="scroll-mt-32" />
       <FieldText
         label="Summary of findings"
         value={value.summary_of_findings ?? ""}
         onChange={(v) => patch({ summary_of_findings: v })}
         rows={4}
       />
+      <span id="sec-systems_analysis" className="scroll-mt-32" />
       <ItemList
         label="Systems analysis"
         items={value.systems_analysis ?? []}
@@ -665,6 +728,7 @@ function ClinicalEditor({
           </div>
         )}
       />
+      <span id="sec-dietary_recommendations" className="scroll-mt-32" />
       <ItemList
         label="Dietary recommendations"
         items={value.dietary_recommendations ?? []}
@@ -678,6 +742,7 @@ function ClinicalEditor({
           </div>
         )}
       />
+      <span id="sec-supplement_protocol" className="scroll-mt-32" />
       <ItemList
         label="Supplement protocol"
         items={value.supplement_protocol ?? []}
@@ -700,6 +765,7 @@ function ClinicalEditor({
           </div>
         )}
       />
+      <span id="sec-lifestyle_modifications" className="scroll-mt-32" />
       <ItemList
         label="Lifestyle modifications"
         items={value.lifestyle_modifications ?? []}
@@ -713,6 +779,7 @@ function ClinicalEditor({
           </div>
         )}
       />
+      <span id="sec-lab_retesting" className="scroll-mt-32" />
       <ItemList
         label="Lab re-testing"
         items={value.lab_retesting ?? []}
@@ -726,6 +793,7 @@ function ClinicalEditor({
           </div>
         )}
       />
+      <span id="sec-follow_up_timeline" className="scroll-mt-32" />
       <ItemList
         label="Follow-up timeline"
         items={value.follow_up_timeline ?? []}
@@ -738,12 +806,14 @@ function ClinicalEditor({
           </div>
         )}
       />
+      <span id="sec-clinical_reasoning" className="scroll-mt-32" />
       <FieldText
         label="Clinical reasoning"
         value={value.clinical_reasoning ?? ""}
         onChange={(v) => patch({ clinical_reasoning: v })}
         rows={6}
       />
+      <span id="sec-areas_of_uncertainty" className="scroll-mt-32" />
       <ItemList
         label="Areas of uncertainty"
         items={value.areas_of_uncertainty ?? []}
@@ -798,12 +868,15 @@ function ClientEditor({
 
   return (
     <>
+      <SectionNav sections={CLIENT_SECTIONS} data={value} />
+      <span id="sec-intro" className="scroll-mt-32" />
       <FieldText
         label="Intro"
         value={value.intro ?? ""}
         onChange={(v) => patch({ intro: v })}
         rows={4}
       />
+      <span id="sec-phases" className="scroll-mt-32" />
       <ItemList
         label="Phases"
         items={value.phases ?? []}
@@ -849,12 +922,14 @@ function ClientEditor({
           </div>
         )}
       />
+      <span id="sec-closing_note" className="scroll-mt-32" />
       <FieldText
         label="Closing note"
         value={value.closing_note ?? ""}
         onChange={(v) => patch({ closing_note: v })}
         rows={3}
       />
+      <span id="sec-if_something_feels_off" className="scroll-mt-32" />
       <StringList
         label="If something feels off"
         items={value.if_something_feels_off ?? []}
