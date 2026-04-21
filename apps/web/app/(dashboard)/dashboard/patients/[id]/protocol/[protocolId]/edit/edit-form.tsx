@@ -80,6 +80,60 @@ export function EditForm(props: Props) {
     return () => window.removeEventListener("beforeunload", handler);
   }, [dirty]);
 
+  // Auto-save to localStorage every 30s when dirty, so browser crashes
+  // don't lose work. Cleared on successful server save.
+  const storageKey = "protocol_draft_" + props.protocolId;
+  const [autoSavedAt, setAutoSavedAt] = useState<string | null>(null);
+  const [restored, setRestored] = useState(false);
+
+  useEffect(() => {
+    // On mount, check for a stored draft and offer to restore.
+    if (restored) return;
+    try {
+      const stored = localStorage.getItem(storageKey);
+      if (stored) {
+        const draft = JSON.parse(stored) as {
+          title: string;
+          clinical: Record<string, any>;
+          client: Record<string, any>;
+          savedAt: string;
+        };
+        if (
+          draft.title !== props.initialTitle ||
+          JSON.stringify(draft.clinical) !== JSON.stringify(initialClinicalStripped) ||
+          JSON.stringify(draft.client) !== JSON.stringify(props.initialClient)
+        ) {
+          const age = Date.now() - new Date(draft.savedAt).getTime();
+          if (age < 24 * 60 * 60 * 1000) {
+            // Less than 24h old — restore silently.
+            setTitle(draft.title);
+            setClinical(draft.clinical);
+            setClient(draft.client);
+            setAutoSavedAt(draft.savedAt);
+            setMessage("Restored unsaved edits from " + new Date(draft.savedAt).toLocaleTimeString());
+          } else {
+            localStorage.removeItem(storageKey);
+          }
+        } else {
+          localStorage.removeItem(storageKey);
+        }
+      }
+    } catch { /* ignore */ }
+    setRestored(true);
+  }, [storageKey, restored, props.initialTitle, props.initialClient, initialClinicalStripped]);
+
+  useEffect(() => {
+    if (!dirty) return;
+    const timer = setTimeout(() => {
+      try {
+        const draft = { title, clinical, client, savedAt: new Date().toISOString() };
+        localStorage.setItem(storageKey, JSON.stringify(draft));
+        setAutoSavedAt(draft.savedAt);
+      } catch { /* quota exceeded etc */ }
+    }, 30_000);
+    return () => clearTimeout(timer);
+  }, [dirty, title, clinical, client, storageKey]);
+
   function onSave() {
     setMessage(null);
     setError(null);
@@ -92,6 +146,8 @@ export function EditForm(props: Props) {
         client,
       );
       if (res.ok) {
+        try { localStorage.removeItem(storageKey); } catch { /* ignore */ }
+        setAutoSavedAt(null);
         setMessage(`Saved as v${res.version}.`);
         router.push(
           `/dashboard/patients/${props.patientId}/protocol/${res.protocolId}/edit`,
@@ -144,6 +200,7 @@ export function EditForm(props: Props) {
         currentId={props.protocolId}
         patientId={props.patientId}
         dirty={dirty}
+        autoSavedAt={autoSavedAt}
       />
       {message ? (
         <p className="text-sm text-success">{message}</p>
@@ -219,6 +276,7 @@ function Toolbar({
   currentId,
   patientId,
   dirty,
+  autoSavedAt,
 }: {
   title: string;
   onTitleChange: (v: string) => void;
@@ -234,6 +292,7 @@ function Toolbar({
   currentId: string;
   patientId: string;
   dirty: boolean;
+  autoSavedAt: string | null;
 }) {
   const router = useRouter();
   return (
@@ -283,6 +342,10 @@ function Toolbar({
           <span className="inline-flex items-center gap-1.5 rounded-md bg-warning-soft px-2 py-1 text-xs font-medium text-warning">
             <span className="inline-block h-1.5 w-1.5 rounded-full bg-warning" />
             Unsaved changes
+          </span>
+        ) : autoSavedAt ? (
+          <span className="text-xs text-ink-faint">
+            Auto-saved {new Date(autoSavedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
           </span>
         ) : null}
         <Button
