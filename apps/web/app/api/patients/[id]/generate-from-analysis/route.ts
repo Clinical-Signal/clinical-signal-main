@@ -33,21 +33,28 @@ export async function POST(
         controller.enqueue(encoder.encode(JSON.stringify(data) + "\n"));
       }
 
+      const t0 = Date.now();
+      function elapsed() { return ((Date.now() - t0) / 1000).toFixed(1) + "s"; }
+
       try {
+        console.log("[generate-from-analysis] Starting for patient", patientId, "analysis", body.analysisId);
         send({ status: "Loading analysis..." });
 
         const analysis = await getAnalysisFindings(user.tenantId, body.analysisId);
         if (!analysis) {
+          console.error("[generate-from-analysis] Analysis not found:", body.analysisId);
           send({ error: "Analysis not found or not complete." });
           controller.close();
           return;
         }
+        console.log("[generate-from-analysis] Analysis loaded at", elapsed());
 
         send({ status: "Searching knowledge base..." });
 
         let kbContext: Array<Record<string, unknown>> = [];
         try {
           kbContext = await searchKnowledgeBase(user.tenantId, analysis.findings, 12);
+          console.log("[generate-from-analysis] KB search returned", kbContext.length, "items at", elapsed());
           if (kbContext.length > 0) {
             send({
               status: "Drafting protocol with " + kbContext.length + " knowledge base insights...",
@@ -55,15 +62,18 @@ export async function POST(
           } else {
             send({ status: "Drafting clinical protocol and client action plan..." });
           }
-        } catch {
+        } catch (kbErr) {
+          console.error("[generate-from-analysis] KB search failed:", kbErr);
           send({ status: "Drafting clinical protocol and client action plan..." });
         }
 
         let lastPing = Date.now();
+        let tokenCount = 0;
         const onProgress = () => {
+          tokenCount++;
           const now = Date.now();
           if (now - lastPing > 5_000) {
-            send({ ping: true, status: "Writing protocol — tokens streaming..." });
+            send({ ping: true, status: "Writing protocol — " + tokenCount + " tokens received (" + elapsed() + ")..." });
             lastPing = now;
           }
         };
@@ -119,8 +129,11 @@ export async function POST(
           redirect: `/dashboard/patients/${patientId}/protocol/${protocolId}`,
         });
       } catch (err) {
-        send({ error: err instanceof Error ? err.message : String(err) });
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error("[generate-from-analysis] FAILED at", elapsed(), "—", msg);
+        send({ error: msg });
       }
+      console.log("[generate-from-analysis] Stream closing at", elapsed());
       // Yield a microtask so the last enqueued chunk flushes before close.
       await new Promise((r) => setTimeout(r, 50));
       controller.close();
