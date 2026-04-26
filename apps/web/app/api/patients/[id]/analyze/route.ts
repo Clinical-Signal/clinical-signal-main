@@ -27,10 +27,15 @@ export async function POST(
         controller.enqueue(encoder.encode(JSON.stringify(data) + "\n"));
       }
 
+      const t0 = Date.now();
+      function elapsed() { return ((Date.now() - t0) / 1000).toFixed(1) + "s"; }
+
       try {
+        console.log("[analyze] Starting for patient", patientId);
         send({ status: "Gathering patient data..." });
 
         const timeline = await gatherPatientTimeline(user.tenantId, patientId);
+        console.log("[analyze] Timeline gathered at", elapsed(), "—", timeline.records.length, "records");
 
         send({
           status: "Analyzing intake and lab records...",
@@ -40,15 +45,18 @@ export async function POST(
         const timelineText = formatTimeline(timeline);
 
         let lastPing = Date.now();
+        let tokenCount = 0;
         const onProgress = () => {
+          tokenCount++;
           const now = Date.now();
           if (now - lastPing > 5_000) {
-            send({ ping: true, status: "Analyzing — receiving results..." });
+            send({ ping: true, status: "Analyzing — " + tokenCount + " tokens received (" + elapsed() + ")..." });
             lastPing = now;
           }
         };
 
         const { findings, meta, raw } = await runClinicalAnalysis(timelineText, onProgress);
+        console.log("[analyze] Analysis complete at", elapsed(), "— tokens:", meta.token_usage);
 
         const analysisId = await insertAnalysis({
           tenantId: user.tenantId,
@@ -60,6 +68,7 @@ export async function POST(
           meta,
           raw,
         });
+        console.log("[analyze] Saved analysis", analysisId, "at", elapsed());
 
         await writeAudit({
           action: "analysis_generated",
@@ -70,8 +79,11 @@ export async function POST(
 
         send({ done: true, analysisId });
       } catch (err) {
-        send({ error: err instanceof Error ? err.message : String(err) });
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error("[analyze] FAILED at", elapsed(), "—", msg);
+        send({ error: msg });
       }
+      console.log("[analyze] Stream closing at", elapsed());
       await new Promise((r) => setTimeout(r, 50));
       controller.close();
     },
