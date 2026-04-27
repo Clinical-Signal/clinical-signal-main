@@ -4,7 +4,7 @@
 
 import { phiKey, withTenant } from "./db";
 
-const MODEL = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-5";
+const MODEL = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-20250514";
 
 // Tunable token limits. Override via env vars without redeploying code.
 const MAX_ANALYSIS_TOKENS = parseInt(process.env.MAX_ANALYSIS_TOKENS ?? "16000", 10);
