@@ -107,7 +107,7 @@ export async function POST(
   });
 }
 
-const DOC_TEXT_CAP = parseInt(process.env.DOC_TEXT_CAP ?? "4000", 10);
+const DOC_TEXT_CAP = parseInt(process.env.DOC_TEXT_CAP ?? "8000", 10);
 
 function formatTimeline(
   t: {
