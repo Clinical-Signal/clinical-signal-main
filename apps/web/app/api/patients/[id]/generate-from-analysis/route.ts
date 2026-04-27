@@ -29,8 +29,14 @@ export async function POST(
 
   const stream = new ReadableStream({
     async start(controller) {
+      let closed = false;
       function send(data: Record<string, unknown>) {
-        controller.enqueue(encoder.encode(JSON.stringify(data) + "\n"));
+        if (closed) return;
+        try {
+          controller.enqueue(encoder.encode(JSON.stringify(data) + "\n"));
+        } catch {
+          closed = true;
+        }
       }
 
       const t0 = Date.now();
@@ -44,7 +50,8 @@ export async function POST(
         if (!analysis) {
           console.error("[generate-from-analysis] Analysis not found:", body.analysisId);
           send({ error: "Analysis not found or not complete." });
-          controller.close();
+          if (!closed) { try { controller.close(); } catch { /* */ } }
+          closed = true;
           return;
         }
         console.log("[generate-from-analysis] Analysis loaded at", elapsed());
@@ -135,9 +142,9 @@ export async function POST(
         send({ error: msg });
       }
       console.log("[generate-from-analysis] Stream closing at", elapsed());
-      // Yield a microtask so the last enqueued chunk flushes before close.
-      await new Promise((r) => setTimeout(r, 50));
-      controller.close();
+      if (!closed) {
+        try { controller.close(); } catch { /* already closed */ }
+      }
     },
   });
 

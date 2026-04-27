@@ -24,8 +24,14 @@ export async function POST(
 
   const stream = new ReadableStream({
     async start(controller) {
+      let closed = false;
       function send(data: Record<string, unknown>) {
-        controller.enqueue(encoder.encode(JSON.stringify(data) + "\n"));
+        if (closed) return;
+        try {
+          controller.enqueue(encoder.encode(JSON.stringify(data) + "\n"));
+        } catch {
+          closed = true;
+        }
       }
 
       const t0 = Date.now();
@@ -94,8 +100,9 @@ export async function POST(
         send({ error: msg });
       }
       console.log("[analyze] Stream closing at", elapsed());
-      await new Promise((r) => setTimeout(r, 50));
-      controller.close();
+      if (!closed) {
+        try { controller.close(); } catch { /* already closed */ }
+      }
     },
   });
 
