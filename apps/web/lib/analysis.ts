@@ -6,12 +6,11 @@ import { phiKey, withTenant } from "./db";
 
 const MODEL = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-5";
 
-// Tunable token limits — keep each step well under Vercel's 300s function timeout.
-// Override via env vars in Vercel dashboard without redeploying code.
-const MAX_ANALYSIS_TOKENS = parseInt(process.env.MAX_ANALYSIS_TOKENS ?? "8000", 10);
-const MAX_PROTOCOL_TOKENS = parseInt(process.env.MAX_PROTOCOL_TOKENS ?? "8000", 10);
-const KB_CONTEXT_LIMIT = parseInt(process.env.KB_CONTEXT_LIMIT ?? "5", 10);
-const DOC_TEXT_CAP = parseInt(process.env.DOC_TEXT_CAP ?? "4000", 10);
+// Tunable token limits. Override via env vars without redeploying code.
+const MAX_ANALYSIS_TOKENS = parseInt(process.env.MAX_ANALYSIS_TOKENS ?? "16000", 10);
+const MAX_PROTOCOL_TOKENS = parseInt(process.env.MAX_PROTOCOL_TOKENS ?? "16000", 10);
+const KB_CONTEXT_LIMIT = parseInt(process.env.KB_CONTEXT_LIMIT ?? "12", 10);
+const DOC_TEXT_CAP = parseInt(process.env.DOC_TEXT_CAP ?? "8000", 10);
 
 // Prompts embedded as constants so Vercel serverless functions don't need
 // fs access. Content is identical to services/analysis-engine/prompts/*.md.
