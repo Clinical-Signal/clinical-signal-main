@@ -53,7 +53,8 @@ export async function POST(
 
         let kbContext: Array<Record<string, unknown>> = [];
         try {
-          kbContext = await searchKnowledgeBase(user.tenantId, analysis.findings, 12);
+          const kbLimit = parseInt(process.env.KB_CONTEXT_LIMIT ?? "5", 10);
+          kbContext = await searchKnowledgeBase(user.tenantId, analysis.findings, kbLimit);
           console.log("[generate-from-analysis] KB search returned", kbContext.length, "items at", elapsed());
           if (kbContext.length > 0) {
             send({

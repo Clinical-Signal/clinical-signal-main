@@ -6,6 +6,13 @@ import { phiKey, withTenant } from "./db";
 
 const MODEL = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-5";
 
+// Tunable token limits — keep each step well under Vercel's 300s function timeout.
+// Override via env vars in Vercel dashboard without redeploying code.
+const MAX_ANALYSIS_TOKENS = parseInt(process.env.MAX_ANALYSIS_TOKENS ?? "8000", 10);
+const MAX_PROTOCOL_TOKENS = parseInt(process.env.MAX_PROTOCOL_TOKENS ?? "8000", 10);
+const KB_CONTEXT_LIMIT = parseInt(process.env.KB_CONTEXT_LIMIT ?? "5", 10);
+const DOC_TEXT_CAP = parseInt(process.env.DOC_TEXT_CAP ?? "4000", 10);
+
 // Prompts embedded as constants so Vercel serverless functions don't need
 // fs access. Content is identical to services/analysis-engine/prompts/*.md.
 
@@ -445,9 +452,9 @@ function formatTimelineForPrompt(
     );
     for (let i = 0; i < documentTexts.length; i++) {
       const text = documentTexts[i]!;
-      // Cap each doc to ~8000 chars to keep the prompt manageable
+      // Cap each doc to keep the prompt manageable (tunable via DOC_TEXT_CAP env var)
       sections.push("\n### Document " + (i + 1));
-      sections.push(text.length > 8000 ? text.slice(0, 8000) + "\n...(truncated)" : text);
+      sections.push(text.length > DOC_TEXT_CAP ? text.slice(0, DOC_TEXT_CAP) + "\n...(truncated)" : text);
     }
   }
 
@@ -465,9 +472,10 @@ export async function runClinicalAnalysis(
   const system = loadPrompt("clinical_analysis_v1");
   const claude = await createClient();
 
+  console.log("[analysis] Using model:", MODEL, "max_tokens:", MAX_ANALYSIS_TOKENS);
   const stream = claude.messages.stream({
     model: MODEL,
-    max_tokens: 16000,
+    max_tokens: MAX_ANALYSIS_TOKENS,
     system,
     messages: [
       {
@@ -489,6 +497,7 @@ export async function runClinicalAnalysis(
   }
 
   const finalMessage = await stream.finalMessage();
+  console.log("[analysis] Complete — tokens in:", finalMessage.usage.input_tokens, "out:", finalMessage.usage.output_tokens);
   const findings = JSON.parse(stripCodeFences(raw));
   const meta = {
     model_id: MODEL,
@@ -522,9 +531,10 @@ export async function runProtocolGeneration(
 
   const claude = await createClient();
 
+  console.log("[protocol] Using model:", MODEL, "max_tokens:", MAX_PROTOCOL_TOKENS);
   const stream = claude.messages.stream({
     model: MODEL,
-    max_tokens: 16000,
+    max_tokens: MAX_PROTOCOL_TOKENS,
     system,
     messages: [{ role: "user", content: userContent }],
   });
@@ -538,6 +548,7 @@ export async function runProtocolGeneration(
   }
 
   const finalMessage = await stream.finalMessage();
+  console.log("[protocol] Complete — tokens in:", finalMessage.usage.input_tokens, "out:", finalMessage.usage.output_tokens);
   if (finalMessage.stop_reason === "max_tokens") {
     throw new Error(
       "Protocol generation was truncated (output exceeded token limit). " +
@@ -865,7 +876,7 @@ export async function analyzeAndGenerate(args: {
   // Query knowledge base for relevant clinical insights
   let kbContext: Array<Record<string, unknown>> = [];
   try {
-    kbContext = await searchKnowledgeBase(args.tenantId, findings, 12);
+    kbContext = await searchKnowledgeBase(args.tenantId, findings, KB_CONTEXT_LIMIT);
   } catch {
     // Non-fatal: generate without KB if search fails
   }
