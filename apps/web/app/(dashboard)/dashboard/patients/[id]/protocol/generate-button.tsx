@@ -184,6 +184,29 @@ export function GenerateProtocolButton({ patientId }: { patientId: string }) {
         );
       }
     } catch (err) {
+      // Even if we got an error, a protocol may have been saved (e.g. truncated
+      // output that was still parseable). Check for a recently created protocol
+      // before showing the error.
+      try {
+        const checkRes = await fetch(
+          "/api/patients/" + patientId + "/protocols?limit=1",
+        );
+        if (checkRes.ok) {
+          const protocols = await checkRes.json();
+          if (protocols.length > 0) {
+            const latest = protocols[0];
+            const age = Date.now() - new Date(latest.createdAt).getTime();
+            if (age < 10 * 60 * 1000) {
+              // Protocol was saved despite the error — redirect to it
+              setPhase("Done");
+              setStatus("Opening protocol...");
+              router.push("/dashboard/patients/" + patientId + "/protocol/" + latest.id);
+              router.refresh();
+              return;
+            }
+          }
+        }
+      } catch { /* fall through to show error */ }
       setError(err instanceof Error ? err.message : String(err));
       setPending(false);
     }
