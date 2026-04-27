@@ -7,10 +7,11 @@ import { phiKey, withTenant } from "./db";
 const MODEL = "claude-sonnet-4-5-20250929";
 
 // Tunable token limits. Override via env vars without redeploying code.
-const MAX_ANALYSIS_TOKENS = parseInt(process.env.MAX_ANALYSIS_TOKENS ?? "16000", 10);
-const MAX_PROTOCOL_TOKENS = parseInt(process.env.MAX_PROTOCOL_TOKENS ?? "16000", 10);
-const KB_CONTEXT_LIMIT = parseInt(process.env.KB_CONTEXT_LIMIT ?? "12", 10);
-const DOC_TEXT_CAP = parseInt(process.env.DOC_TEXT_CAP ?? "8000", 10);
+// Hardcoded to avoid Railway env var caching bugs. Sonnet 4.5 supports 64k output.
+const MAX_ANALYSIS_TOKENS = 16000;
+const MAX_PROTOCOL_TOKENS = 32000;
+const KB_CONTEXT_LIMIT = 12;
+const DOC_TEXT_CAP = 8000;
 
 // Prompts embedded as constants so Vercel serverless functions don't need
 // fs access. Content is identical to services/analysis-engine/prompts/*.md.
