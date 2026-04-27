@@ -140,7 +140,12 @@ function formatTimeline(
       "The following are practitioner-uploaded call transcripts, clinical notes, " +
       "and extracted document text (including lab reports like GI-MAP, DUTCH, NutraEval). " +
       "They contain direct clinical observations and data that MUST inform the analysis. " +
-      "If a lab test appears here, do NOT recommend ordering that test — it has already been done."
+      "If a lab test appears here, do NOT recommend ordering that test — it has already been done.\n\n" +
+      "IMPORTANT: Call transcripts and practitioner notes should carry MORE weight than " +
+      "the structured intake form. Patients are often more honest and detailed in conversation " +
+      "with their practitioner than on a written form. When transcript observations conflict " +
+      "with or add nuance to intake data, trust the transcript. Practitioner notes reflect " +
+      "clinical judgment and should be treated as the highest-authority input."
     );
     for (let i = 0; i < documentTexts.length; i++) {
       const text = documentTexts[i]!;
