@@ -1,16 +1,10 @@
 FROM node:20-alpine AS base
 
-# ---- Dependencies ----
-FROM base AS deps
-WORKDIR /app
-COPY package.json package-lock.json* ./
-RUN npm ci --omit=dev && cp -R node_modules /prod_modules
-RUN npm ci
-
-# ---- Build ----
+# ---- Install & Build ----
 FROM base AS builder
 WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
+COPY package.json package-lock.json* ./
+RUN npm ci
 COPY . .
 RUN npm run build
 
@@ -23,10 +17,9 @@ ENV PORT=3000
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-# Copy standalone build
+# standalone output includes only the dependencies the app needs
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
-# public/ may be empty but must exist for Next.js static asset serving
 COPY --from=builder /app/public ./public
 
 USER nextjs
