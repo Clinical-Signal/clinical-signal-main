@@ -26,6 +26,7 @@ RUN adduser --system --uid 1001 nextjs
 # Copy standalone build
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
+# public/ may be empty but must exist for Next.js static asset serving
 COPY --from=builder /app/public ./public
 
 USER nextjs
