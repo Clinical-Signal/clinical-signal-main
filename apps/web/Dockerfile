@@ -4,7 +4,7 @@ FROM node:20-alpine AS base
 FROM base AS deps
 WORKDIR /app
 COPY package.json package-lock.json* ./
-RUN npm ci --only=production && cp -R node_modules /prod_modules
+RUN npm ci --omit=dev && cp -R node_modules /prod_modules
 RUN npm ci
 
 # ---- Build ----
