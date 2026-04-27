@@ -9,7 +9,7 @@ const MODEL = "claude-sonnet-4-5-20250929";
 // Tunable token limits. Override via env vars without redeploying code.
 // Hardcoded to avoid Railway env var caching bugs. Sonnet 4.5 supports 64k output.
 const MAX_ANALYSIS_TOKENS = 16000;
-const MAX_PROTOCOL_TOKENS = 32000;
+const MAX_PROTOCOL_TOKENS = 64000;
 const KB_CONTEXT_LIMIT = 12;
 const DOC_TEXT_CAP = 8000;
 
@@ -360,6 +360,32 @@ function stripCodeFences(s: string): string {
   return s;
 }
 
+/** Attempt to close truncated JSON so it can be parsed. */
+function salvageJson(raw: string): string {
+  let s = stripCodeFences(raw).trim();
+  // Count open braces/brackets
+  let braces = 0;
+  let brackets = 0;
+  let inString = false;
+  let escape = false;
+  for (const ch of s) {
+    if (escape) { escape = false; continue; }
+    if (ch === "\\") { escape = true; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (ch === "{") braces++;
+    if (ch === "}") braces--;
+    if (ch === "[") brackets++;
+    if (ch === "]") brackets--;
+  }
+  // If we're inside a string, close it
+  if (inString) s += '"';
+  // Close any open brackets/braces
+  while (brackets > 0) { s += "]"; brackets--; }
+  while (braces > 0) { s += "}"; braces--; }
+  return s;
+}
+
 // ---------------------------------------------------------------------------
 // Gather patient timeline
 // ---------------------------------------------------------------------------
@@ -555,11 +581,11 @@ export async function runProtocolGeneration(
 
   const finalMessage = await stream.finalMessage();
   console.log("[protocol] Complete — tokens in:", finalMessage.usage.input_tokens, "out:", finalMessage.usage.output_tokens);
-  if (finalMessage.stop_reason === "max_tokens") {
-    throw new Error(
-      "Protocol generation was truncated (output exceeded token limit). " +
-      "Try regenerating — results vary by run.",
-    );
+  const wasTruncated = finalMessage.stop_reason === "max_tokens";
+  if (wasTruncated) {
+    console.warn("[protocol] Output was truncated at", finalMessage.usage.output_tokens, "tokens — attempting to salvage JSON");
+    // Try to close any open JSON structures so we can still parse it
+    raw = salvageJson(raw);
   }
 
   const protocol = JSON.parse(stripCodeFences(raw));
@@ -571,6 +597,7 @@ export async function runProtocolGeneration(
       output_tokens: finalMessage.usage.output_tokens,
     },
     kb_context_size: kbContext?.length ?? 0,
+    truncated: wasTruncated,
   };
   return { protocol, meta, raw };
 }
