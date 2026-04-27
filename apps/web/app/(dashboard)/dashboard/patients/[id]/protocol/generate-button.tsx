@@ -139,10 +139,13 @@ export function GenerateProtocolButton({ patientId }: { patientId: string }) {
 
       // Fallback: if the stream ended without a redirect (e.g. Vercel
       // timeout killed the function mid-generation), poll to check if a
-      // protocol was actually created in the background.
+      // protocol was actually created in the background. Poll for up to
+      // 5 minutes — the AI call may still be finishing on the server.
       if (!target) {
-        setStatus("Checking for generated protocol...");
-        for (let attempt = 0; attempt < 6; attempt++) {
+        setPhase("Finishing up");
+        setStatus("Protocol is still generating — this can take a few minutes...");
+        const maxAttempts = 60; // 60 × 5s = 5 minutes of polling
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
           await new Promise((r) => setTimeout(r, 5000));
           try {
             const checkRes = await fetch(
@@ -161,7 +164,10 @@ export function GenerateProtocolButton({ patientId }: { patientId: string }) {
               }
             }
           } catch { /* retry */ }
-          setStatus("Still checking... (" + (attempt + 1) + "/6)");
+          const mins = Math.floor((attempt + 1) * 5 / 60);
+          const secs = ((attempt + 1) * 5) % 60;
+          const elapsed = mins > 0 ? mins + "m " + secs + "s" : secs + "s";
+          setStatus("Protocol is still generating — " + elapsed + " elapsed...");
         }
       }
 
@@ -172,8 +178,9 @@ export function GenerateProtocolButton({ patientId }: { patientId: string }) {
         router.refresh();
       } else {
         throw new Error(
-          "Protocol generation may still be running. Wait a minute, " +
-          "then refresh this page to check the versions list.",
+          "Protocol generation is taking longer than expected. " +
+          "Please wait a moment and check the versions list on this page — " +
+          "it may still appear shortly.",
         );
       }
     } catch (err) {
@@ -199,7 +206,7 @@ export function GenerateProtocolButton({ patientId }: { patientId: string }) {
             <p className="text-xs text-ink-subtle">{detail}</p>
           ) : null}
           <p className="text-xs text-ink-faint">
-            Each step takes 15–30 seconds.
+            This usually takes 2–4 minutes depending on how much data was uploaded.
           </p>
         </div>
       ) : null}
