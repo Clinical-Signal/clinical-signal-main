@@ -10,9 +10,11 @@ import { RenderSections } from "./render";
 const CLINICAL_ORDER = [
   "summary_of_findings",
   "systems_analysis",
+  "daily_protocol",
   "dietary_recommendations",
   "supplement_protocol",
   "lifestyle_modifications",
+  "oral_nasal_protocol",
   "lab_retesting",
   "follow_up_timeline",
   "clinical_reasoning",
@@ -21,7 +23,8 @@ const CLINICAL_ORDER = [
 
 const CLIENT_ORDER = [
   "intro",
-  "phases",
+  "layers",   // v2 prompt uses "layers"
+  "phases",   // v1 fallback
   "closing_note",
   "if_something_feels_off",
 ];

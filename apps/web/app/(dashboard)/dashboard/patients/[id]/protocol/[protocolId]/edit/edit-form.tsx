@@ -661,7 +661,8 @@ const CLINICAL_SECTIONS = [
 
 const CLIENT_SECTIONS = [
   { key: "intro", label: "Intro" },
-  { key: "phases", label: "Phases" },
+  { key: "layers", label: "Layers" },  // v2 prompt
+  { key: "phases", label: "Phases" },   // v1 fallback
   { key: "closing_note", label: "Closing" },
   { key: "if_something_feels_off", label: "If issues" },
 ];
@@ -876,52 +877,96 @@ function ClientEditor({
         onChange={(v) => patch({ intro: v })}
         rows={4}
       />
-      <span id="sec-phases" className="scroll-mt-32" />
-      <ItemList
-        label="Phases"
-        items={value.phases ?? []}
-        empty={() => ({
-          phase: ((value.phases ?? []).length || 0) + 1,
-          weeks: "",
-          title: "",
-          why_this_comes_first: "",
-          what_to_start: [] as { action: string; how_it_helps: string }[],
-          what_to_continue: [] as string[],
-          desired_outcomes: [] as string[],
-          how_youll_know_its_working: [] as string[],
-        })}
-        addLabel="Add phase"
-        onChange={(next) => patch({ phases: next })}
-        renderItem={(it, p) => (
-          <div className="flex flex-col gap-2">
-            <div className="grid grid-cols-3 gap-2">
-              <FieldText label="Phase #" value={String(it.phase ?? "")} onChange={(v) => p({ phase: Number(v) || v })} />
-              <FieldText label="Weeks" value={it.weeks ?? ""} onChange={(v) => p({ weeks: v })} />
-              <FieldText label="Title" value={it.title ?? ""} onChange={(v) => p({ title: v })} />
-            </div>
-            <FieldText label="Why this comes first" value={it.why_this_comes_first ?? ""} onChange={(v) => p({ why_this_comes_first: v })} rows={3} />
-            <ItemList
-              label="What to start"
-              items={it.what_to_start ?? []}
-              empty={() => ({ action: "", how_it_helps: "" })}
-              onChange={(what_to_start) => p({ what_to_start })}
-              renderItem={(s, sp) => (
-                <div className="flex flex-col gap-2">
-                  <FieldText label="Action" value={s.action ?? ""} onChange={(v) => sp({ action: v })} rows={2} />
-                  <FieldText label="How it helps" value={s.how_it_helps ?? ""} onChange={(v) => sp({ how_it_helps: v })} rows={2} />
+      {/* v2 layers (symptom-based progression with daily routine) */}
+      {(value.layers ?? []).length > 0 && (
+        <>
+          <span id="sec-layers" className="scroll-mt-32" />
+          <ItemList
+            label="Layers"
+            items={value.layers ?? []}
+            empty={() => ({
+              layer: ((value.layers ?? []).length || 0) + 1,
+              title: "",
+              why_this_comes_first: "",
+              daily_routine: { morning: [], with_meals: [], evening: [] },
+              what_to_continue: [] as string[],
+              desired_outcomes: [] as string[],
+              how_youll_know_its_working: [] as string[],
+              when_to_move_forward: "",
+            })}
+            addLabel="Add layer"
+            onChange={(next) => patch({ layers: next })}
+            renderItem={(it, p) => (
+              <div className="flex flex-col gap-2">
+                <div className="grid grid-cols-2 gap-2">
+                  <FieldText label="Layer #" value={String(it.layer ?? "")} onChange={(v) => p({ layer: Number(v) || v })} />
+                  <FieldText label="Title" value={it.title ?? ""} onChange={(v) => p({ title: v })} />
                 </div>
-              )}
-            />
-            <StringList label="What to continue" items={it.what_to_continue ?? []} onChange={(what_to_continue) => p({ what_to_continue })} />
-            <StringList label="Desired outcomes" items={it.desired_outcomes ?? []} onChange={(desired_outcomes) => p({ desired_outcomes })} />
-            <StringList
-              label="How you'll know it's working"
-              items={it.how_youll_know_its_working ?? []}
-              onChange={(how_youll_know_its_working) => p({ how_youll_know_its_working })}
-            />
-          </div>
-        )}
-      />
+                <FieldText label="Why this comes first" value={it.why_this_comes_first ?? ""} onChange={(v) => p({ why_this_comes_first: v })} rows={3} />
+                <FieldText label="When to move forward" value={it.when_to_move_forward ?? ""} onChange={(v) => p({ when_to_move_forward: v })} rows={3} />
+                <StringList label="What to continue" items={it.what_to_continue ?? []} onChange={(what_to_continue) => p({ what_to_continue })} />
+                <StringList label="Desired outcomes" items={it.desired_outcomes ?? []} onChange={(desired_outcomes) => p({ desired_outcomes })} />
+                <StringList
+                  label="How you'll know it's working"
+                  items={it.how_youll_know_its_working ?? []}
+                  onChange={(how_youll_know_its_working) => p({ how_youll_know_its_working })}
+                />
+              </div>
+            )}
+          />
+        </>
+      )}
+      {/* v1 phases fallback (calendar-based, for older protocols) */}
+      {(value.phases ?? []).length > 0 && (
+        <>
+          <span id="sec-phases" className="scroll-mt-32" />
+          <ItemList
+            label="Phases"
+            items={value.phases ?? []}
+            empty={() => ({
+              phase: ((value.phases ?? []).length || 0) + 1,
+              weeks: "",
+              title: "",
+              why_this_comes_first: "",
+              what_to_start: [] as { action: string; how_it_helps: string }[],
+              what_to_continue: [] as string[],
+              desired_outcomes: [] as string[],
+              how_youll_know_its_working: [] as string[],
+            })}
+            addLabel="Add phase"
+            onChange={(next) => patch({ phases: next })}
+            renderItem={(it, p) => (
+              <div className="flex flex-col gap-2">
+                <div className="grid grid-cols-3 gap-2">
+                  <FieldText label="Phase #" value={String(it.phase ?? "")} onChange={(v) => p({ phase: Number(v) || v })} />
+                  <FieldText label="Weeks" value={it.weeks ?? ""} onChange={(v) => p({ weeks: v })} />
+                  <FieldText label="Title" value={it.title ?? ""} onChange={(v) => p({ title: v })} />
+                </div>
+                <FieldText label="Why this comes first" value={it.why_this_comes_first ?? ""} onChange={(v) => p({ why_this_comes_first: v })} rows={3} />
+                <ItemList
+                  label="What to start"
+                  items={it.what_to_start ?? []}
+                  empty={() => ({ action: "", how_it_helps: "" })}
+                  onChange={(what_to_start) => p({ what_to_start })}
+                  renderItem={(s, sp) => (
+                    <div className="flex flex-col gap-2">
+                      <FieldText label="Action" value={s.action ?? ""} onChange={(v) => sp({ action: v })} rows={2} />
+                      <FieldText label="How it helps" value={s.how_it_helps ?? ""} onChange={(v) => sp({ how_it_helps: v })} rows={2} />
+                    </div>
+                  )}
+                />
+                <StringList label="What to continue" items={it.what_to_continue ?? []} onChange={(what_to_continue) => p({ what_to_continue })} />
+                <StringList label="Desired outcomes" items={it.desired_outcomes ?? []} onChange={(desired_outcomes) => p({ desired_outcomes })} />
+                <StringList
+                  label="How you'll know it's working"
+                  items={it.how_youll_know_its_working ?? []}
+                  onChange={(how_youll_know_its_working) => p({ how_youll_know_its_working })}
+                />
+              </div>
+            )}
+          />
+        </>
+      )}
       <span id="sec-closing_note" className="scroll-mt-32" />
       <FieldText
         label="Closing note"
