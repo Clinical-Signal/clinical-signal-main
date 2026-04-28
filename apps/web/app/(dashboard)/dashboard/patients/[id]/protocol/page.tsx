@@ -12,6 +12,8 @@ const STATUS_TONE: Record<string, "warning" | "accent" | "success" | "neutral"> 
   draft: "warning",
   review: "accent",
   finalized: "success",
+  approved: "success",
+  superseded: "neutral",
 };
 
 export default async function ProtocolIndexPage({

@@ -6,7 +6,7 @@ const ENGINE_URL = process.env.ANALYSIS_ENGINE_URL ?? "http://analysis-engine:80
 // Add a generous timeout per call so the UI doesn't hang forever.
 const ENGINE_TIMEOUT_MS = 180_000;
 
-export type ProtocolStatus = "draft" | "review" | "finalized";
+export type ProtocolStatus = "draft" | "review" | "finalized" | "approved" | "superseded";
 
 export interface ProtocolSummary {
   id: string;
@@ -160,9 +160,47 @@ export async function updateProtocolStatus(
       `UPDATE protocols
           SET status = $2,
               finalized_at = CASE WHEN $2 = 'finalized' THEN now() ELSE finalized_at END,
+              approved_at = CASE WHEN $2 = 'approved' THEN now() ELSE approved_at END,
               updated_at = now()
         WHERE id = $1`,
       [protocolId, status],
+    );
+  });
+}
+
+/**
+ * Approve a protocol: set it to 'approved' and supersede all other
+ * non-superseded versions for the same patient.
+ */
+export async function approveProtocol(
+  tenantId: string,
+  protocolId: string,
+): Promise<void> {
+  await withTenant(tenantId, async (c) => {
+    // Get the patient_id for this protocol
+    const { rows } = await c.query<{ patient_id: string }>(
+      "SELECT patient_id FROM protocols WHERE id = $1",
+      [protocolId],
+    );
+    if (!rows[0]) throw new Error("Protocol not found");
+    const patientId = rows[0].patient_id;
+
+    // Supersede all other non-superseded protocols for this patient
+    await c.query(
+      `UPDATE protocols
+          SET status = 'superseded', updated_at = now()
+        WHERE patient_id = $1
+          AND id != $2
+          AND status != 'superseded'`,
+      [patientId, protocolId],
+    );
+
+    // Mark this one as approved
+    await c.query(
+      `UPDATE protocols
+          SET status = 'approved', approved_at = now(), updated_at = now()
+        WHERE id = $1`,
+      [protocolId],
     );
   });
 }

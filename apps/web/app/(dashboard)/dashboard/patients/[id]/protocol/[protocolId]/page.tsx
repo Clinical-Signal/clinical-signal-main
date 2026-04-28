@@ -6,6 +6,7 @@ import { getProtocol } from "@/lib/protocols";
 import { Page, PageHeader } from "@/components/ui/page";
 import { Badge } from "@/components/ui/badge";
 import { RenderSections } from "./render";
+import { ApproveButton } from "./approve-button";
 
 const CLINICAL_ORDER = [
   "summary_of_findings",
@@ -33,6 +34,8 @@ const STATUS_TONE: Record<string, "warning" | "accent" | "success" | "neutral"> 
   draft: "warning",
   review: "accent",
   finalized: "success",
+  approved: "success",
+  superseded: "neutral",
 };
 
 export default async function ProtocolViewPage({
@@ -69,12 +72,14 @@ export default async function ProtocolViewPage({
         title={p.title}
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <Link
-              href={`/dashboard/patients/${params.id}/protocol/${params.protocolId}/edit`}
-              className="inline-flex h-10 items-center justify-center rounded-md border border-line-strong bg-surface px-4 text-sm font-medium text-ink transition-colors hover:bg-surface-sunken"
-            >
-              Edit
-            </Link>
+            {p.status !== "superseded" && (
+              <Link
+                href={`/dashboard/patients/${params.id}/protocol/${params.protocolId}/edit`}
+                className="inline-flex h-10 items-center justify-center rounded-md border border-line-strong bg-surface px-4 text-sm font-medium text-ink transition-colors hover:bg-surface-sunken"
+              >
+                Edit
+              </Link>
+            )}
             <a
               href={`/api/patients/${params.id}/protocol/${params.protocolId}/export?audience=clinical`}
               className="inline-flex h-10 items-center justify-center rounded-md border border-line-strong bg-surface px-4 text-sm font-medium text-ink transition-colors hover:bg-surface-sunken"
@@ -87,6 +92,12 @@ export default async function ProtocolViewPage({
             >
               Client PDF
             </a>
+            {p.status !== "approved" && p.status !== "superseded" && (
+              <ApproveButton
+                patientId={params.id}
+                protocolId={params.protocolId}
+              />
+            )}
           </div>
         }
       />
