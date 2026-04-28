@@ -3,6 +3,7 @@ import { writeAudit } from "@/lib/audit";
 import { patientBelongsToTenant } from "@/lib/records";
 import {
   gatherPatientTimeline,
+  formatTimelineForPrompt,
   runClinicalAnalysis,
   insertAnalysis,
 } from "@/lib/analysis";
@@ -58,7 +59,7 @@ export async function POST(
           detail: `${timeline.records.length} record(s), ${docTexts.length} document(s)`,
         });
 
-        const timelineText = formatTimeline(timeline, docTexts);
+        const timelineText = formatTimelineForPrompt(timeline, docTexts);
 
         let lastPing = Date.now();
         let tokenCount = 0;
@@ -114,52 +115,3 @@ export async function POST(
   });
 }
 
-const DOC_TEXT_CAP = parseInt(process.env.DOC_TEXT_CAP ?? "8000", 10);
-
-function formatTimeline(
-  t: {
-    intakeData: Record<string, unknown>;
-    records: Array<{
-      recordId: string;
-      recordType: string;
-      recordDate: string | null;
-      structuredData: Record<string, unknown>;
-    }>;
-  },
-  documentTexts?: string[],
-): string {
-  const sections: string[] = [];
-  sections.push("## Intake");
-  sections.push(JSON.stringify(t.intakeData, null, 2));
-  if (t.records.length === 0) {
-    sections.push("\n## Records\n(none — generate protocol from intake data alone)");
-  } else {
-    sections.push("\n## Records (" + t.records.length + " complete)");
-    for (const r of t.records) {
-      sections.push("### " + r.recordType + " — " + (r.recordDate ?? "undated"));
-      sections.push(JSON.stringify(r.structuredData, null, 2));
-    }
-  }
-
-  if (documentTexts && documentTexts.length > 0) {
-    sections.push("\n## Uploaded documents & transcripts (" + documentTexts.length + ")");
-    sections.push(
-      "The following are practitioner-uploaded call transcripts, clinical notes, " +
-      "and extracted document text (including lab reports like GI-MAP, DUTCH, NutraEval). " +
-      "They contain direct clinical observations and data that MUST inform the analysis. " +
-      "If a lab test appears here, do NOT recommend ordering that test — it has already been done.\n\n" +
-      "IMPORTANT: Call transcripts and practitioner notes should carry MORE weight than " +
-      "the structured intake form. Patients are often more honest and detailed in conversation " +
-      "with their practitioner than on a written form. When transcript observations conflict " +
-      "with or add nuance to intake data, trust the transcript. Practitioner notes reflect " +
-      "clinical judgment and should be treated as the highest-authority input."
-    );
-    for (let i = 0; i < documentTexts.length; i++) {
-      const text = documentTexts[i]!;
-      sections.push("\n### Document " + (i + 1));
-      sections.push(text.length > DOC_TEXT_CAP ? text.slice(0, DOC_TEXT_CAP) + "\n...(truncated)" : text);
-    }
-  }
-
-  return sections.join("\n");
-}

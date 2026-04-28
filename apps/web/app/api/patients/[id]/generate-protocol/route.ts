@@ -3,13 +3,15 @@ import { writeAudit } from "@/lib/audit";
 import { patientBelongsToTenant } from "@/lib/records";
 import {
   gatherPatientTimeline,
+  formatTimelineForPrompt,
   runClinicalAnalysis,
   runProtocolGeneration,
   insertAnalysis,
   insertProtocol,
 } from "@/lib/analysis";
+import { getDocumentText } from "@/lib/intake-documents";
 
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 export async function POST(
   _req: Request,
@@ -36,14 +38,23 @@ export async function POST(
 
         const timeline = await gatherPatientTimeline(user.tenantId, patientId);
 
+        // Fetch uploaded documents, transcripts, and practitioner notes from Intake Hub
+        let docTexts: string[] = [];
+        try {
+          docTexts = await getDocumentText(user.tenantId, patientId);
+          console.log("[generate-protocol] Loaded", docTexts.length, "intake hub documents");
+        } catch (docErr) {
+          console.error("[generate-protocol] Failed to load intake docs (non-fatal):", docErr);
+        }
+
         send({
           step: 2,
           total: 3,
           status: "Analyzing intake and lab records...",
-          detail: `${timeline.records.length} record(s) found`,
+          detail: `${timeline.records.length} record(s), ${docTexts.length} document(s)`,
         });
 
-        const timelineText = formatTimeline(timeline);
+        const timelineText = formatTimelineForPrompt(timeline, docTexts);
         const { findings, meta: aMeta, raw: aRaw } = await runClinicalAnalysis(timelineText);
 
         const analysisId = await insertAnalysis({
@@ -124,26 +135,3 @@ export async function POST(
   });
 }
 
-function formatTimeline(t: {
-  intakeData: Record<string, unknown>;
-  records: Array<{
-    recordId: string;
-    recordType: string;
-    recordDate: string | null;
-    structuredData: Record<string, unknown>;
-  }>;
-}): string {
-  const sections: string[] = [];
-  sections.push("## Intake");
-  sections.push(JSON.stringify(t.intakeData, null, 2));
-  if (t.records.length === 0) {
-    sections.push("\n## Records\n(none)");
-  } else {
-    sections.push("\n## Records (" + t.records.length + " complete)");
-    for (const r of t.records) {
-      sections.push("### " + r.recordType + " — " + (r.recordDate ?? "undated") + " (id " + r.recordId + ")");
-      sections.push(JSON.stringify(r.structuredData, null, 2));
-    }
-  }
-  return sections.join("\n");
-}

@@ -451,7 +451,7 @@ async function getDocumentTexts(tenantId: string, patientId: string): Promise<st
   return getDocumentText(tenantId, patientId);
 }
 
-function formatTimelineForPrompt(
+export function formatTimelineForPrompt(
   t: PatientTimeline,
   documentTexts?: string[],
 ): string {
