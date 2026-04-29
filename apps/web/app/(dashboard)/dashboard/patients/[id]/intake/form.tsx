@@ -1,8 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
-import { intakeCompletionPct } from "@/lib/intake-schema";
+import {
+  intakeCompletionPct,
+  shouldShowConditionalSection,
+  getHormoneData,
+} from "@/lib/intake-schema";
 import {
   emptyDiagnosis,
   emptyMedication,
@@ -19,9 +23,26 @@ import {
   type IntakeSymptom,
   type IntakeSymptomsSection,
 } from "@/lib/intake-schema";
-import { saveSectionAction, submitIntakeAction } from "./actions";
+import { submitIntakeAction } from "./actions";
+import {
+  useDebouncedSave,
+  SectionShell,
+  TextField,
+  NumberField,
+  SelectField,
+  TextArea,
+  SliderField,
+  RemoveButton,
+  AddButton,
+  inputClass,
+  labelClass,
+} from "./shared";
 
-const SAVE_DEBOUNCE_MS = 1500;
+// New v2 sections
+import { AboutYouSection } from "./sections/about-you";
+import { WhyHereSection } from "./sections/why-here";
+import { MsqSymptomsSection } from "./sections/msq-symptoms";
+import { HormonesSection } from "./sections/hormones";
 
 interface Props {
   patientId: string;
@@ -31,14 +52,23 @@ interface Props {
 export function IntakeForm({ patientId, initial }: Props) {
   const [submitting, startSubmit] = useTransition();
   const [submitError, setSubmitError] = useState<string | null>(null);
-  // Track the latest draft snapshot so the sticky progress bar updates as
-  // the practitioner fills sections. Starts from the server-rendered
-  // `initial` and is patched by each section via onDraftChange.
   const [draft, setDraft] = useState<IntakeData>(initial);
   const pct = useMemo(() => intakeCompletionPct(draft), [draft]);
 
+  // Conditional section visibility
+  const showGut = shouldShowConditionalSection(draft.symptoms, "gut_deep_dive");
+  const showImmune = shouldShowConditionalSection(draft.symptoms, "immune_deep_dive");
+
   return (
     <div className="flex flex-col gap-6">
+      {/* Duration estimate per Dr. Laura */}
+      <div className="rounded-xl border border-accent/30 bg-accent/5 px-5 py-3 text-sm text-ink">
+        Please set aside <strong>15-20 minutes</strong> to fully complete this
+        intake so you and your practitioner can make the most of your time
+        together.
+      </div>
+
+      {/* Progress bar */}
       <div className="sticky top-14 z-[5] -mx-4 rounded-xl border border-line bg-surface/90 px-4 py-3 backdrop-blur sm:-mx-8 sm:px-8">
         <div className="flex items-center justify-between gap-4">
           <div className="text-xs text-ink-subtle">
@@ -63,41 +93,101 @@ export function IntakeForm({ patientId, initial }: Props) {
         </div>
       </div>
 
-      <SymptomsSection
+      {/* Section 1: About You */}
+      <AboutYouSection
         patientId={patientId}
-        initial={initial.symptoms}
-        onDraftChange={(v) => setDraft((d) => ({ ...d, symptoms: v }))}
+        initial={draft.about_you}
+        onDraftChange={(v) => setDraft((d) => ({ ...d, about_you: v }))}
+        SectionShell={SectionShell}
+        useDebouncedSave={useDebouncedSave}
       />
+
+      {/* Section 2: Why You're Here */}
+      <WhyHereSection
+        patientId={patientId}
+        initial={draft.why_here}
+        onDraftChange={(v) => setDraft((d) => ({ ...d, why_here: v }))}
+        SectionShell={SectionShell}
+        useDebouncedSave={useDebouncedSave}
+      />
+
+      {/* Section 3: Current Symptoms (MSQ) */}
+      <MsqSymptomsSection
+        patientId={patientId}
+        initial={draft.symptoms}
+        onDraftChange={(v) => setDraft((d) => ({ ...d, symptoms: v }))}
+        SectionShell={SectionShell}
+        useDebouncedSave={useDebouncedSave}
+      />
+
+      {/* Section 4: Health History */}
       <HistorySection
         patientId={patientId}
         initial={initial.history}
         onDraftChange={(v) => setDraft((d) => ({ ...d, history: v }))}
       />
+
+      {/* Section 5: Medications & Supplements */}
       <MedicationsSection
         patientId={patientId}
         initial={initial.medications}
         onDraftChange={(v) => setDraft((d) => ({ ...d, medications: v }))}
       />
+
+      {/* Section 6: Lifestyle */}
       <LifestyleSection
         patientId={patientId}
         initial={initial.lifestyle}
         onDraftChange={(v) => setDraft((d) => ({ ...d, lifestyle: v }))}
       />
-      <GoalsSection
+
+      {/* Section 7: Hormones & Cycle (REQUIRED — not conditional) */}
+      <HormonesSection
         patientId={patientId}
-        initial={initial.goals}
-        onDraftChange={(v) => setDraft((d) => ({ ...d, goals: v }))}
+        initial={getHormoneData(draft)}
+        onDraftChange={(v) => setDraft((d) => ({ ...d, hormones: v }))}
+        SectionShell={SectionShell}
+        useDebouncedSave={useDebouncedSave}
       />
+
+      {/* Section 8: Gut Health Deep Dive (conditional) */}
+      {showGut && (
+        <GutDeepDiveSection
+          patientId={patientId}
+          initial={draft.gut_deep_dive}
+          onDraftChange={(v) => setDraft((d) => ({ ...d, gut_deep_dive: v }))}
+        />
+      )}
+
+      {/* Section 9: Immune Deep Dive (conditional) */}
+      {showImmune && (
+        <ImmuneDeepDiveSection
+          patientId={patientId}
+          initial={draft.immune_deep_dive}
+          onDraftChange={(v) => setDraft((d) => ({ ...d, immune_deep_dive: v }))}
+        />
+      )}
+
+      {/* Section 10: Previous Labs */}
       <PreviousLabsSection
         patientId={patientId}
         initial={initial.previous_labs}
         onDraftChange={(v) => setDraft((d) => ({ ...d, previous_labs: v }))}
       />
 
+      {/* Section 11: Goals (kept from v1, overlaps with WhyHere) */}
+      <GoalsSection
+        patientId={patientId}
+        initial={initial.goals}
+        onDraftChange={(v) => setDraft((d) => ({ ...d, goals: v }))}
+      />
+
+      {/* Submit */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-surface-sunken/60 px-5 py-4">
         <p className="max-w-md text-sm text-ink-muted">
           Submitting advances the patient to <em>labs pending</em>. You can
-          edit intake afterwards — nothing is locked.
+          edit intake afterwards — nothing is locked. A copy of your responses
+          will be saved as a PDF for your records.
         </p>
         <div className="flex flex-col items-end gap-1">
           <Button
@@ -123,402 +213,7 @@ export function IntakeForm({ patientId, initial }: Props) {
 }
 
 // ---------------------------------------------------------------------------
-// Section wrapper with auto-save
-// ---------------------------------------------------------------------------
-
-function useDebouncedSave<T>(
-  patientId: string,
-  section: IntakeSectionKey,
-  value: T,
-  initialSavedAt: string | null = null,
-) {
-  const [savedAt, setSavedAt] = useState<string | null>(initialSavedAt);
-  const [error, setError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-  const skipFirst = useRef(true);
-  const valueRef = useRef(value);
-  valueRef.current = value;
-
-  useEffect(() => {
-    if (skipFirst.current) {
-      skipFirst.current = false;
-      return;
-    }
-    const handle = setTimeout(async () => {
-      setSaving(true);
-      setError(null);
-      try {
-        const res = await saveSectionAction(patientId, section, valueRef.current);
-        if (res.ok) setSavedAt(res.savedAt);
-        else setError(res.error);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : String(err));
-      } finally {
-        setSaving(false);
-      }
-    }, SAVE_DEBOUNCE_MS);
-    return () => clearTimeout(handle);
-  }, [patientId, section, value]);
-
-  return { savedAt, saving, error };
-}
-
-function SectionShell({
-  title,
-  description,
-  status,
-  children,
-}: {
-  title: string;
-  description?: string;
-  status: { saving: boolean; savedAt: string | null; error: string | null };
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="rounded-xl border border-line bg-surface">
-      <header className="flex items-start justify-between gap-4 border-b border-line px-6 py-4">
-        <div>
-          <h3 className="text-base font-semibold text-ink">{title}</h3>
-          {description ? (
-            <p className="mt-0.5 text-xs text-ink-subtle">{description}</p>
-          ) : null}
-        </div>
-        <SaveStatus {...status} />
-      </header>
-      <div className="flex flex-col gap-4 px-6 py-5">{children}</div>
-    </section>
-  );
-}
-
-function SaveStatus({
-  saving,
-  savedAt,
-  error,
-}: {
-  saving: boolean;
-  savedAt: string | null;
-  error: string | null;
-}) {
-  if (error)
-    return (
-      <span className="text-xs text-danger">Couldn&apos;t save: {error}</span>
-    );
-  if (saving)
-    return (
-      <span className="inline-flex items-center gap-1.5 text-xs text-ink-subtle">
-        <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-accent" />
-        Saving…
-      </span>
-    );
-  if (savedAt)
-    return (
-      <span className="text-xs text-ink-subtle">
-        Saved {new Date(savedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
-      </span>
-    );
-  return <span className="text-xs text-ink-faint">Not yet saved</span>;
-}
-
-// ---------------------------------------------------------------------------
-// Shared form atoms
-// ---------------------------------------------------------------------------
-
-const inputClass =
-  "w-full rounded-md border border-line-strong bg-surface px-3 py-2 text-sm text-ink " +
-  "placeholder:text-ink-faint " +
-  "transition-colors focus:border-accent focus:outline-none focus-visible:shadow-focus " +
-  "disabled:bg-surface-sunken disabled:text-ink-subtle";
-const labelClass = "text-xs font-medium uppercase tracking-wide text-ink-subtle";
-
-function TextField({
-  label,
-  value,
-  onChange,
-  placeholder,
-  type = "text",
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  placeholder?: string;
-  type?: "text" | "number";
-}) {
-  return (
-    <label className="flex flex-col gap-1">
-      <span className={labelClass}>{label}</span>
-      <input
-        className={inputClass}
-        type={type}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-      />
-    </label>
-  );
-}
-
-function NumberField({
-  label,
-  value,
-  onChange,
-  min,
-  max,
-  step,
-}: {
-  label: string;
-  value: number | null;
-  onChange: (v: number | null) => void;
-  min?: number;
-  max?: number;
-  step?: number;
-}) {
-  return (
-    <label className="flex flex-col gap-1">
-      <span className={labelClass}>{label}</span>
-      <input
-        className={inputClass}
-        type="number"
-        value={value ?? ""}
-        min={min}
-        max={max}
-        step={step}
-        onChange={(e) => {
-          const v = e.target.value;
-          onChange(v === "" ? null : Number(v));
-        }}
-      />
-    </label>
-  );
-}
-
-function SelectField<T extends string>({
-  label,
-  value,
-  options,
-  onChange,
-}: {
-  label: string;
-  value: T | "";
-  options: { value: T | ""; label: string }[];
-  onChange: (v: T | "") => void;
-}) {
-  return (
-    <label className="flex flex-col gap-1">
-      <span className={labelClass}>{label}</span>
-      <select
-        className={inputClass}
-        value={value}
-        onChange={(e) => onChange(e.target.value as T | "")}
-      >
-        {options.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
-
-function TextArea({
-  label,
-  value,
-  onChange,
-  rows = 3,
-  placeholder,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  rows?: number;
-  placeholder?: string;
-}) {
-  return (
-    <label className="flex flex-col gap-1">
-      <span className={labelClass}>{label}</span>
-      <textarea
-        className={inputClass}
-        value={value}
-        rows={rows}
-        placeholder={placeholder}
-        onChange={(e) => onChange(e.target.value)}
-      />
-    </label>
-  );
-}
-
-function SliderField({
-  label,
-  value,
-  onChange,
-  min = 1,
-  max = 10,
-}: {
-  label: string;
-  value: number | null;
-  onChange: (v: number) => void;
-  min?: number;
-  max?: number;
-}) {
-  return (
-    <label className="flex flex-col gap-1">
-      <span className={labelClass}>
-        {label} <span className="ml-2 text-ink">{value ?? "—"}</span>
-      </span>
-      <input
-        type="range"
-        min={min}
-        max={max}
-        value={value ?? min}
-        onChange={(e) => onChange(Number(e.target.value))}
-      />
-    </label>
-  );
-}
-
-function RemoveButton({ onClick }: { onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="self-start text-xs text-danger transition-colors hover:text-danger/80"
-    >
-      Remove
-    </button>
-  );
-}
-
-function AddButton({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="self-start rounded-md border border-dashed border-line-strong px-3 py-1.5 text-xs text-ink-muted transition-colors hover:bg-surface-sunken"
-    >
-      + {children}
-    </button>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Section: Symptoms
-// ---------------------------------------------------------------------------
-
-function SymptomsSection({
-  patientId,
-  initial,
-  onDraftChange,
-}: {
-  patientId: string;
-  initial: IntakeSymptomsSection | undefined;
-  onDraftChange?: (v: IntakeSymptomsSection) => void;
-}) {
-  const [data, setData] = useState<IntakeSymptomsSection>(
-    // Defensively coerce: legacy seed has `symptoms: { sleep: ..., energy: ... }`
-    // (object) instead of `{ symptoms: [], top_concerns: "" }`. Treat any
-    // non-conforming shape as empty so the form renders.
-    Array.isArray(initial?.symptoms)
-      ? (initial as IntakeSymptomsSection)
-      : { symptoms: [], top_concerns: initial?.top_concerns ?? "" },
-  );
-  const status = useDebouncedSave(patientId, "symptoms", data);
-  useEffect(() => { onDraftChange?.(data); }, [data, onDraftChange]);
-
-  function patchSymptom(i: number, patch: Partial<IntakeSymptom>) {
-    setData((d) => ({
-      ...d,
-      symptoms: d.symptoms.map((s, idx) => (idx === i ? { ...s, ...patch } : s)),
-    }));
-  }
-
-  return (
-    <SectionShell
-      title="Current symptoms"
-      description="What the patient is experiencing right now. Severity on a 1–10 scale."
-      status={status}
-    >
-      <div className="flex flex-col gap-3">
-        {data.symptoms.length === 0 ? (
-          <p className="text-sm text-ink-subtle">No symptoms recorded yet.</p>
-        ) : null}
-        {data.symptoms.map((s, i) => (
-          <div
-            key={i}
-            className="rounded-lg border border-line bg-surface-sunken/50 p-3"
-          >
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
-              <TextField
-                label="Symptom"
-                value={s.name}
-                onChange={(v) => patchSymptom(i, { name: v })}
-              />
-              <SliderField
-                label="Severity (1–10)"
-                value={s.severity}
-                onChange={(v) => patchSymptom(i, { severity: v })}
-              />
-              <NumberField
-                label="Duration"
-                value={s.duration_value}
-                onChange={(v) => patchSymptom(i, { duration_value: v })}
-                min={0}
-              />
-              <SelectField
-                label="Unit"
-                value={s.duration_unit ?? ""}
-                onChange={(v) =>
-                  patchSymptom(i, { duration_unit: (v || null) as IntakeSymptom["duration_unit"] })
-                }
-                options={[
-                  { value: "", label: "—" },
-                  { value: "days", label: "Days" },
-                  { value: "weeks", label: "Weeks" },
-                  { value: "months", label: "Months" },
-                  { value: "years", label: "Years" },
-                ]}
-              />
-            </div>
-            <div className="mt-3">
-              <TextArea
-                label="Notes"
-                value={s.notes}
-                onChange={(v) => patchSymptom(i, { notes: v })}
-                rows={2}
-              />
-            </div>
-            <div className="mt-2">
-              <RemoveButton
-                onClick={() =>
-                  setData((d) => ({
-                    ...d,
-                    symptoms: d.symptoms.filter((_, idx) => idx !== i),
-                  }))
-                }
-              />
-            </div>
-          </div>
-        ))}
-        <AddButton
-          onClick={() =>
-            setData((d) => ({ ...d, symptoms: [...d.symptoms, emptySymptom()] }))
-          }
-        >
-          Add symptom
-        </AddButton>
-        <TextArea
-          label="Top 3 health concerns"
-          value={data.top_concerns}
-          onChange={(v) => setData((d) => ({ ...d, top_concerns: v }))}
-          rows={3}
-          placeholder="What matters most to this patient right now?"
-        />
-      </div>
-    </SectionShell>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Section: History
+// Inline sections (kept from v1 — will be extracted to files later)
 // ---------------------------------------------------------------------------
 
 function HistorySection({
@@ -605,7 +300,7 @@ function HistorySection({
         Add diagnosis
       </AddButton>
       <TextArea
-        label="Surgeries or hospitalizations"
+        label="Surgeries or hospitalizations (includes cosmetic surgeries)"
         value={data.surgeries}
         onChange={(v) => setData((d) => ({ ...d, surgeries: v }))}
       />
@@ -613,13 +308,14 @@ function HistorySection({
         label="Family health history"
         value={data.family_history}
         onChange={(v) => setData((d) => ({ ...d, family_history: v }))}
+        placeholder="Heart disease, diabetes, cancer, autoimmune, thyroid, mental health — note which family members"
       />
     </SectionShell>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Section: Medications & supplements
+// Medications
 // ---------------------------------------------------------------------------
 
 function MedicationList({
@@ -718,12 +414,18 @@ function MedicationsSection({
         onChange={(supplements) => setData((d) => ({ ...d, supplements }))}
         addLabel="Add supplement"
       />
+      <TextArea
+        label="Any medications or supplements stopped in the last 6 months? What and why?"
+        value={data.recently_stopped ?? ""}
+        onChange={(v) => setData((d) => ({ ...d, recently_stopped: v }))}
+        rows={2}
+      />
     </SectionShell>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Section: Lifestyle
+// Lifestyle
 // ---------------------------------------------------------------------------
 
 function LifestyleSection({
@@ -743,6 +445,7 @@ function LifestyleSection({
           nutrition: { diet_type: "", restrictions: "", sensitivities: "", water_oz_per_day: null },
           exercise: { type: "", frequency_per_week: null, intensity: "" },
           stress: { level: null, sources: "", management: "" },
+          wellness_practices: {},
         },
   );
   const status = useDebouncedSave(patientId, "lifestyle", data);
@@ -754,6 +457,7 @@ function LifestyleSection({
       description="Sleep, nutrition, movement, and stress. Foundations that shape every downstream system."
       status={status}
     >
+      {/* Sleep */}
       <div className="rounded-lg border border-line bg-surface-sunken/50 p-3">
         <h4 className="mb-2 text-sm font-semibold text-ink">Sleep</h4>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
@@ -779,6 +483,20 @@ function LifestyleSection({
               { value: "excellent", label: "Excellent" },
             ]}
           />
+          <SelectField
+            label="Wake feeling rested?"
+            value={data.sleep.wake_feeling_rested ?? ""}
+            onChange={(v) =>
+              setData((d) => ({ ...d, sleep: { ...d.sleep, wake_feeling_rested: v as IntakeLifestyleSection["sleep"]["wake_feeling_rested"] } }))
+            }
+            options={[
+              { value: "", label: "—" },
+              { value: "never", label: "Never" },
+              { value: "sometimes", label: "Sometimes" },
+              { value: "usually", label: "Usually" },
+              { value: "always", label: "Always" },
+            ]}
+          />
         </div>
         <div className="mt-3">
           <TextArea
@@ -791,6 +509,7 @@ function LifestyleSection({
         </div>
       </div>
 
+      {/* Nutrition */}
       <div className="rounded-lg border border-line bg-surface-sunken/50 p-3">
         <h4 className="mb-2 text-sm font-semibold text-ink">Nutrition</h4>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -805,12 +524,14 @@ function LifestyleSection({
             }
             options={[
               { value: "", label: "—" },
-              { value: "standard", label: "Standard" },
+              { value: "standard", label: "Standard American" },
               { value: "paleo", label: "Paleo" },
               { value: "keto", label: "Keto" },
+              { value: "carnivore", label: "Carnivore" },
               { value: "vegan", label: "Vegan" },
               { value: "vegetarian", label: "Vegetarian" },
               { value: "mediterranean", label: "Mediterranean" },
+              { value: "none", label: "No specific diet" },
               { value: "other", label: "Other" },
             ]}
           />
@@ -841,8 +562,20 @@ function LifestyleSection({
             rows={2}
           />
         </div>
+        <div className="mt-3">
+          <TextArea
+            label="What's your relationship with food / eating?"
+            value={data.nutrition.food_relationship ?? ""}
+            onChange={(v) =>
+              setData((d) => ({ ...d, nutrition: { ...d.nutrition, food_relationship: v } }))
+            }
+            rows={2}
+            placeholder="This helps us understand whether tracking or specific dietary recommendations are appropriate."
+          />
+        </div>
       </div>
 
+      {/* Exercise */}
       <div className="rounded-lg border border-line bg-surface-sunken/50 p-3">
         <h4 className="mb-2 text-sm font-semibold text-ink">Exercise</h4>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
@@ -879,6 +612,7 @@ function LifestyleSection({
         </div>
       </div>
 
+      {/* Stress */}
       <div className="rounded-lg border border-line bg-surface-sunken/50 p-3">
         <h4 className="mb-2 text-sm font-semibold text-ink">Stress</h4>
         <SliderField
@@ -901,12 +635,178 @@ function LifestyleSection({
           />
         </div>
       </div>
+
+      {/* Wellness Practices */}
+      <div className="rounded-lg border border-line bg-surface-sunken/50 p-3">
+        <h4 className="mb-2 text-sm font-semibold text-ink">Wellness practices</h4>
+        <div className="flex flex-col gap-3">
+          {(["sauna", "cold_exposure", "meditation_breathwork", "journaling"] as const).map((key) => {
+            const labels: Record<string, string> = {
+              sauna: "Sauna use?",
+              cold_exposure: "Cold exposure?",
+              meditation_breathwork: "Meditation or breathwork?",
+              journaling: "Journaling?",
+            };
+            const val = data.wellness_practices?.[key];
+            const detailKey = `${key}_details` as keyof NonNullable<IntakeLifestyleSection["wellness_practices"]>;
+            const hasDetails = key !== "journaling";
+            return (
+              <div key={key}>
+                <div className="flex items-center gap-4">
+                  <span className={`${labelClass} min-w-[200px]`}>{labels[key]}</span>
+                  {[
+                    { v: true, label: "Yes" },
+                    { v: false, label: "No" },
+                  ].map(({ v, label }) => (
+                    <label key={label} className="flex items-center gap-1 text-sm">
+                      <input
+                        type="radio"
+                        checked={val === v}
+                        onChange={() =>
+                          setData((d) => ({
+                            ...d,
+                            wellness_practices: { ...d.wellness_practices, [key]: v },
+                          }))
+                        }
+                      />
+                      {label}
+                    </label>
+                  ))}
+                </div>
+                {val === true && hasDetails && (
+                  <div className="mt-2 ml-[200px]">
+                    <input
+                      className={inputClass}
+                      value={(data.wellness_practices?.[detailKey] as string) ?? ""}
+                      placeholder="Type, frequency, duration, etc."
+                      onChange={(e) =>
+                        setData((d) => ({
+                          ...d,
+                          wellness_practices: { ...d.wellness_practices, [detailKey]: e.target.value },
+                        }))
+                      }
+                    />
+                  </div>
+                )}
+              </div>
+            );
+          })}
+          <TextArea
+            label="Other wellness practices"
+            value={data.wellness_practices?.other ?? ""}
+            onChange={(v) =>
+              setData((d) => ({
+                ...d,
+                wellness_practices: { ...d.wellness_practices, other: v },
+              }))
+            }
+            rows={2}
+            placeholder="Anything else you do for your health — grounding, red light therapy, etc."
+          />
+        </div>
+      </div>
     </SectionShell>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Section: Goals
+// Gut Deep Dive (conditional)
+// ---------------------------------------------------------------------------
+
+function GutDeepDiveSection({
+  patientId,
+  initial,
+  onDraftChange,
+}: {
+  patientId: string;
+  initial: IntakeData["gut_deep_dive"];
+  onDraftChange?: (v: NonNullable<IntakeData["gut_deep_dive"]>) => void;
+}) {
+  const [data, setData] = useState(
+    initial ?? {
+      bowel_frequency: "",
+      bowel_consistency: "",
+      bloating_details: "",
+      heartburn_reflux: "",
+      gas_burping: "",
+      diagnosed_gi_conditions: [],
+      previous_gi_testing: "",
+      antibiotic_history: "",
+      antacid_ppi_history: "",
+      elimination_trials: "",
+    },
+  );
+  const status = useDebouncedSave(patientId, "gut_deep_dive", data);
+  useEffect(() => { onDraftChange?.(data); }, [data, onDraftChange]);
+
+  return (
+    <SectionShell
+      title="Gut health deep dive"
+      description="Triggered by digestive symptoms. Helps guide GI-specific lab ordering and protocol."
+      status={status}
+    >
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <TextArea label="Typical bowel habits (frequency)" value={data.bowel_frequency} onChange={(v) => setData((d) => ({ ...d, bowel_frequency: v }))} rows={2} placeholder="How often? Bristol stool chart reference if known" />
+        <TextArea label="Bowel consistency" value={data.bowel_consistency} onChange={(v) => setData((d) => ({ ...d, bowel_consistency: v }))} rows={2} />
+      </div>
+      <TextArea label="Bloating: when does it happen? After specific foods?" value={data.bloating_details} onChange={(v) => setData((d) => ({ ...d, bloating_details: v }))} rows={2} />
+      <TextArea label="Heartburn or reflux?" value={data.heartburn_reflux} onChange={(v) => setData((d) => ({ ...d, heartburn_reflux: v }))} rows={2} placeholder="How often, triggers, what helps" />
+      <TextArea label="Gas or burping?" value={data.gas_burping} onChange={(v) => setData((d) => ({ ...d, gas_burping: v }))} rows={2} placeholder="How often, timing, triggers" />
+      <TextArea label="Previous GI testing? (GI Map, SIBO breath test, endoscopy, colonoscopy)" value={data.previous_gi_testing} onChange={(v) => setData((d) => ({ ...d, previous_gi_testing: v }))} rows={2} />
+      <TextArea label="History of antibiotic use (frequency, most recent)" value={data.antibiotic_history} onChange={(v) => setData((d) => ({ ...d, antibiotic_history: v }))} rows={2} />
+      <TextArea label="History of antacid/PPI use" value={data.antacid_ppi_history} onChange={(v) => setData((d) => ({ ...d, antacid_ppi_history: v }))} rows={2} />
+      <TextArea label="Food elimination trials? What happened?" value={data.elimination_trials} onChange={(v) => setData((d) => ({ ...d, elimination_trials: v }))} rows={2} />
+    </SectionShell>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Immune Deep Dive (conditional)
+// ---------------------------------------------------------------------------
+
+function ImmuneDeepDiveSection({
+  patientId,
+  initial,
+  onDraftChange,
+}: {
+  patientId: string;
+  initial: IntakeData["immune_deep_dive"];
+  onDraftChange?: (v: NonNullable<IntakeData["immune_deep_dive"]>) => void;
+}) {
+  const [data, setData] = useState(
+    initial ?? {
+      autoimmune_conditions: "",
+      diagnosed_when: "",
+      current_treatment: "",
+      flare_triggers: "",
+      illness_frequency_per_year: null,
+      vaccination_history: "",
+      mold_exposure: "",
+      tick_borne_illness: "",
+    },
+  );
+  const status = useDebouncedSave(patientId, "immune_deep_dive", data);
+  useEffect(() => { onDraftChange?.(data); }, [data, onDraftChange]);
+
+  return (
+    <SectionShell
+      title="Immune deep dive"
+      description="Triggered by autoimmune symptoms. Helps identify underlying immune drivers."
+      status={status}
+    >
+      <TextField label="Which autoimmune condition(s)?" value={data.autoimmune_conditions} onChange={(v) => setData((d) => ({ ...d, autoimmune_conditions: v }))} />
+      <TextField label="When diagnosed?" value={data.diagnosed_when} onChange={(v) => setData((d) => ({ ...d, diagnosed_when: v }))} />
+      <TextArea label="Current treatment (medications, biologics)?" value={data.current_treatment} onChange={(v) => setData((d) => ({ ...d, current_treatment: v }))} rows={2} />
+      <TextArea label="Known triggers for flares?" value={data.flare_triggers} onChange={(v) => setData((d) => ({ ...d, flare_triggers: v }))} rows={2} />
+      <NumberField label="Frequency of common illness (colds, flu per year)" value={data.illness_frequency_per_year} onChange={(v) => setData((d) => ({ ...d, illness_frequency_per_year: v }))} min={0} max={20} />
+      <TextArea label="Mold exposure history?" value={data.mold_exposure} onChange={(v) => setData((d) => ({ ...d, mold_exposure: v }))} rows={2} />
+      <TextArea label="Tick-borne illness history?" value={data.tick_borne_illness} onChange={(v) => setData((d) => ({ ...d, tick_borne_illness: v }))} rows={2} />
+    </SectionShell>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Goals (v1 — kept for backward compat)
 // ---------------------------------------------------------------------------
 
 function GoalsSection({
@@ -953,7 +853,7 @@ function GoalsSection({
 }
 
 // ---------------------------------------------------------------------------
-// Section: Previous labs
+// Previous Labs
 // ---------------------------------------------------------------------------
 
 function PreviousLabsSection({
