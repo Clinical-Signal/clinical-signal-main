@@ -12,6 +12,7 @@ import {
   emptyMedication,
   emptySymptom,
   type IntakeData,
+  type IntakeAnythingElseSection,
   type IntakeDiagnosis,
   type IntakeGoalsSection,
   type IntakeHistorySection,
@@ -22,6 +23,7 @@ import {
   type IntakeSectionKey,
   type IntakeSymptom,
   type IntakeSymptomsSection,
+  type IntakeWearablesSection,
 } from "@/lib/intake-schema";
 import { submitIntakeAction } from "./actions";
 import {
@@ -43,6 +45,8 @@ import { AboutYouSection } from "./sections/about-you";
 import { WhyHereSection } from "./sections/why-here";
 import { MsqSymptomsSection } from "./sections/msq-symptoms";
 import { HormonesSection } from "./sections/hormones";
+import { WearablesSection } from "./sections/wearables";
+import { AnythingElseSection } from "./sections/anything-else";
 
 interface Props {
   patientId: string;
@@ -180,6 +184,24 @@ export function IntakeForm({ patientId, initial }: Props) {
         patientId={patientId}
         initial={initial.goals}
         onDraftChange={(v) => setDraft((d) => ({ ...d, goals: v }))}
+      />
+
+      {/* Section 12: Wearables */}
+      <WearablesSection
+        patientId={patientId}
+        initial={initial.wearables}
+        onDraftChange={(v) => setDraft((d) => ({ ...d, wearables: v }))}
+        SectionShell={SectionShell}
+        useDebouncedSave={useDebouncedSave}
+      />
+
+      {/* Section 13: Anything Else */}
+      <AnythingElseSection
+        patientId={patientId}
+        initial={initial.anything_else}
+        onDraftChange={(v) => setDraft((d) => ({ ...d, anything_else: v }))}
+        SectionShell={SectionShell}
+        useDebouncedSave={useDebouncedSave}
       />
 
       {/* Submit */}
