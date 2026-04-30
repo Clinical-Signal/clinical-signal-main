@@ -434,7 +434,7 @@ export function emptyMedication(): IntakeMedication {
 /** Compute the total score for one MSQ category */
 export function msqCategoryTotal(scores: Record<string, MsqScore> | undefined): number {
   if (!scores) return 0;
-  return Object.values(scores).reduce((sum, v) => sum + v, 0);
+  return Object.values(scores).reduce((sum: number, v) => sum + v, 0 as number);
 }
 
 /** Compute the grand total across all MSQ categories */

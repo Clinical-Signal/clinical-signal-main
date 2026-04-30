@@ -10,7 +10,7 @@ import {
   saveProtocolEdits,
 } from "./actions";
 
-type Status = "draft" | "review" | "finalized";
+type Status = "draft" | "review" | "finalized" | "approved" | "superseded";
 
 interface VersionRow {
   id: string;

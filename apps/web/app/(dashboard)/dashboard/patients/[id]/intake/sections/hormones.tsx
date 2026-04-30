@@ -2,29 +2,14 @@
 
 import { useEffect, useState } from "react";
 import type { IntakeHormoneSection } from "@/lib/intake-schema";
+import { useDebouncedSave, SectionShell, inputClass, labelClass } from "../shared";
 
 interface Props {
   patientId: string;
   initial: IntakeHormoneSection | undefined;
   onDraftChange?: (v: IntakeHormoneSection) => void;
-  SectionShell: React.ComponentType<{
-    title: string;
-    description?: string;
-    status: { saving: boolean; savedAt: string | null; error: string | null };
-    children: React.ReactNode;
-  }>;
-  useDebouncedSave: (
-    patientId: string,
-    section: string,
-    value: unknown,
-  ) => { savedAt: string | null; saving: boolean; error: string | null };
 }
 
-const inputClass =
-  "w-full rounded-md border border-line-strong bg-surface px-3 py-2 text-sm text-ink " +
-  "placeholder:text-ink-faint " +
-  "transition-colors focus:border-accent focus:outline-none focus-visible:shadow-focus";
-const labelClass = "text-xs font-medium uppercase tracking-wide text-ink-subtle";
 
 const PMS_OPTIONS = [
   "Bloating", "Breast tenderness", "Cramps", "Mood swings",
@@ -63,8 +48,6 @@ export function HormonesSection({
   patientId,
   initial,
   onDraftChange,
-  SectionShell,
-  useDebouncedSave,
 }: Props) {
   const [data, setData] = useState<IntakeHormoneSection>(
     initial?.cycle_regular !== undefined ? initial : EMPTY,

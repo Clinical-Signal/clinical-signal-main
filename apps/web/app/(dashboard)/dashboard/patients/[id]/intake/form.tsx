@@ -102,8 +102,6 @@ export function IntakeForm({ patientId, initial }: Props) {
         patientId={patientId}
         initial={draft.about_you}
         onDraftChange={(v) => setDraft((d) => ({ ...d, about_you: v }))}
-        SectionShell={SectionShell}
-        useDebouncedSave={useDebouncedSave}
       />
 
       {/* Section 2: Why You're Here */}
@@ -111,8 +109,6 @@ export function IntakeForm({ patientId, initial }: Props) {
         patientId={patientId}
         initial={draft.why_here}
         onDraftChange={(v) => setDraft((d) => ({ ...d, why_here: v }))}
-        SectionShell={SectionShell}
-        useDebouncedSave={useDebouncedSave}
       />
 
       {/* Section 3: Current Symptoms (MSQ) */}
@@ -120,8 +116,6 @@ export function IntakeForm({ patientId, initial }: Props) {
         patientId={patientId}
         initial={draft.symptoms}
         onDraftChange={(v) => setDraft((d) => ({ ...d, symptoms: v }))}
-        SectionShell={SectionShell}
-        useDebouncedSave={useDebouncedSave}
       />
 
       {/* Section 4: Health History */}
@@ -150,8 +144,6 @@ export function IntakeForm({ patientId, initial }: Props) {
         patientId={patientId}
         initial={getHormoneData(draft)}
         onDraftChange={(v) => setDraft((d) => ({ ...d, hormones: v }))}
-        SectionShell={SectionShell}
-        useDebouncedSave={useDebouncedSave}
       />
 
       {/* Section 8: Gut Health Deep Dive (conditional) */}
@@ -191,8 +183,6 @@ export function IntakeForm({ patientId, initial }: Props) {
         patientId={patientId}
         initial={initial.wearables}
         onDraftChange={(v) => setDraft((d) => ({ ...d, wearables: v }))}
-        SectionShell={SectionShell}
-        useDebouncedSave={useDebouncedSave}
       />
 
       {/* Section 13: Anything Else */}
@@ -200,8 +190,6 @@ export function IntakeForm({ patientId, initial }: Props) {
         patientId={patientId}
         initial={initial.anything_else}
         onDraftChange={(v) => setDraft((d) => ({ ...d, anything_else: v }))}
-        SectionShell={SectionShell}
-        useDebouncedSave={useDebouncedSave}
       />
 
       {/* Submit */}

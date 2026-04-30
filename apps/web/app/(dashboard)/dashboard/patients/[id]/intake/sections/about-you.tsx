@@ -2,29 +2,13 @@
 
 import { useEffect, useState } from "react";
 import type { IntakeAboutYouSection } from "@/lib/intake-schema";
+import { useDebouncedSave, SectionShell, inputClass, labelClass } from "../shared";
 
 interface Props {
   patientId: string;
   initial: IntakeAboutYouSection | undefined;
   onDraftChange?: (v: IntakeAboutYouSection) => void;
-  SectionShell: React.ComponentType<{
-    title: string;
-    description?: string;
-    status: { saving: boolean; savedAt: string | null; error: string | null };
-    children: React.ReactNode;
-  }>;
-  useDebouncedSave: (
-    patientId: string,
-    section: string,
-    value: unknown,
-  ) => { savedAt: string | null; saving: boolean; error: string | null };
 }
-
-const inputClass =
-  "w-full rounded-md border border-line-strong bg-surface px-3 py-2 text-sm text-ink " +
-  "placeholder:text-ink-faint " +
-  "transition-colors focus:border-accent focus:outline-none focus-visible:shadow-focus";
-const labelClass = "text-xs font-medium uppercase tracking-wide text-ink-subtle";
 
 const US_STATES = [
   "", "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA",
@@ -51,8 +35,6 @@ export function AboutYouSection({
   patientId,
   initial,
   onDraftChange,
-  SectionShell,
-  useDebouncedSave,
 }: Props) {
   const [data, setData] = useState<IntakeAboutYouSection>(
     initial?.full_name !== undefined ? initial : EMPTY,
@@ -100,7 +82,7 @@ export function AboutYouSection({
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         <label className="flex flex-col gap-1">
           <span className={labelClass}>Height (inches)</span>
-          <input className={inputClass} type="number" value={data.height_inches ?? ""} min={0} onChange={(e) => patch({ height_inches: e.target.value ? Number(e.target.value) : null })} placeholder='e.g. 65 (5\'5")' />
+          <input className={inputClass} type="number" value={data.height_inches ?? ""} min={0} onChange={(e) => patch({ height_inches: e.target.value ? Number(e.target.value) : null })} placeholder="e.g. 65 (5 ft 5 in)" />
         </label>
         <label className="flex flex-col gap-1">
           <span className={labelClass}>Weight (lbs)</span>

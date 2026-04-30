@@ -2,30 +2,15 @@
 
 import { useEffect, useState } from "react";
 import type { IntakeWhyHereSection } from "@/lib/intake-schema";
+import { useDebouncedSave, SectionShell, inputClass, labelClass } from "../shared";
 
 // Reuse shared form atoms from the parent form via props
 interface Props {
   patientId: string;
   initial: IntakeWhyHereSection | undefined;
   onDraftChange?: (v: IntakeWhyHereSection) => void;
-  SectionShell: React.ComponentType<{
-    title: string;
-    description?: string;
-    status: { saving: boolean; savedAt: string | null; error: string | null };
-    children: React.ReactNode;
-  }>;
-  useDebouncedSave: (
-    patientId: string,
-    section: string,
-    value: unknown,
-  ) => { savedAt: string | null; saving: boolean; error: string | null };
 }
 
-const inputClass =
-  "w-full rounded-md border border-line-strong bg-surface px-3 py-2 text-sm text-ink " +
-  "placeholder:text-ink-faint " +
-  "transition-colors focus:border-accent focus:outline-none focus-visible:shadow-focus";
-const labelClass = "text-xs font-medium uppercase tracking-wide text-ink-subtle";
 
 const EMPTY: IntakeWhyHereSection = {
   what_brings_you: "",
@@ -46,8 +31,6 @@ export function WhyHereSection({
   patientId,
   initial,
   onDraftChange,
-  SectionShell,
-  useDebouncedSave,
 }: Props) {
   const [data, setData] = useState<IntakeWhyHereSection>(
     initial?.what_brings_you !== undefined ? initial : EMPTY,

@@ -13,22 +13,12 @@ import {
   msqGrandTotal,
   msqSeverityLabel,
 } from "@/lib/intake-schema";
+import { useDebouncedSave, SectionShell, inputClass, labelClass } from "../shared";
 
 interface Props {
   patientId: string;
   initial: IntakeSymptomsSection | undefined;
   onDraftChange?: (v: IntakeSymptomsSection) => void;
-  SectionShell: React.ComponentType<{
-    title: string;
-    description?: string;
-    status: { saving: boolean; savedAt: string | null; error: string | null };
-    children: React.ReactNode;
-  }>;
-  useDebouncedSave: (
-    patientId: string,
-    section: string,
-    value: unknown,
-  ) => { savedAt: string | null; saving: boolean; error: string | null };
 }
 
 const CATEGORY_LABELS: Record<MsqCategory, string> = {
@@ -86,8 +76,6 @@ export function MsqSymptomsSection({
   patientId,
   initial,
   onDraftChange,
-  SectionShell,
-  useDebouncedSave,
 }: Props) {
   const [data, setData] = useState<IntakeSymptomsSection>(() => ({
     symptoms: initial?.symptoms ?? [],
