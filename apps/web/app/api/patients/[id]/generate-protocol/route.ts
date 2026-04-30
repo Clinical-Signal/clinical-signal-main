@@ -11,6 +11,7 @@ import {
 } from "@/lib/analysis";
 import { getDocumentText } from "@/lib/intake-documents";
 import { recordProtocolGenerated } from "@/lib/timeline";
+import { getActivePreferencesForPrompt } from "@/lib/preferences";
 
 export const maxDuration = 300;
 
@@ -55,7 +56,18 @@ export async function POST(
           detail: `${timeline.records.length} record(s), ${docTexts.length} document(s)`,
         });
 
-        const timelineText = formatTimelineForPrompt(timeline, docTexts);
+        // Load practitioner preferences to inject into prompts
+        let prefsText = "";
+        try {
+          prefsText = await getActivePreferencesForPrompt(user.tenantId, user.practitionerId);
+        } catch (prefErr) {
+          console.error("[generate-protocol] Failed to load preferences (non-fatal):", prefErr);
+        }
+
+        let timelineText = formatTimelineForPrompt(timeline, docTexts);
+        if (prefsText) {
+          timelineText += "\n\n" + prefsText;
+        }
         const { findings, meta: aMeta, raw: aRaw } = await runClinicalAnalysis(timelineText);
 
         const analysisId = await insertAnalysis({

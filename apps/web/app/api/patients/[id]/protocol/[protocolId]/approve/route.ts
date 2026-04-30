@@ -60,6 +60,7 @@ export async function POST(
       tenantId: user.tenantId,
       protocolId: ctx.params.protocolId,
       patientId: ctx.params.id,
+      practitionerId: user.practitionerId,
       clinicalContent: protocol.clinicalContent,
       clientContent: protocol.clientContent,
     }).catch((err) => console.error("[protocol-outputs] Background generation failed:", err));

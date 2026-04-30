@@ -11,6 +11,7 @@
 
 import { withTenant } from "./db";
 import { recordDerivativeGenerated } from "./timeline";
+import { getActivePreferencesForPrompt } from "./preferences";
 
 const MODEL = "claude-sonnet-4-5-20250929";
 
@@ -242,13 +243,19 @@ async function generateWithPrompt(
   systemPrompt: string,
   protocolContent: Record<string, unknown>,
   promptVersion: string,
+  preferencesText?: string,
 ): Promise<{ content: Record<string, unknown>; meta: { modelId: string; promptVersion: string; tokenUsage: Record<string, unknown> } }> {
   const claude = await createClient();
+
+  let fullSystemPrompt = systemPrompt;
+  if (preferencesText) {
+    fullSystemPrompt += "\n\n" + preferencesText;
+  }
 
   const response = await claude.messages.create({
     model: MODEL,
     max_tokens: 8000,
-    system: systemPrompt,
+    system: fullSystemPrompt,
     messages: [
       {
         role: "user",
@@ -289,16 +296,25 @@ export async function generateDerivativeOutputs(args: {
   tenantId: string;
   protocolId: string;
   patientId: string;
+  practitionerId: string;
   clinicalContent: Record<string, unknown>;
   clientContent: Record<string, unknown>;
 }): Promise<void> {
-  const { tenantId, protocolId, patientId, clinicalContent, clientContent } = args;
+  const { tenantId, protocolId, patientId, practitionerId, clinicalContent, clientContent } = args;
 
   // Combine clinical + client content for the AI to work with
   const fullProtocol = {
     clinical_protocol: clinicalContent,
     client_action_plan: clientContent,
   };
+
+  // Load practitioner preferences (non-fatal if it fails)
+  let prefsText = "";
+  try {
+    prefsText = await getActivePreferencesForPrompt(tenantId, practitionerId);
+  } catch (prefErr) {
+    console.error("[protocol-outputs] Failed to load preferences (non-fatal):", prefErr);
+  }
 
   const tasks: Array<{
     type: OutputType;
@@ -315,7 +331,7 @@ export async function generateDerivativeOutputs(args: {
     tasks.map(async (task) => {
       const outputId = await insertOutput(tenantId, protocolId, patientId, task.type);
       try {
-        const { content, meta } = await generateWithPrompt(task.prompt, fullProtocol, task.promptVersion);
+        const { content, meta } = await generateWithPrompt(task.prompt, fullProtocol, task.promptVersion, prefsText || undefined);
         await completeOutput(tenantId, outputId, content, meta);
 
         // Record in timeline (client_doc and call_deck have dedicated event types)
