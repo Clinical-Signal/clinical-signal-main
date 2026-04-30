@@ -3,6 +3,8 @@ import { apiAuth } from "@/lib/auth";
 import { writeAudit } from "@/lib/audit";
 import { patientBelongsToTenant } from "@/lib/records";
 import { getProtocol, approveProtocol } from "@/lib/protocols";
+import { generateDerivativeOutputs } from "@/lib/protocol-outputs";
+import { recordProtocolApproved } from "@/lib/timeline";
 
 export async function POST(
   _req: Request,
@@ -45,6 +47,22 @@ export async function POST(
         version: protocol.version,
       },
     });
+
+    // Record approval in PatientTimeline
+    recordProtocolApproved(
+      user.tenantId, ctx.params.id, ctx.params.protocolId, user.practitionerId,
+    ).catch((err) => console.error("[timeline] Failed to record approval:", err));
+
+    // Trigger derivative output generation (client doc, call deck, email draft).
+    // This runs in the background — the approval response returns immediately.
+    // Each output is independent; failures are logged but don't block each other.
+    generateDerivativeOutputs({
+      tenantId: user.tenantId,
+      protocolId: ctx.params.protocolId,
+      patientId: ctx.params.id,
+      clinicalContent: protocol.clinicalContent,
+      clientContent: protocol.clientContent,
+    }).catch((err) => console.error("[protocol-outputs] Background generation failed:", err));
 
     return NextResponse.json({ ok: true, status: "approved" });
   } catch (err) {

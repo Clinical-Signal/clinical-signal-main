@@ -10,6 +10,7 @@ import {
   insertProtocol,
 } from "@/lib/analysis";
 import { getDocumentText } from "@/lib/intake-documents";
+import { recordProtocolGenerated } from "@/lib/timeline";
 
 export const maxDuration = 300;
 
@@ -107,6 +108,11 @@ export async function POST(
           practitionerId: user.practitionerId,
           metadata: { patient_id: patientId, analysis_id: analysisId, protocol_id: protocolId },
         });
+
+        // Record in PatientTimeline (non-blocking)
+        recordProtocolGenerated(
+          user.tenantId, patientId, protocolId, user.practitionerId, title,
+        ).catch((err) => console.error("[timeline] Failed to record protocol generated:", err));
 
         send({
           step: 3,

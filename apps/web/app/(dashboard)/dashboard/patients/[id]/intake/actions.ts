@@ -9,6 +9,10 @@ import {
   saveIntakeSection,
   submitIntake,
 } from "@/lib/intake";
+import {
+  recordIntakeSectionCompleted,
+  recordIntakeSubmitted,
+} from "@/lib/timeline";
 
 export type SaveSectionResult =
   | { ok: true; savedAt: string; status: string }
@@ -32,6 +36,10 @@ export async function saveSectionAction(
       resourceId: patientId,
       metadata: { section },
     });
+    // Write to PatientTimeline (non-blocking — don't fail the save if this errors)
+    recordIntakeSectionCompleted(user.tenantId, patientId, section, user.practitionerId).catch(
+      (err) => console.error("[timeline] Failed to record intake section:", err),
+    );
     return { ok: true, savedAt: res.savedAt, status: res.status };
   } catch (err) {
     return {
@@ -56,6 +64,10 @@ export async function submitIntakeAction(
       resourceType: "patient",
       resourceId: patientId,
     });
+    // Write to PatientTimeline (non-blocking)
+    recordIntakeSubmitted(user.tenantId, patientId, user.practitionerId).catch(
+      (err) => console.error("[timeline] Failed to record intake submission:", err),
+    );
     redirect(`/dashboard/patients/${patientId}/intake/review`);
   } catch (err) {
     if (err && typeof err === "object" && "digest" in err) throw err; // Next redirect
