@@ -15,13 +15,21 @@ function getPool(): Pool {
   if (!connectionString) {
     throw new Error("DATABASE_URL is not set");
   }
+  // Enable SSL for any non-localhost database (Aptible, Railway, etc.)
+  // or when the connection string explicitly requests it.
+  const isRemote =
+    !connectionString.includes("localhost") &&
+    !connectionString.includes("127.0.0.1");
+  const needsSsl =
+    isRemote ||
+    connectionString.includes("sslmode=require") ||
+    process.env.NODE_ENV === "production";
+
   const p = new Pool({
     connectionString,
     max: 10,
     idleTimeoutMillis: 30_000,
-    ssl: connectionString.includes("sslmode=require")
-      ? { rejectUnauthorized: false }
-      : undefined,
+    ssl: needsSsl ? { rejectUnauthorized: false } : undefined,
   });
   global.__pgPool = p;
   return p;
