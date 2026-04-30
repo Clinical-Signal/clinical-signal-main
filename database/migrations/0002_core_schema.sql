@@ -6,7 +6,7 @@
 -- checks out from the pool after resolving the signed-in practitioner.
 -- The superuser bypasses RLS, so seed and migrations run as the owner.
 
-\connect clinical_signal
+-- \connect clinical_signal  -- removed: Aptible database is already selected via URL
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 CREATE EXTENSION IF NOT EXISTS vector;
@@ -181,7 +181,7 @@ BEGIN
 END
 $r$;
 
-GRANT CONNECT ON DATABASE clinical_signal TO app_user;
+GRANT CONNECT ON DATABASE db TO app_user;
 GRANT USAGE ON SCHEMA public TO app_user;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO app_user;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO app_user;

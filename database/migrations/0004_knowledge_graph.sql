@@ -9,7 +9,7 @@
 -- Embedding dimension is 384 (sentence-transformers/all-MiniLM-L6-v2).
 -- The extraction pipeline lives in services/analysis-engine/scripts/.
 
-\connect clinical_signal
+-- \connect clinical_signal  -- removed: Aptible database is already selected via URL
 
 CREATE EXTENSION IF NOT EXISTS vector;
 

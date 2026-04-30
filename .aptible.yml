@@ -1,0 +1,7 @@
+# Aptible deployment configuration
+# The Dockerfile at the repo root builds the Next.js standalone app.
+
+before_release:
+  # Aptible runs this before routing traffic to the new container.
+  # Nothing needed here yet — migrations are run manually.
+  - echo "Release ready"

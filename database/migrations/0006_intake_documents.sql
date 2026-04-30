@@ -1,6 +1,6 @@
 -- 0006_intake_documents.sql — dynamic intake: documents + chunks (sprint-5).
 
-\connect clinical_signal
+-- \connect clinical_signal  -- removed: Aptible database is already selected via URL
 
 CREATE EXTENSION IF NOT EXISTS vector;
 

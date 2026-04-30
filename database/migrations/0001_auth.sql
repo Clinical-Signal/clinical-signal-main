@@ -2,7 +2,7 @@
 -- The full schema (patients, records, analyses, protocols) lands in issue 1.3.
 -- Applied at container start via database/init.
 
-\connect clinical_signal
+-- \connect clinical_signal  -- removed: Aptible database is already selected via URL
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 

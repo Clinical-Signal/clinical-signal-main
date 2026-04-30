@@ -2,7 +2,7 @@
 -- so the PDF exporter can write a row pointing at the generated file
 -- (issue #12 / Sprint 4).
 
-\connect clinical_signal
+-- \connect clinical_signal  -- removed: Aptible database is already selected via URL
 
 ALTER TABLE records DROP CONSTRAINT IF EXISTS records_record_type_check;
 ALTER TABLE records

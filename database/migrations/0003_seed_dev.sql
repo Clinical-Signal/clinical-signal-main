@@ -5,7 +5,7 @@
 -- patterns. All PHI fields are encrypted with the dev PHI key; the app
 -- decrypts at read time using the same key from PHI_ENCRYPTION_KEY.
 
-\connect clinical_signal
+-- \connect clinical_signal  -- removed: Aptible database is already selected via URL
 
 -- Dev PHI key is hard-coded here ONLY for the local dev seed. Production uses
 -- a KMS-backed key supplied per-request by the app; this file is gated on
