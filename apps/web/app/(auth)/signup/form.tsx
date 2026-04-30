@@ -32,7 +32,7 @@ export function SignupForm() {
           type="password"
           name="password"
           autoComplete="new-password"
-          minLength={12}
+          minLength={8}
           required
         />
       </Field>

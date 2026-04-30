@@ -2,7 +2,7 @@ import bcrypt from "bcryptjs";
 import { createHash } from "node:crypto";
 
 const BCRYPT_ROUNDS = 12;
-const MIN_LENGTH = 12;
+const MIN_LENGTH = 8;
 
 export async function hashPassword(plain: string): Promise<string> {
   return bcrypt.hash(plain, BCRYPT_ROUNDS);
