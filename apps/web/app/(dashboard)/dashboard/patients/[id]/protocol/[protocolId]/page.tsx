@@ -80,6 +80,14 @@ export default async function ProtocolViewPage({
                 Edit
               </Link>
             )}
+            {p.status === "approved" && (
+              <Link
+                href={`/dashboard/patients/${params.id}/protocol/${params.protocolId}/outputs`}
+                className="inline-flex h-10 items-center justify-center rounded-md bg-emerald-600 px-4 text-sm font-medium text-white transition-colors hover:bg-emerald-700"
+              >
+                View outputs
+              </Link>
+            )}
             <a
               href={`/api/patients/${params.id}/protocol/${params.protocolId}/export?audience=clinical`}
               className="inline-flex h-10 items-center justify-center rounded-md border border-line-strong bg-surface px-4 text-sm font-medium text-ink transition-colors hover:bg-surface-sunken"
