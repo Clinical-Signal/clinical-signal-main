@@ -114,19 +114,39 @@ export async function insertChunks(args: {
   });
 }
 
+export interface DocumentWithMeta {
+  text: string;
+  docType: DocType;
+  filename: string | null;
+}
+
+/**
+ * Return extracted text for all complete documents, including metadata
+ * so callers can tag documents by type (transcript, lab PDF, note, etc.)
+ * for proper source attribution in AI prompts.
+ */
 export async function getDocumentText(
   tenantId: string,
   patientId: string,
-): Promise<string[]> {
+): Promise<DocumentWithMeta[]> {
   return withTenant(tenantId, async (c) => {
-    const { rows } = await c.query<{ extracted_text: string }>(
-      `SELECT extracted_text FROM intake_documents
+    const { rows } = await c.query<{
+      extracted_text: string;
+      doc_type: DocType;
+      original_filename: string | null;
+    }>(
+      `SELECT extracted_text, doc_type, original_filename FROM intake_documents
         WHERE patient_id = $1 AND processing_status = 'complete'
           AND extracted_text IS NOT NULL AND extracted_text <> ''
+          AND (metadata->>'type' IS DISTINCT FROM 'prep_brief')
         ORDER BY uploaded_at ASC`,
       [patientId],
     );
-    return rows.map((r) => r.extracted_text);
+    return rows.map((r) => ({
+      text: r.extracted_text,
+      docType: r.doc_type,
+      filename: r.original_filename,
+    }));
   });
 }
 

@@ -5,7 +5,7 @@ import {
   gatherPatientTimeline,
   generatePrepBrief,
 } from "@/lib/analysis";
-import { getDocumentText } from "@/lib/intake-documents";
+import { getDocumentText, type DocumentWithMeta } from "@/lib/intake-documents";
 import { getActivePreferencesForPrompt } from "@/lib/preferences";
 import { withTenant } from "@/lib/db";
 
@@ -89,14 +89,14 @@ export async function POST(
 
         const timeline = await gatherPatientTimeline(user.tenantId, patientId);
 
-        let docTexts: string[] = [];
+        let docs: DocumentWithMeta[] = [];
         try {
-          docTexts = await getDocumentText(user.tenantId, patientId);
+          docs = await getDocumentText(user.tenantId, patientId);
         } catch { /* non-fatal */ }
 
         send({
           status: "Generating prep brief...",
-          detail: `${timeline.records.length} records, ${docTexts.length} documents`,
+          detail: `${timeline.records.length} records, ${docs.length} documents`,
         });
 
         // Build timeline text with documents
@@ -112,12 +112,34 @@ export async function POST(
           }
         }
 
-        if (docTexts.length > 0) {
-          sections.push("\n## Uploaded documents & transcripts (" + docTexts.length + ")");
-          for (let i = 0; i < docTexts.length; i++) {
-            const text = docTexts[i]!;
-            sections.push("\n### Document " + (i + 1));
-            sections.push(text.length > 8000 ? text.slice(0, 8000) + "\n...(truncated)" : text);
+        if (docs.length > 0) {
+          sections.push("\n## Uploaded documents & transcripts (" + docs.length + ")");
+          sections.push(
+            "Source types are labeled in brackets. " +
+            "[Practitioner Note] and [Call Transcript] carry higher authority than structured intake."
+          );
+          const docTypeLabels: Record<string, string> = {
+            transcript: "Call Transcript",
+            note: "Practitioner Note",
+            pdf: "Uploaded PDF",
+            image: "Uploaded Image",
+            docx: "Uploaded Document",
+            txt: "Uploaded Document",
+          };
+          for (let i = 0; i < docs.length; i++) {
+            const doc = docs[i]!;
+            let label = docTypeLabels[doc.docType] ?? "Uploaded Document";
+            // Identify lab PDFs by filename
+            if (doc.docType === "pdf" && doc.filename) {
+              const fn = doc.filename.toLowerCase();
+              if (fn.includes("gi-map") || fn.includes("gimap")) label = "Lab Report — GI-MAP";
+              else if (fn.includes("dutch")) label = "Lab Report — DUTCH";
+              else if (fn.includes("nutraeval")) label = "Lab Report — NutraEval";
+              else if (fn.includes("lab") || fn.includes("blood") || fn.includes("panel")) label = "Lab Report (PDF)";
+            }
+            const nameNote = doc.filename ? ` (${doc.filename})` : "";
+            sections.push(`\n### [${label}] Document ${i + 1}${nameNote}`);
+            sections.push(doc.text.length > 8000 ? doc.text.slice(0, 8000) + "\n...(truncated)" : doc.text);
           }
         }
 

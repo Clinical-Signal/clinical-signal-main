@@ -7,7 +7,7 @@ import {
   runClinicalAnalysis,
   insertAnalysis,
 } from "@/lib/analysis";
-import { getDocumentText } from "@/lib/intake-documents";
+import { getDocumentText, type DocumentWithMeta } from "@/lib/intake-documents";
 
 export const maxDuration = 300;
 
@@ -46,20 +46,20 @@ export async function POST(
         console.log("[analyze] Timeline gathered at", elapsed(), "—", timeline.records.length, "records");
 
         // Fetch uploaded documents, transcripts, and practitioner notes from Intake Hub
-        let docTexts: string[] = [];
+        let docs: DocumentWithMeta[] = [];
         try {
-          docTexts = await getDocumentText(user.tenantId, patientId);
-          console.log("[analyze] Loaded", docTexts.length, "intake hub documents at", elapsed());
+          docs = await getDocumentText(user.tenantId, patientId);
+          console.log("[analyze] Loaded", docs.length, "intake hub documents at", elapsed());
         } catch (docErr) {
           console.error("[analyze] Failed to load intake docs (non-fatal):", docErr);
         }
 
         send({
           status: "Analyzing intake and lab records...",
-          detail: `${timeline.records.length} record(s), ${docTexts.length} document(s)`,
+          detail: `${timeline.records.length} record(s), ${docs.length} document(s)`,
         });
 
-        const timelineText = formatTimelineForPrompt(timeline, docTexts);
+        const timelineText = formatTimelineForPrompt(timeline, docs);
 
         let lastPing = Date.now();
         let tokenCount = 0;

@@ -240,12 +240,28 @@ actions and expected outcomes. They must stay clinically aligned.
    to review supplement timing) and the client action plan (so the
    patient can follow it like a daily checklist).
 
-4. **Every layer must have expected outcomes.** The patient needs to
-   know what they are working toward. Expected outcomes increase
-   compliance, leverage the placebo effect ethically, and give the
-   patient a way to self-assess progress. Be specific and honest: "many
-   patients notice improved morning energy and fewer 3am wake-ups" beats
-   "you will feel better".
+4. **Every layer must have specific, observable expected outcomes.** The
+   patient needs to know what they are working toward. Expected outcomes
+   increase compliance, leverage the placebo effect ethically, and give
+   the patient a way to self-assess progress. Outcomes MUST be specific
+   and tied to the patient's actual symptoms — vague language is not
+   acceptable.
+
+   GOOD expected outcomes (specific, observable, self-assessable):
+   - "Sleep through the night most nights without 3am wake-ups"
+   - "Morning energy noticeably higher — able to get going without dragging"
+   - "Bloating after meals reduced or gone"
+   - "Afternoon energy crash less severe — no longer needing caffeine after 2pm"
+   - "Bowel movements daily and well-formed"
+   - "Brain fog lifting — able to focus for longer stretches"
+
+   BAD expected outcomes (vague, unmeasurable — do NOT use these):
+   - "Feel better"
+   - "Improved sleep"
+   - "More energy"
+   - "Better digestion"
+   - "Reduced inflammation"
+   - "Hormonal balance"
 
 5. **Clinical reasoning is mandatory.** The practitioner is going to
    audit your thinking. For every major recommendation, name *why* —
@@ -546,15 +562,56 @@ you should note the conflict in \`areas_of_uncertainty\`.
   reader is tired, overwhelmed, and has been dismissed by conventional
   medicine. Do not be saccharine; do not be clinical.`;
 
-const PROMPTS: Record<string, string> = {
-  clinical_analysis_v1: CLINICAL_ANALYSIS_V1,
-  protocol_generation_v1: PROTOCOL_GENERATION_V1,  // v2 content, key kept for backward compat
-};
+// PROMPTS map and hashing are initialized lazily because PREP_BRIEF_PROMPT
+// is defined later in this file. All three prompts are still module-level
+// constants; this just defers the map construction to first access.
+
+let _prompts: Record<string, string> | null = null;
+function getPrompts(): Record<string, string> {
+  if (!_prompts) {
+    _prompts = {
+      clinical_analysis_v1: CLINICAL_ANALYSIS_V1,
+      protocol_generation_v1: PROTOCOL_GENERATION_V1,
+      prep_brief_v1: PREP_BRIEF_PROMPT,
+    };
+  }
+  return _prompts;
+}
+
+/**
+ * Compute a short hash of prompt content for version tracking.
+ * Stored in protocol/analysis metadata so we can correlate output quality
+ * with specific prompt versions, even across deployments.
+ */
+function promptContentHash(content: string): string {
+  // Simple DJB2 hash — fast, deterministic, no crypto dependency.
+  // Not for security; just for change detection.
+  let hash = 5381;
+  for (let i = 0; i < content.length; i++) {
+    hash = ((hash << 5) + hash + content.charCodeAt(i)) & 0xffffffff;
+  }
+  return (hash >>> 0).toString(36);
+}
+
+let _promptHashes: Record<string, string> | null = null;
+function getPromptHashes(): Record<string, string> {
+  if (!_promptHashes) {
+    _promptHashes = {};
+    for (const [name, content] of Object.entries(getPrompts())) {
+      _promptHashes[name] = promptContentHash(content);
+    }
+  }
+  return _promptHashes;
+}
 
 function loadPrompt(name: string): string {
-  const p = PROMPTS[name];
+  const p = getPrompts()[name];
   if (!p) throw new Error("Unknown prompt: " + name);
   return p;
+}
+
+function getPromptHash(name: string): string {
+  return getPromptHashes()[name] ?? "unknown";
 }
 
 // Dynamic import so the module doesn't crash in environments where the
@@ -661,14 +718,41 @@ export async function gatherPatientTimeline(
   });
 }
 
-async function getDocumentTexts(tenantId: string, patientId: string): Promise<string[]> {
+/** Document metadata from intake-documents — used to tag source type in prompts. */
+interface DocWithMeta {
+  text: string;
+  docType: string;
+  filename: string | null;
+}
+
+async function getDocumentTexts(tenantId: string, patientId: string): Promise<DocWithMeta[]> {
   const { getDocumentText } = await import("./intake-documents");
   return getDocumentText(tenantId, patientId);
 }
 
+/** Human-readable label for a document type, used in prompt source attribution. */
+function docTypeLabel(docType: string, filename: string | null): string {
+  switch (docType) {
+    case "transcript": return "Call Transcript";
+    case "note": return "Practitioner Note";
+    case "pdf": {
+      // Attempt to identify lab PDFs by filename
+      const fn = (filename ?? "").toLowerCase();
+      if (fn.includes("gi-map") || fn.includes("gimap")) return "Lab Report — GI-MAP";
+      if (fn.includes("dutch")) return "Lab Report — DUTCH";
+      if (fn.includes("nutraeval")) return "Lab Report — NutraEval";
+      if (fn.includes("lab") || fn.includes("blood") || fn.includes("panel")) return "Lab Report (PDF)";
+      return "Uploaded PDF";
+    }
+    case "image": return "Uploaded Image";
+    case "docx": return "Uploaded Document";
+    default: return "Uploaded Document";
+  }
+}
+
 export function formatTimelineForPrompt(
   t: PatientTimeline,
-  documentTexts?: string[],
+  documentTexts?: DocWithMeta[],
 ): string {
   const sections: string[] = [];
   sections.push("## Intake");
@@ -691,17 +775,21 @@ export function formatTimelineForPrompt(
       "and extracted document text (including lab reports like GI-MAP, DUTCH, NutraEval). " +
       "They contain direct clinical observations and data that MUST inform the analysis. " +
       "If a lab test appears here, do NOT recommend ordering that test — it has already been done.\n\n" +
-      "IMPORTANT: Call transcripts and practitioner notes should carry MORE weight than " +
-      "the structured intake form. Patients are often more honest and detailed in conversation " +
-      "with their practitioner than on a written form. When transcript observations conflict " +
-      "with or add nuance to intake data, trust the transcript. Practitioner notes reflect " +
-      "clinical judgment and should be treated as the highest-authority input."
+      "IMPORTANT: Source types are labeled in brackets (e.g. [Call Transcript], " +
+      "[Practitioner Note], [Lab Report]). Use these labels to weight information:\n" +
+      "- [Practitioner Note] = highest authority — reflects clinical judgment\n" +
+      "- [Call Transcript] = high authority — patients are more honest and detailed in conversation\n" +
+      "- [Lab Report] = high authority — objective clinical data\n" +
+      "- [Uploaded PDF] / [Uploaded Document] = standard authority\n\n" +
+      "When transcript or note observations conflict with or add nuance to the " +
+      "structured intake form, trust the transcript/note."
     );
     for (let i = 0; i < documentTexts.length; i++) {
-      const text = documentTexts[i]!;
-      // Cap each doc to keep the prompt manageable (tunable via DOC_TEXT_CAP env var)
-      sections.push("\n### Document " + (i + 1));
-      sections.push(text.length > DOC_TEXT_CAP ? text.slice(0, DOC_TEXT_CAP) + "\n...(truncated)" : text);
+      const doc = documentTexts[i]!;
+      const label = docTypeLabel(doc.docType, doc.filename);
+      const nameNote = doc.filename ? ` (${doc.filename})` : "";
+      sections.push(`\n### [${label}] Document ${i + 1}${nameNote}`);
+      sections.push(doc.text.length > DOC_TEXT_CAP ? doc.text.slice(0, DOC_TEXT_CAP) + "\n...(truncated)" : doc.text);
     }
   }
 
@@ -749,6 +837,7 @@ export async function runClinicalAnalysis(
   const meta = {
     model_id: MODEL,
     prompt_version: "clinical_analysis_v1",
+    prompt_hash: getPromptHash("clinical_analysis_v1"),
     token_usage: {
       input_tokens: finalMessage.usage.input_tokens,
       output_tokens: finalMessage.usage.output_tokens,
@@ -804,15 +893,65 @@ export async function runProtocolGeneration(
   }
 
   const protocol = JSON.parse(stripCodeFences(raw));
+
+  // Check for missing/incomplete sections when truncated
+  const expectedSections = [
+    "title",
+    "clinical_protocol",
+    "client_action_plan",
+  ];
+  const expectedClinicalKeys = [
+    "systems_analysis",
+    "daily_protocol",
+    "supplement_protocol",
+    "dietary_recommendations",
+    "lifestyle_recommendations",
+    "clinical_reasoning",
+    "safety_review",
+  ];
+  const expectedClientKeys = ["intro", "layers", "disclaimer"];
+
+  let missingSections: string[] = [];
+  if (wasTruncated) {
+    for (const s of expectedSections) {
+      if (!(s in protocol)) missingSections.push(s);
+    }
+    const cp = protocol.clinical_protocol as Record<string, unknown> | undefined;
+    if (cp) {
+      for (const k of expectedClinicalKeys) {
+        if (!(k in cp)) missingSections.push(`clinical_protocol.${k}`);
+      }
+    }
+    const cap = protocol.client_action_plan as Record<string, unknown> | undefined;
+    if (cap) {
+      for (const k of expectedClientKeys) {
+        if (!(k in cap)) missingSections.push(`client_action_plan.${k}`);
+      }
+      // Check if layers array seems complete
+      const layers = cap.layers as unknown[];
+      if (Array.isArray(layers) && layers.length > 0) {
+        const lastLayer = layers[layers.length - 1] as Record<string, unknown> | undefined;
+        if (lastLayer && !lastLayer.expected_outcomes) {
+          missingSections.push(`client_action_plan.layers[${layers.length - 1}] (incomplete)`);
+        }
+      }
+    }
+    if (missingSections.length > 0) {
+      console.warn("[protocol] Truncation caused missing sections:", missingSections);
+    }
+  }
+
   const meta = {
     model_id: MODEL,
     prompt_version: "protocol_generation_v1",
+    prompt_hash: getPromptHash("protocol_generation_v1"),
     token_usage: {
       input_tokens: finalMessage.usage.input_tokens,
       output_tokens: finalMessage.usage.output_tokens,
     },
     kb_context_size: kbContext?.length ?? 0,
     truncated: wasTruncated,
+    ...(missingSections.length > 0 ? { missing_sections: missingSections } : {}),
   };
   return { protocol, meta, raw };
 }
@@ -987,9 +1126,33 @@ Return a valid JSON object with exactly this shape. No prose, no code fences.
 
 ## Safety awareness
 - Always list current medications and supplements in safety_flags — the practitioner needs this at a glance.
-- Flag any potential drug-supplement interactions the practitioner should discuss.
 - Note if pregnancy/nursing/TTC status affects what can be recommended.
-- If symptoms suggest something requiring conventional medical workup first (e.g. chest pain, sudden weight loss, blood in stool), flag it prominently in safety_flags.concerns.
+
+### Drug-supplement interactions to check
+When the patient is on any of these medications, flag the interaction in safety_flags.concerns:
+- **Blood thinners** (Warfarin, Eliquis, Plavix) — flag fish oil, Vitamin E, high-dose garlic, ginkgo, nattokinase
+- **SSRIs/SNRIs** (Lexapro, Zoloft, Effexor, Cymbalta) — flag 5-HTP, St. John's Wort, high-dose SAMe (serotonin syndrome risk)
+- **Thyroid medication** (Synthroid, levothyroxine, Armour) — flag calcium, iron, magnesium within 4 hours (absorption interference)
+- **Blood pressure medications** — flag CoQ10, hawthorn, high-dose magnesium (may potentiate)
+- **Immunosuppressants** — flag immune-stimulating herbs (echinacea, astragalus, medicinal mushrooms)
+- **Statins** — flag CoQ10 depletion, red yeast rice (same mechanism), grapefruit interactions
+- **Metformin** — flag B12 depletion risk
+- **PPIs** (omeprazole, pantoprazole) — flag B12, magnesium, calcium depletion
+- **Birth control** — flag B vitamin depletion, potential herb interactions (St. John's Wort reduces efficacy)
+
+### Red flags requiring conventional referral
+Flag prominently in safety_flags.concerns if any of these are present:
+- Chest pain, especially with shortness of breath or radiating to arm/jaw
+- Sudden unexplained weight loss (>10% body weight in 6 months without trying)
+- Blood in stool, vomit, or urine
+- Sudden severe headache unlike any prior headache
+- Neurological changes: sudden vision changes, weakness, numbness, confusion
+- Fasting glucose >126 mg/dL or HbA1c >6.5% (undiagnosed diabetes — needs conventional workup)
+- TSH >10 or <0.1 (overt thyroid disease — needs endocrinology)
+- Unexplained fever lasting >2 weeks
+- Palpable lumps or masses, especially breast, thyroid, lymph nodes
+- Significant mental health crisis: suicidal ideation, psychotic symptoms
+- Signs of acute infection: high fever + chills + localized pain
 
 ## Rules
 - Ground every observation in the patient data provided. Do not fabricate.
@@ -1032,6 +1195,7 @@ export async function generatePrepBrief(
   const meta = {
     model_id: MODEL,
     prompt_version: "prep_brief_v1",
+    prompt_hash: getPromptHash("prep_brief_v1"),
     token_usage: {
       input_tokens: finalMessage.usage.input_tokens,
       output_tokens: finalMessage.usage.output_tokens,
@@ -1124,12 +1288,12 @@ export async function analyzeAndGenerate(args: {
   const timeline = await gatherPatientTimeline(args.tenantId, args.patientId);
 
   // Include uploaded documents (transcripts, notes, PDFs) in the analysis
-  let docTexts: string[] = [];
+  let docs: DocWithMeta[] = [];
   try {
-    docTexts = await getDocumentTexts(args.tenantId, args.patientId);
+    docs = await getDocumentTexts(args.tenantId, args.patientId);
   } catch { /* non-fatal */ }
 
-  const timelineText = formatTimelineForPrompt(timeline, docTexts);
+  const timelineText = formatTimelineForPrompt(timeline, docs);
 
   const { findings, meta: aMeta, raw: aRaw } = await runClinicalAnalysis(timelineText);
 

@@ -202,6 +202,7 @@ export function EditForm(props: Props) {
         dirty={dirty}
         autoSavedAt={autoSavedAt}
       />
+      <TruncationWarning generation={props.initialClinical?._generation} />
       {message ? (
         <p className="text-sm text-success">{message}</p>
       ) : null}
@@ -728,6 +729,26 @@ function ResetSectionButton({
     >
       Reset to original
     </button>
+  );
+}
+
+function TruncationWarning({ generation }: { generation?: Record<string, any> }) {
+  if (!generation?.truncated) return null;
+  const missing = generation.missing_sections as string[] | undefined;
+  return (
+    <div className="rounded-lg border border-warning/40 bg-warning/5 px-4 py-3">
+      <p className="text-sm font-medium text-warning-emphasis">
+        This protocol was too large and the AI output was truncated. Some sections may be incomplete or missing.
+      </p>
+      {missing && missing.length > 0 ? (
+        <p className="mt-1 text-xs text-ink-subtle">
+          Potentially affected: {missing.join(", ")}
+        </p>
+      ) : null}
+      <p className="mt-1 text-xs text-ink-subtle">
+        Review carefully, or regenerate to get a complete version.
+      </p>
+    </div>
   );
 }
 

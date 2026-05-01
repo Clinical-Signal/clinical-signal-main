@@ -9,7 +9,7 @@ import {
   insertAnalysis,
   insertProtocol,
 } from "@/lib/analysis";
-import { getDocumentText } from "@/lib/intake-documents";
+import { getDocumentText, type DocumentWithMeta } from "@/lib/intake-documents";
 import { recordProtocolGenerated } from "@/lib/timeline";
 import { getActivePreferencesForPrompt } from "@/lib/preferences";
 
@@ -41,10 +41,10 @@ export async function POST(
         const timeline = await gatherPatientTimeline(user.tenantId, patientId);
 
         // Fetch uploaded documents, transcripts, and practitioner notes from Intake Hub
-        let docTexts: string[] = [];
+        let docs: DocumentWithMeta[] = [];
         try {
-          docTexts = await getDocumentText(user.tenantId, patientId);
-          console.log("[generate-protocol] Loaded", docTexts.length, "intake hub documents");
+          docs = await getDocumentText(user.tenantId, patientId);
+          console.log("[generate-protocol] Loaded", docs.length, "intake hub documents");
         } catch (docErr) {
           console.error("[generate-protocol] Failed to load intake docs (non-fatal):", docErr);
         }
@@ -53,7 +53,7 @@ export async function POST(
           step: 2,
           total: 3,
           status: "Analyzing intake and lab records...",
-          detail: `${timeline.records.length} record(s), ${docTexts.length} document(s)`,
+          detail: `${timeline.records.length} record(s), ${docs.length} document(s)`,
         });
 
         // Load practitioner preferences to inject into prompts
@@ -64,7 +64,7 @@ export async function POST(
           console.error("[generate-protocol] Failed to load preferences (non-fatal):", prefErr);
         }
 
-        let timelineText = formatTimelineForPrompt(timeline, docTexts);
+        let timelineText = formatTimelineForPrompt(timeline, docs);
         if (prefsText) {
           timelineText += "\n\n" + prefsText;
         }
