@@ -89,7 +89,7 @@ function SaveStatus({
 }) {
   if (error)
     return (
-      <span className="text-xs text-danger">Couldn&apos;t save: {error}</span>
+      <span role="alert" className="text-xs text-danger">Couldn&apos;t save: {error}</span>
     );
   if (saving)
     return (
@@ -265,11 +265,12 @@ export function SliderField({
   );
 }
 
-export function RemoveButton({ onClick }: { onClick: () => void }) {
+export function RemoveButton({ onClick, label }: { onClick: () => void; label?: string }) {
   return (
     <button
       type="button"
       onClick={onClick}
+      aria-label={label ?? "Remove item"}
       className="self-start text-xs text-danger transition-colors hover:text-danger/80"
     >
       Remove

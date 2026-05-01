@@ -25,11 +25,23 @@ function getPool(): Pool {
     connectionString.includes("sslmode=require") ||
     process.env.NODE_ENV === "production";
 
+  // SSL config: reject unauthorized certs by default (MITM protection).
+  // If the managed DB uses a custom CA, set DATABASE_CA_CERT env var with
+  // the PEM-encoded certificate. Railway/Aptible provide this in their dashboard.
+  let sslConfig: { rejectUnauthorized: boolean; ca?: string } | undefined;
+  if (needsSsl) {
+    const ca = process.env.DATABASE_CA_CERT;
+    sslConfig = {
+      rejectUnauthorized: ca ? true : !isRemote ? false : true,
+      ...(ca ? { ca } : {}),
+    };
+  }
+
   const p = new Pool({
     connectionString,
-    max: 10,
+    max: 20,
     idleTimeoutMillis: 30_000,
-    ssl: needsSsl ? { rejectUnauthorized: false } : undefined,
+    ssl: sslConfig,
   });
   global.__pgPool = p;
   return p;

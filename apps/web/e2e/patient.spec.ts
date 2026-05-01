@@ -25,11 +25,18 @@ test.describe("Patient workflow", () => {
     await expect(page.getByText(testName)).toBeVisible();
   });
 
-  test("patient detail hub shows intake, documents, protocol cards", async ({ page }) => {
+  test("patient detail hub shows all care stage cards", async ({ page }) => {
     await page.getByText("Sarah Chen").click();
     await page.waitForURL("**/patients/**");
     await expect(page.getByRole("heading", { name: "Intake" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Documents" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Foundations" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Protocol" })).toBeVisible();
+  });
+
+  test("navigate to settings page", async ({ page }) => {
+    await page.getByRole("link", { name: "Settings" }).click();
+    await page.waitForURL("**/settings**");
+    await expect(page.getByText(/preferences/i)).toBeVisible({ timeout: 5_000 });
   });
 });

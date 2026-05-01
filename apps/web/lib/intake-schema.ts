@@ -321,6 +321,11 @@ export interface IntakeData {
   /** Legacy key — old data may use this instead of `hormones` */
   hormone_deep_dive?: IntakeHormoneSection;
   immune_deep_dive?: IntakeImmuneDeepDiveSection;
+  // v3 conditional deep dives (branching engine)
+  sleep_deep_dive?: Record<string, unknown>;
+  stress_deep_dive?: Record<string, unknown>;
+  skin_deep_dive?: Record<string, unknown>;
+  metabolism_deep_dive?: Record<string, unknown>;
   wearables?: IntakeWearablesSection;
   anything_else?: IntakeAnythingElseSection;
   submitted_at?: string;
@@ -340,6 +345,10 @@ export type IntakeSectionKey =
   | "hormones"
   | "hormone_deep_dive" // legacy alias
   | "immune_deep_dive"
+  | "sleep_deep_dive"
+  | "stress_deep_dive"
+  | "skin_deep_dive"
+  | "metabolism_deep_dive"
   | "wearables"
   | "anything_else";
 
@@ -347,13 +356,19 @@ export type IntakeSectionKey =
  *  NOTE: hormones was removed — it's now required per Dr. Laura. */
 export type ConditionalSectionKey =
   | "gut_deep_dive"
-  | "immune_deep_dive";
+  | "immune_deep_dive"
+  | "sleep_deep_dive"
+  | "stress_deep_dive"
+  | "skin_deep_dive"
+  | "metabolism_deep_dive";
 
 /**
  * Maps conditional sections to the symptom keywords that trigger them.
  * Checks both v1 free-form symptom names and v2 MSQ category scores.
  */
-export const CONDITIONAL_TRIGGERS: Record<ConditionalSectionKey, string[]> = {
+/** Keyword triggers for conditional sections. Only gut + immune use this legacy
+ *  approach — new sections use the branching engine in intake-branching-rules.ts. */
+export const CONDITIONAL_TRIGGERS: Partial<Record<ConditionalSectionKey, string[]>> = {
   gut_deep_dive: ["digestive", "bloating", "gas", "constipation", "diarrhea", "reflux", "ibs", "sibo", "gut", "heartburn", "nausea"],
   immune_deep_dive: ["autoimmune", "immune", "lupus", "hashimoto", "rheumatoid", "ms "],
 };
@@ -368,6 +383,7 @@ export function shouldShowConditionalSection(
 ): boolean {
   if (!symptoms) return false;
   const triggers = CONDITIONAL_TRIGGERS[section];
+  if (!triggers) return false;
 
   // Check v1 free-form symptoms
   const v1Match = symptoms.symptoms?.some((s) =>
@@ -408,6 +424,10 @@ export const INTAKE_SECTIONS: { key: IntakeSectionKey; title: string; conditiona
   { key: "hormones", title: "Hormones & cycle" },
   { key: "gut_deep_dive", title: "Gut health deep dive", conditional: true },
   { key: "immune_deep_dive", title: "Immune deep dive", conditional: true },
+  { key: "sleep_deep_dive", title: "Sleep deep dive", conditional: true },
+  { key: "stress_deep_dive", title: "Stress & nervous system deep dive", conditional: true },
+  { key: "skin_deep_dive", title: "Skin deep dive", conditional: true },
+  { key: "metabolism_deep_dive", title: "Weight & metabolism deep dive", conditional: true },
   { key: "previous_labs", title: "Previous labs & testing" },
   { key: "wearables", title: "Wearables & tracking" },
   { key: "anything_else", title: "Anything else" },
@@ -501,6 +521,22 @@ export function isSectionComplete(data: IntakeData, key: IntakeSectionKey): bool
       return !!(data.gut_deep_dive?.bowel_frequency?.trim() || data.gut_deep_dive?.diagnosed_gi_conditions?.length);
     case "immune_deep_dive":
       return !!(data.immune_deep_dive?.autoimmune_conditions?.trim());
+    case "sleep_deep_dive":
+      return !!(data.sleep_deep_dive && Object.values(data.sleep_deep_dive).some(
+        (v) => typeof v === "string" ? v.trim().length > 0 : v !== null && v !== undefined && v !== "",
+      ));
+    case "stress_deep_dive":
+      return !!(data.stress_deep_dive && Object.values(data.stress_deep_dive).some(
+        (v) => typeof v === "string" ? v.trim().length > 0 : v !== null && v !== undefined && v !== "",
+      ));
+    case "skin_deep_dive":
+      return !!(data.skin_deep_dive && Object.values(data.skin_deep_dive).some(
+        (v) => typeof v === "string" ? v.trim().length > 0 : v !== null && v !== undefined && v !== "",
+      ));
+    case "metabolism_deep_dive":
+      return !!(data.metabolism_deep_dive && Object.values(data.metabolism_deep_dive).some(
+        (v) => typeof v === "string" ? v.trim().length > 0 : v !== null && v !== undefined && v !== "",
+      ));
     case "previous_labs":
       return (
         data.previous_labs?.has_previous_labs !== null &&
@@ -514,14 +550,41 @@ export function isSectionComplete(data: IntakeData, key: IntakeSectionKey): bool
 }
 
 /**
+ * Check if a conditional section should show using the branching engine.
+ * Falls back to keyword matching for gut/immune (backward compat),
+ * uses the branching engine rules for new sections.
+ */
+export function shouldShowConditionalSectionV2(
+  data: IntakeData,
+  section: ConditionalSectionKey,
+): boolean {
+  // Legacy sections use the existing keyword-based logic
+  if (section === "gut_deep_dive" || section === "immune_deep_dive") {
+    return shouldShowConditionalSection(data.symptoms, section);
+  }
+
+  // New sections: use the branching engine
+  // Import lazily to avoid circular deps in server contexts
+  try {
+    const { evaluateBranching, isSectionVisible } = require("./intake-branching");
+    const { CLINICAL_BRANCHING_RULES } = require("./intake-branching-rules");
+    const state = evaluateBranching(data, CLINICAL_BRANCHING_RULES);
+    return isSectionVisible(state, section);
+  } catch {
+    // Branching engine not available (e.g., server-side) — default to hidden
+    return false;
+  }
+}
+
+/**
  * Compute intake completion %. Conditional sections that aren't triggered
  * are excluded from the denominator so they don't penalize the score.
  */
 export function intakeCompletionPct(data: IntakeData): number {
   const visibleSections = INTAKE_SECTIONS.filter((s) => {
     if (!s.conditional) return true;
-    return shouldShowConditionalSection(
-      data.symptoms,
+    return shouldShowConditionalSectionV2(
+      data,
       s.key as ConditionalSectionKey,
     );
   });

@@ -1,0 +1,13 @@
+{
+  "experimentalServices": {
+    "web": {
+      "entrypoint": "apps/web",
+      "routePrefix": "/",
+      "framework": "nextjs"
+    },
+    "analysis-engine": {
+      "entrypoint": "services/analysis-engine",
+      "routePrefix": "/_/analysis-engine"
+    }
+  }
+}

@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server";
 import { apiAuth } from "@/lib/auth";
+import { apiError, ERROR_CODES } from "@/lib/api-error";
 import { writeAudit } from "@/lib/audit";
 import { patientBelongsToTenant } from "@/lib/records";
 import { getProtocol, getOriginalProtocol, approveProtocol } from "@/lib/protocols";
 import { generateDerivativeOutputs } from "@/lib/protocol-outputs";
 import { recordProtocolApproved } from "@/lib/timeline";
 import { computeProtocolDiff, storeProtocolEdits } from "@/lib/protocol-edits";
+import { runPatternRecognition } from "@/lib/pattern-recognition";
+import { logError } from "@/lib/logger";
 
 export async function POST(
   _req: Request,
@@ -14,25 +17,25 @@ export async function POST(
   try {
     const user = await apiAuth();
     if (!user) {
-      return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
+      return apiError(ERROR_CODES.NOT_AUTHENTICATED, 401);
     }
 
     const ok = await patientBelongsToTenant(user.tenantId, ctx.params.id);
     if (!ok) {
-      return NextResponse.json({ error: "Patient not found." }, { status: 404 });
+      return apiError(ERROR_CODES.NOT_FOUND, 404);
     }
 
     // Verify the protocol exists and belongs to this patient
     const protocol = await getProtocol(user.tenantId, ctx.params.protocolId);
     if (!protocol || protocol.patientId !== ctx.params.id) {
-      return NextResponse.json({ error: "Protocol not found." }, { status: 404 });
+      return apiError(ERROR_CODES.NOT_FOUND, 404);
     }
 
     if (protocol.status === "approved") {
-      return NextResponse.json({ error: "Protocol is already approved." }, { status: 400 });
+      return apiError(ERROR_CODES.VALIDATION_ERROR, 400);
     }
     if (protocol.status === "superseded") {
-      return NextResponse.json({ error: "Cannot approve a superseded protocol." }, { status: 400 });
+      return apiError(ERROR_CODES.VALIDATION_ERROR, 400);
     }
 
     await approveProtocol(user.tenantId, ctx.params.protocolId);
@@ -52,7 +55,7 @@ export async function POST(
     // Record approval in PatientTimeline
     recordProtocolApproved(
       user.tenantId, ctx.params.id, ctx.params.protocolId, user.practitionerId,
-    ).catch((err) => console.error("[timeline] Failed to record approval:", err));
+    ).catch((err) => logError("timeline", "Failed to record approval:", err));
 
     // Track edits: compare approved version against the original AI output.
     // If the practitioner edited the protocol, capture structured diffs for
@@ -76,10 +79,16 @@ export async function POST(
                 originalClinical: original.clinicalContent,
                 originalClient: original.clientContent,
               });
+
+              // After storing edits, run pattern recognition to detect
+              // recurring edit patterns and surface them as suggested
+              // preferences. Runs in background — does not block approval.
+              runPatternRecognition(user.tenantId, user.practitionerId)
+                .catch((err) => logError("pattern-recognition", "Failed:", err));
             }
           }
         } catch (err) {
-          console.error("[protocol-edits] Failed to track edits:", err);
+          logError("protocol-edits", "Failed to track edits:", err);
         }
       })();
     }
@@ -94,14 +103,10 @@ export async function POST(
       practitionerId: user.practitionerId,
       clinicalContent: protocol.clinicalContent,
       clientContent: protocol.clientContent,
-    }).catch((err) => console.error("[protocol-outputs] Background generation failed:", err));
+    }).catch((err) => logError("protocol-outputs", "Background generation failed:", err));
 
     return NextResponse.json({ ok: true, status: "approved" });
   } catch (err) {
-    console.error("[protocol approve]", err);
-    return NextResponse.json(
-      { error: "Server error: " + (err instanceof Error ? err.message : String(err)) },
-      { status: 500 },
-    );
+    return apiError(ERROR_CODES.INTERNAL_ERROR, 500, err);
   }
 }

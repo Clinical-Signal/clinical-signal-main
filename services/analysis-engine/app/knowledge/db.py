@@ -16,6 +16,12 @@ VALID_CATEGORIES = {
     "clinical_sequencing",
     "dietary_recommendation",
     "lifestyle_intervention",
+    # v2 extraction lenses
+    "interpretation_pattern",
+    "conditional_reasoning",
+    "case_based_qa",
+    "clinical_feedback",
+    "resource_recommendation",
     "other",
 }
 

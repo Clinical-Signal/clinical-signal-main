@@ -104,6 +104,28 @@ export default async function PatientDetailPage({
           }}
         />
         <HubCard
+          title="Foundations"
+          status={
+            summary.foundations
+              ? `Assigned ${new Date(summary.foundations.assignedAt).toLocaleDateString()} · ${summary.foundations.itemCount} items`
+              : "Not yet assigned"
+          }
+          body={
+            summary.foundations ? (
+              <Badge tone="success">Checklist active</Badge>
+            ) : (
+              <p className="text-xs text-ink-muted">
+                Assign foundational habits during the lab waiting period
+              </p>
+            )
+          }
+          primary={{
+            href: `/dashboard/patients/${params.id}/foundations`,
+            label: summary.foundations ? "View checklist" : "Assign checklist",
+          }}
+          secondary={null}
+        />
+        <HubCard
           title="Protocol"
           status={
             summary.protocol

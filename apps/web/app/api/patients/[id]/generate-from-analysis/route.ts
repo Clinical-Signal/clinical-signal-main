@@ -1,4 +1,5 @@
 import { apiAuth } from "@/lib/auth";
+import { sanitizeStreamError, ERROR_CODES } from "@/lib/api-error";
 import { writeAudit } from "@/lib/audit";
 import { patientBelongsToTenant } from "@/lib/records";
 import {
@@ -7,6 +8,8 @@ import {
   insertProtocol,
   searchKnowledgeBase,
 } from "@/lib/analysis";
+import { runSafetyValidation } from "@/lib/safety-validation";
+import { logDebug, logError } from "@/lib/logger";
 
 export const maxDuration = 300;
 
@@ -15,14 +18,14 @@ export async function POST(
   ctx: { params: { id: string } },
 ) {
   const user = await apiAuth();
-  if (!user) return Response.json({ error: "Not authenticated." }, { status: 401 });
+  if (!user) return Response.json({ error: ERROR_CODES.NOT_AUTHENTICATED }, { status: 401 });
   const ok = await patientBelongsToTenant(user.tenantId, ctx.params.id);
-  if (!ok) return Response.json({ error: "not found" }, { status: 404 });
+  if (!ok) return Response.json({ error: ERROR_CODES.NOT_FOUND }, { status: 404 });
 
   const patientId = ctx.params.id;
   const body = (await req.json()) as { analysisId: string };
   if (!body.analysisId) {
-    return Response.json({ error: "analysisId required" }, { status: 400 });
+    return Response.json({ error: ERROR_CODES.VALIDATION_ERROR }, { status: 400 });
   }
 
   const encoder = new TextEncoder();
@@ -43,18 +46,18 @@ export async function POST(
       function elapsed() { return ((Date.now() - t0) / 1000).toFixed(1) + "s"; }
 
       try {
-        console.log("[generate-from-analysis] Starting for patient", patientId, "analysis", body.analysisId);
+        logDebug("generate-from-analysis", "Starting for patient", patientId, "analysis", body.analysisId);
         send({ status: "Loading analysis..." });
 
         const analysis = await getAnalysisFindings(user.tenantId, body.analysisId);
         if (!analysis) {
-          console.error("[generate-from-analysis] Analysis not found:", body.analysisId);
-          send({ error: "Analysis not found or not complete." });
+          logError("generate-from-analysis", "Analysis not found:", body.analysisId);
+          send({ error: sanitizeStreamError(ERROR_CODES.NOT_FOUND, new Error("Analysis not found")) });
           if (!closed) { try { controller.close(); } catch { /* */ } }
           closed = true;
           return;
         }
-        console.log("[generate-from-analysis] Analysis loaded at", elapsed());
+        logDebug("generate-from-analysis", "Analysis loaded at", elapsed());
 
         send({ status: "Searching knowledge base..." });
 
@@ -62,7 +65,7 @@ export async function POST(
         try {
           const kbLimit = parseInt(process.env.KB_CONTEXT_LIMIT ?? "5", 10);
           kbContext = await searchKnowledgeBase(user.tenantId, analysis.findings, kbLimit);
-          console.log("[generate-from-analysis] KB search returned", kbContext.length, "items at", elapsed());
+          logDebug("generate-from-analysis", "KB search returned", kbContext.length, "items at", elapsed());
           if (kbContext.length > 0) {
             send({
               status: "Drafting protocol with " + kbContext.length + " knowledge base insights...",
@@ -71,7 +74,7 @@ export async function POST(
             send({ status: "Drafting clinical protocol and client action plan..." });
           }
         } catch (kbErr) {
-          console.error("[generate-from-analysis] KB search failed:", kbErr);
+          logError("generate-from-analysis", "KB search failed:", kbErr);
           send({ status: "Drafting clinical protocol and client action plan..." });
         }
 
@@ -110,6 +113,25 @@ export async function POST(
             : {}),
         };
 
+        // Run post-generation safety validation
+        let safetyResult = null;
+        try {
+          send({ status: "Running safety validation..." });
+          safetyResult = await runSafetyValidation(analysis.findings, protocol);
+        } catch (err) {
+          logError("generate-from-analysis", "Safety validation failed (non-fatal):", err);
+        }
+
+        // Attach safety validation to clinical content metadata
+        if (safetyResult) {
+          (clinicalContent as Record<string, unknown>)._safety_validation = {
+            passed: safetyResult.passed,
+            warnings: safetyResult.warnings,
+            summary: safetyResult.summary,
+            meta: safetyResult.meta,
+          };
+        }
+
         const protocolId = await insertProtocol({
           tenantId: user.tenantId,
           patientId,
@@ -134,14 +156,17 @@ export async function POST(
         send({
           done: true,
           protocolId,
+          safetyValidation: safetyResult
+            ? { passed: safetyResult.passed, warningCount: safetyResult.warnings.length, summary: safetyResult.summary }
+            : null,
           redirect: `/dashboard/patients/${patientId}/protocol/${protocolId}`,
         });
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        console.error("[generate-from-analysis] FAILED at", elapsed(), "—", msg);
-        send({ error: msg });
+        logError("generate-from-analysis", "FAILED at", elapsed(), "—", msg);
+        send({ error: sanitizeStreamError(ERROR_CODES.PROTOCOL_GENERATION_FAILED, err) });
       }
-      console.log("[generate-from-analysis] Stream closing at", elapsed());
+      logDebug("generate-from-analysis", "Stream closing at", elapsed());
       if (!closed) {
         try { controller.close(); } catch { /* already closed */ }
       }

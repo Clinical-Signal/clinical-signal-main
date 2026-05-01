@@ -101,6 +101,10 @@ export interface PatientSummary {
   prepBrief: {
     generatedAt: Date;
   } | null;
+  foundations: {
+    assignedAt: Date;
+    itemCount: number;
+  } | null;
 }
 
 export async function getPatientSummary(
@@ -121,6 +125,8 @@ export async function getPatientSummary(
       proto_version: number | null;
       proto_created: Date | null;
       brief_created: Date | null;
+      fp_assigned_at: Date | null;
+      fp_item_count: number | null;
     }>(
       `SELECT p.id,
               pgp_sym_decrypt(p.name_encrypted, $2)::text AS name,
@@ -135,7 +141,9 @@ export async function getPatientSummary(
               latest.status AS proto_status,
               latest.version AS proto_version,
               latest.created_at AS proto_created,
-              brief.created_at AS brief_created
+              brief.created_at AS brief_created,
+              fp.assigned_at AS fp_assigned_at,
+              fp.item_count AS fp_item_count
          FROM patients p
          LEFT JOIN LATERAL (
            SELECT id, title, status, version, created_at
@@ -151,6 +159,12 @@ export async function getPatientSummary(
             ORDER BY created_at DESC
             LIMIT 1
          ) brief ON true
+         LEFT JOIN LATERAL (
+           SELECT assigned_at, jsonb_array_length(items) AS item_count
+             FROM foundational_plans
+            WHERE patient_id = p.id
+            LIMIT 1
+         ) fp ON true
         WHERE p.id = $1`,
       [patientId, phiKey()],
     );
@@ -178,6 +192,9 @@ export async function getPatientSummary(
         : null,
       prepBrief: r.brief_created
         ? { generatedAt: r.brief_created }
+        : null,
+      foundations: r.fp_assigned_at
+        ? { assignedAt: r.fp_assigned_at, itemCount: r.fp_item_count ?? 0 }
         : null,
     };
   });

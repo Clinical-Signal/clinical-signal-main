@@ -6,7 +6,9 @@ import {
   intakeCompletionPct,
   shouldShowConditionalSection,
   getHormoneData,
+  INTAKE_SECTIONS,
 } from "@/lib/intake-schema";
+import { useBranching } from "@/lib/intake-branching";
 import {
   emptyDiagnosis,
   emptyMedication,
@@ -47,6 +49,11 @@ import { MsqSymptomsSection } from "./sections/msq-symptoms";
 import { HormonesSection } from "./sections/hormones";
 import { WearablesSection } from "./sections/wearables";
 import { AnythingElseSection } from "./sections/anything-else";
+// v3 conditional deep dives
+import { SleepDeepDiveSection } from "./sections/sleep-deep-dive";
+import { StressDeepDiveSection } from "./sections/stress-deep-dive";
+import { SkinDeepDiveSection } from "./sections/skin-deep-dive";
+import { MetabolismDeepDiveSection } from "./sections/metabolism-deep-dive";
 
 interface Props {
   patientId: string;
@@ -59,9 +66,19 @@ export function IntakeForm({ patientId, initial }: Props) {
   const [draft, setDraft] = useState<IntakeData>(initial);
   const pct = useMemo(() => intakeCompletionPct(draft), [draft]);
 
-  // Conditional section visibility
+  // Branching engine — evaluates rules against current answers
+  const branching = useBranching(draft);
+
+  // Conditional section visibility (legacy + new branching engine)
   const showGut = shouldShowConditionalSection(draft.symptoms, "gut_deep_dive");
   const showImmune = shouldShowConditionalSection(draft.symptoms, "immune_deep_dive");
+  const showSleep = branching.showSection("sleep_deep_dive");
+  const showStress = branching.showSection("stress_deep_dive");
+  const showSkin = branching.showSection("skin_deep_dive");
+  const showMetabolism = branching.showSection("metabolism_deep_dive");
+
+  // Count visible conditional sections for progress display
+  const conditionalCount = [showGut, showImmune, showSleep, showStress, showSkin, showMetabolism].filter(Boolean).length;
 
   return (
     <div className="flex flex-col gap-6">
@@ -72,7 +89,7 @@ export function IntakeForm({ patientId, initial }: Props) {
         together.
       </div>
 
-      {/* Progress bar */}
+      {/* Progress bar with conditional section indicators */}
       <div className="sticky top-14 z-[5] -mx-4 rounded-xl border border-line bg-surface/90 px-4 py-3 backdrop-blur sm:-mx-8 sm:px-8">
         <div className="flex items-center justify-between gap-4">
           <div className="text-xs text-ink-subtle">
@@ -95,6 +112,44 @@ export function IntakeForm({ patientId, initial }: Props) {
             style={{ width: `${pct}%` }}
           />
         </div>
+        {/* Show which conditional deep dives were triggered */}
+        {conditionalCount > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {showGut && (
+              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
+                Gut deep dive
+              </span>
+            )}
+            {showImmune && (
+              <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-medium text-violet-700">
+                Immune deep dive
+              </span>
+            )}
+            {showSleep && (
+              <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-medium text-indigo-700">
+                Sleep deep dive
+              </span>
+            )}
+            {showStress && (
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700">
+                Stress deep dive
+              </span>
+            )}
+            {showSkin && (
+              <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-medium text-rose-700">
+                Skin deep dive
+              </span>
+            )}
+            {showMetabolism && (
+              <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-medium text-sky-700">
+                Metabolism deep dive
+              </span>
+            )}
+            <span className="self-center text-[10px] text-ink-subtle">
+              — triggered by your answers
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Section 1: About You */}
@@ -161,6 +216,42 @@ export function IntakeForm({ patientId, initial }: Props) {
           patientId={patientId}
           initial={draft.immune_deep_dive}
           onDraftChange={(v) => setDraft((d) => ({ ...d, immune_deep_dive: v }))}
+        />
+      )}
+
+      {/* Section 9a: Sleep Deep Dive (conditional — branching engine) */}
+      {showSleep && (
+        <SleepDeepDiveSection
+          patientId={patientId}
+          initial={draft.sleep_deep_dive as any}
+          onDraftChange={(v) => setDraft((d) => ({ ...d, sleep_deep_dive: v as any }))}
+        />
+      )}
+
+      {/* Section 9b: Stress Deep Dive (conditional — branching engine) */}
+      {showStress && (
+        <StressDeepDiveSection
+          patientId={patientId}
+          initial={draft.stress_deep_dive as any}
+          onDraftChange={(v) => setDraft((d) => ({ ...d, stress_deep_dive: v as any }))}
+        />
+      )}
+
+      {/* Section 9c: Skin Deep Dive (conditional — branching engine) */}
+      {showSkin && (
+        <SkinDeepDiveSection
+          patientId={patientId}
+          initial={draft.skin_deep_dive as any}
+          onDraftChange={(v) => setDraft((d) => ({ ...d, skin_deep_dive: v as any }))}
+        />
+      )}
+
+      {/* Section 9d: Metabolism Deep Dive (conditional — branching engine) */}
+      {showMetabolism && (
+        <MetabolismDeepDiveSection
+          patientId={patientId}
+          initial={draft.metabolism_deep_dive as any}
+          onDraftChange={(v) => setDraft((d) => ({ ...d, metabolism_deep_dive: v as any }))}
         />
       )}
 

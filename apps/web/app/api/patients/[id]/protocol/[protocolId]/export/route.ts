@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { apiAuth } from "@/lib/auth";
+import { apiError, ERROR_CODES } from "@/lib/api-error";
 import { writeAudit } from "@/lib/audit";
 import { patientBelongsToTenant } from "@/lib/records";
 import { fetchProtocolPdf } from "@/lib/protocols";
@@ -9,9 +10,9 @@ export async function GET(
   ctx: { params: { id: string; protocolId: string } },
 ) {
   const user = await apiAuth();
-  if (!user) return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
+  if (!user) return apiError(ERROR_CODES.NOT_AUTHENTICATED, 401);
   const ok = await patientBelongsToTenant(user.tenantId, ctx.params.id);
-  if (!ok) return NextResponse.json({ error: "not found" }, { status: 404 });
+  if (!ok) return apiError(ERROR_CODES.NOT_FOUND, 404);
 
   const url = new URL(req.url);
   const audience = url.searchParams.get("audience") === "client" ? "client" : "clinical";
@@ -38,7 +39,6 @@ export async function GET(
       },
     });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ error: msg }, { status: 500 });
+    return apiError(ERROR_CODES.EXPORT_FAILED, 500, err);
   }
 }

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { apiAuth } from "@/lib/auth";
+import { apiError, ERROR_CODES } from "@/lib/api-error";
 import { patientBelongsToTenant } from "@/lib/records";
 import {
   insertDocument,
@@ -14,17 +15,13 @@ export async function GET(
 ) {
   try {
     const user = await apiAuth();
-    if (!user) return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
+    if (!user) return apiError(ERROR_CODES.NOT_AUTHENTICATED, 401);
     const ok = await patientBelongsToTenant(user.tenantId, ctx.params.id);
-    if (!ok) return NextResponse.json({ error: "not found" }, { status: 404 });
+    if (!ok) return apiError(ERROR_CODES.NOT_FOUND, 404);
     const docs = await listIntakeDocs(user.tenantId, ctx.params.id);
     return NextResponse.json(docs);
   } catch (err) {
-    console.error("[intake-docs GET]", err);
-    return NextResponse.json(
-      { error: "Server error: " + (err instanceof Error ? err.message : String(err)) },
-      { status: 500 },
-    );
+    return apiError(ERROR_CODES.INTERNAL_ERROR, 500, err);
   }
 }
 
@@ -34,9 +31,9 @@ export async function POST(
 ) {
   try {
     const user = await apiAuth();
-    if (!user) return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
+    if (!user) return apiError(ERROR_CODES.NOT_AUTHENTICATED, 401);
     const ok = await patientBelongsToTenant(user.tenantId, ctx.params.id);
-    if (!ok) return NextResponse.json({ error: "not found" }, { status: 404 });
+    if (!ok) return apiError(ERROR_CODES.NOT_FOUND, 404);
 
     const contentType = req.headers.get("content-type") ?? "";
     const patientId = ctx.params.id;
@@ -50,7 +47,7 @@ export async function POST(
       };
 
       if (!body.text?.trim()) {
-        return NextResponse.json({ error: "Text is required." }, { status: 400 });
+        return apiError(ERROR_CODES.VALIDATION_ERROR, 400);
       }
 
       const docType = body.type === "note" ? "note" : "transcript";
@@ -100,10 +97,7 @@ export async function POST(
           const result = await mammoth.extractRawText({ buffer: bytes });
           extractedText = result.value;
         } catch (err) {
-          return NextResponse.json(
-            { error: "Could not parse DOCX: " + (err instanceof Error ? err.message : String(err)) },
-            { status: 400 },
-          );
+          return apiError(ERROR_CODES.VALIDATION_ERROR, 400, err);
         }
       } else if (name.endsWith(".txt") || name.endsWith(".vtt") || name.endsWith(".srt")) {
         docType = "txt";
@@ -112,10 +106,7 @@ export async function POST(
         docType = "image";
         extractedText = "(image — no text extraction)";
       } else {
-        return NextResponse.json(
-          { error: "Unsupported file type. Upload PDF, DOCX, TXT, VTT, SRT, or an image." },
-          { status: 400 },
-        );
+        return apiError(ERROR_CODES.VALIDATION_ERROR, 400);
       }
 
       const docId = await insertDocument({
@@ -141,12 +132,8 @@ export async function POST(
       return NextResponse.json({ id: docId, docType, extracted: extractedText.length > 0 });
     }
 
-    return NextResponse.json({ error: "Unsupported content type." }, { status: 400 });
+    return apiError(ERROR_CODES.VALIDATION_ERROR, 400);
   } catch (err) {
-    console.error("[intake-docs POST]", err);
-    return NextResponse.json(
-      { error: "Server error: " + (err instanceof Error ? err.message : String(err)) },
-      { status: 500 },
-    );
+    return apiError(ERROR_CODES.INTERNAL_ERROR, 500, err);
   }
 }

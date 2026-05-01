@@ -2,7 +2,7 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import {
   changeProtocolStatus,
@@ -203,11 +203,13 @@ export function EditForm(props: Props) {
         autoSavedAt={autoSavedAt}
       />
       <TruncationWarning generation={props.initialClinical?._generation} />
+      <SafetyValidationWarnings validation={props.initialClinical?._safety_validation} />
+      <ClinicalDialogueCard protocolId={props.protocolId} patientId={props.patientId} />
       {message ? (
         <p className="text-sm text-success">{message}</p>
       ) : null}
       {error ? (
-        <p className="text-sm text-danger">{error}</p>
+        <p role="alert" className="text-sm text-danger">{error}</p>
       ) : null}
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -748,6 +750,228 @@ function TruncationWarning({ generation }: { generation?: Record<string, any> })
       <p className="mt-1 text-xs text-ink-subtle">
         Review carefully, or regenerate to get a complete version.
       </p>
+    </div>
+  );
+}
+
+function SafetyValidationWarnings({ validation }: { validation?: Record<string, any> }) {
+  if (!validation) return null;
+  if (validation.passed && (!validation.warnings || validation.warnings.length === 0)) {
+    return (
+      <div className="rounded-lg border border-success/40 bg-success/5 px-4 py-3">
+        <p className="text-sm font-medium text-success-emphasis">
+          Safety validation passed — no drug interactions, dose concerns, or contraindications detected.
+        </p>
+      </div>
+    );
+  }
+
+  const warnings = (validation.warnings ?? []) as Array<{
+    severity: string;
+    category: string;
+    title: string;
+    detail: string;
+    recommendation: string;
+    supplements_involved: string[];
+    medications_involved: string[];
+  }>;
+
+  const critical = warnings.filter((w) => w.severity === "critical");
+  const warn = warnings.filter((w) => w.severity === "warning");
+  const info = warnings.filter((w) => w.severity === "info");
+
+  return (
+    <div className="space-y-2">
+      {critical.length > 0 ? (
+        <div className="rounded-lg border border-danger/40 bg-danger/5 px-4 py-3">
+          <p className="text-sm font-bold text-danger-emphasis">
+            {critical.length} critical safety issue{critical.length > 1 ? "s" : ""} found — review before approving
+          </p>
+          <ul className="mt-2 space-y-2">
+            {critical.map((w, i) => (
+              <li key={i} className="text-sm">
+                <span className="font-medium text-danger-emphasis">{w.title}</span>
+                <p className="text-xs text-ink-subtle mt-0.5">{w.detail}</p>
+                <p className="text-xs text-ink-subtle italic">Recommendation: {w.recommendation}</p>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      {warn.length > 0 ? (
+        <div className="rounded-lg border border-warning/40 bg-warning/5 px-4 py-3">
+          <p className="text-sm font-medium text-warning-emphasis">
+            {warn.length} safety warning{warn.length > 1 ? "s" : ""}
+          </p>
+          <ul className="mt-2 space-y-2">
+            {warn.map((w, i) => (
+              <li key={i} className="text-sm">
+                <span className="font-medium">{w.title}</span>
+                <p className="text-xs text-ink-subtle mt-0.5">{w.detail}</p>
+                <p className="text-xs text-ink-subtle italic">Recommendation: {w.recommendation}</p>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      {info.length > 0 ? (
+        <details className="rounded-lg border border-line bg-surface-sunken/40 px-4 py-3">
+          <summary className="text-sm font-medium text-ink-subtle cursor-pointer">
+            {info.length} informational note{info.length > 1 ? "s" : ""}
+          </summary>
+          <ul className="mt-2 space-y-1">
+            {info.map((w, i) => (
+              <li key={i} className="text-xs text-ink-subtle">
+                <span className="font-medium">{w.title}</span> — {w.detail}
+              </li>
+            ))}
+          </ul>
+        </details>
+      ) : null}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Clinical Dialogue — contextual questions that surface practitioner expertise
+// ---------------------------------------------------------------------------
+
+interface DialogueQuestion {
+  id: string;
+  questionText: string;
+  questionType: string;
+  answerText: string | null;
+}
+
+function ClinicalDialogueCard({ protocolId, patientId }: { protocolId: string; patientId: string }) {
+  const [questions, setQuestions] = useState<DialogueQuestion[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [submitting, setSubmitting] = useState<Record<string, boolean>>({});
+  const [submitted, setSubmitted] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch(`/api/patients/${patientId}/protocol/${protocolId}/dialogue`);
+        if (!res.ok) { setLoading(false); return; }
+        const data = await res.json();
+        setQuestions(data.questions ?? []);
+        // Pre-fill any existing answers
+        const existing: Record<string, boolean> = {};
+        for (const q of data.questions ?? []) {
+          if (q.answerText) {
+            setAnswers((prev) => ({ ...prev, [q.id]: q.answerText }));
+            existing[q.id] = true;
+          }
+        }
+        setSubmitted(existing);
+      } catch { /* non-fatal */ }
+      setLoading(false);
+    })();
+  }, [protocolId, patientId]);
+
+  const handleSubmit = useCallback(async (questionId: string) => {
+    const answer = answers[questionId]?.trim();
+    if (!answer) return;
+    setSubmitting((prev) => ({ ...prev, [questionId]: true }));
+    try {
+      const res = await fetch(`/api/patients/${patientId}/protocol/${protocolId}/dialogue`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ questionId, answer }),
+      });
+      if (res.ok) {
+        setSubmitted((prev) => ({ ...prev, [questionId]: true }));
+      }
+    } catch { /* non-fatal */ }
+    setSubmitting((prev) => ({ ...prev, [questionId]: false }));
+  }, [answers, patientId, protocolId]);
+
+  if (loading || questions.length === 0) return null;
+
+  const unanswered = questions.filter((q) => !submitted[q.id]);
+  const answered = questions.filter((q) => submitted[q.id]);
+
+  const TYPE_LABELS: Record<string, string> = {
+    clinical_reasoning: "Clinical reasoning",
+    interpretation: "Interpretation",
+    sequencing: "Sequencing",
+    lifestyle_context: "Lifestyle context",
+    symptom_connection: "Symptom connection",
+    experience_based: "Experience",
+    safety_consideration: "Safety",
+    patient_readiness: "Patient readiness",
+  };
+
+  return (
+    <div className="rounded-xl border border-accent-soft/40 bg-accent-soft/5 p-5">
+      <div className="mb-3 flex items-center gap-2">
+        <span className="text-lg">&#x1F4AC;</span>
+        <h3 className="text-base font-semibold text-ink">Clinical thinking partner</h3>
+        {unanswered.length > 0 && (
+          <span className="rounded-full bg-accent-soft/30 px-2 py-0.5 text-xs font-medium text-accent">
+            {unanswered.length} question{unanswered.length > 1 ? "s" : ""}
+          </span>
+        )}
+      </div>
+      <p className="mb-4 text-sm text-ink-subtle">
+        These questions are based on this patient's specific data. Your answers help
+        Clinical Signal learn your clinical reasoning — future protocols will be smarter.
+      </p>
+
+      {unanswered.length > 0 && (
+        <div className="space-y-4 mb-4">
+          {unanswered.map((q) => (
+            <div key={q.id} className="rounded-lg border border-line bg-surface p-4">
+              <div className="mb-2 flex items-center gap-2">
+                <span className="rounded bg-surface-sunken px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-ink-subtle">
+                  {TYPE_LABELS[q.questionType] ?? q.questionType}
+                </span>
+              </div>
+              <p className="mb-3 text-sm text-ink leading-relaxed">{q.questionText}</p>
+              <textarea
+                value={answers[q.id] ?? ""}
+                onChange={(e) => setAnswers((prev) => ({ ...prev, [q.id]: e.target.value }))}
+                placeholder="Share your thinking..."
+                rows={2}
+                className="mb-2 w-full rounded-md border border-line bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:border-accent-soft focus:outline-none focus:ring-1 focus:ring-accent-soft"
+              />
+              <button
+                onClick={() => handleSubmit(q.id)}
+                disabled={submitting[q.id] || !answers[q.id]?.trim()}
+                className="inline-flex h-8 items-center rounded-md bg-accent px-3 text-xs font-medium text-ink-inverse transition-colors hover:bg-accent-hover disabled:opacity-50"
+              >
+                {submitting[q.id] ? "Saving..." : "Share insight"}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {answered.length > 0 && (
+        <details className={unanswered.length > 0 ? "" : ""}>
+          <summary className="cursor-pointer text-sm font-medium text-ink-subtle">
+            {answered.length} answered question{answered.length > 1 ? "s" : ""}
+          </summary>
+          <div className="mt-3 space-y-3">
+            {answered.map((q) => (
+              <div key={q.id} className="rounded-lg border border-line/50 bg-surface-sunken/30 p-3">
+                <p className="text-sm text-ink-subtle">{q.questionText}</p>
+                <p className="mt-1 text-sm text-ink italic">
+                  {answers[q.id] || q.answerText}
+                </p>
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
+
+      {unanswered.length === 0 && answered.length > 0 && (
+        <p className="mt-2 text-xs text-success-emphasis">
+          All questions answered — your insights are being learned.
+        </p>
+      )}
     </div>
   );
 }

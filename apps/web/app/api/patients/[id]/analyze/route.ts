@@ -1,4 +1,5 @@
 import { apiAuth } from "@/lib/auth";
+import { sanitizeStreamError, ERROR_CODES } from "@/lib/api-error";
 import { writeAudit } from "@/lib/audit";
 import { patientBelongsToTenant } from "@/lib/records";
 import {
@@ -8,6 +9,7 @@ import {
   insertAnalysis,
 } from "@/lib/analysis";
 import { getDocumentText, type DocumentWithMeta } from "@/lib/intake-documents";
+import { logDebug, logError } from "@/lib/logger";
 
 export const maxDuration = 300;
 
@@ -16,9 +18,9 @@ export async function POST(
   ctx: { params: { id: string } },
 ) {
   const user = await apiAuth();
-  if (!user) return Response.json({ error: "Not authenticated." }, { status: 401 });
+  if (!user) return Response.json({ error: ERROR_CODES.NOT_AUTHENTICATED }, { status: 401 });
   const ok = await patientBelongsToTenant(user.tenantId, ctx.params.id);
-  if (!ok) return Response.json({ error: "not found" }, { status: 404 });
+  if (!ok) return Response.json({ error: ERROR_CODES.NOT_FOUND }, { status: 404 });
 
   const patientId = ctx.params.id;
   const encoder = new TextEncoder();
@@ -39,19 +41,19 @@ export async function POST(
       function elapsed() { return ((Date.now() - t0) / 1000).toFixed(1) + "s"; }
 
       try {
-        console.log("[analyze] Starting for patient", patientId);
+        logDebug("analyze", "Starting for patient", patientId);
         send({ status: "Gathering patient data..." });
 
         const timeline = await gatherPatientTimeline(user.tenantId, patientId);
-        console.log("[analyze] Timeline gathered at", elapsed(), "—", timeline.records.length, "records");
+        logDebug("analyze", "Timeline gathered at", elapsed(), "—", timeline.records.length, "records");
 
         // Fetch uploaded documents, transcripts, and practitioner notes from Intake Hub
         let docs: DocumentWithMeta[] = [];
         try {
           docs = await getDocumentText(user.tenantId, patientId);
-          console.log("[analyze] Loaded", docs.length, "intake hub documents at", elapsed());
+          logDebug("analyze", "Loaded", docs.length, "intake hub documents at", elapsed());
         } catch (docErr) {
-          console.error("[analyze] Failed to load intake docs (non-fatal):", docErr);
+          logError("analyze", "Failed to load intake docs (non-fatal):", docErr);
         }
 
         send({
@@ -73,7 +75,7 @@ export async function POST(
         };
 
         const { findings, meta, raw } = await runClinicalAnalysis(timelineText, onProgress);
-        console.log("[analyze] Analysis complete at", elapsed(), "— tokens:", meta.token_usage);
+        logDebug("analyze", "Analysis complete at", elapsed(), "— tokens:", meta.token_usage);
 
         const analysisId = await insertAnalysis({
           tenantId: user.tenantId,
@@ -85,7 +87,7 @@ export async function POST(
           meta,
           raw,
         });
-        console.log("[analyze] Saved analysis", analysisId, "at", elapsed());
+        logDebug("analyze", "Saved analysis", analysisId, "at", elapsed());
 
         await writeAudit({
           action: "analysis_generated",
@@ -97,10 +99,10 @@ export async function POST(
         send({ done: true, analysisId });
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        console.error("[analyze] FAILED at", elapsed(), "—", msg);
-        send({ error: msg });
+        logError("analyze", "FAILED at", elapsed(), "—", msg);
+        send({ error: sanitizeStreamError(ERROR_CODES.ANALYSIS_FAILED, err) });
       }
-      console.log("[analyze] Stream closing at", elapsed());
+      logDebug("analyze", "Stream closing at", elapsed());
       if (!closed) {
         try { controller.close(); } catch { /* already closed */ }
       }

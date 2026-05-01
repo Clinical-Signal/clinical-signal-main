@@ -1,4 +1,5 @@
 import { apiAuth } from "@/lib/auth";
+import { sanitizeStreamError, ERROR_CODES } from "@/lib/api-error";
 import { writeAudit } from "@/lib/audit";
 import { patientBelongsToTenant } from "@/lib/records";
 import {
@@ -17,9 +18,9 @@ export async function GET(
   ctx: { params: { id: string } },
 ) {
   const user = await apiAuth();
-  if (!user) return Response.json({ error: "Not authenticated." }, { status: 401 });
+  if (!user) return Response.json({ error: ERROR_CODES.NOT_AUTHENTICATED }, { status: 401 });
   const ok = await patientBelongsToTenant(user.tenantId, ctx.params.id);
-  if (!ok) return Response.json({ error: "not found" }, { status: 404 });
+  if (!ok) return Response.json({ error: ERROR_CODES.NOT_FOUND }, { status: 404 });
 
   const result = await withTenant(user.tenantId, async (c) => {
     const res = await c.query(
@@ -71,9 +72,9 @@ export async function POST(
   ctx: { params: { id: string } },
 ) {
   const user = await apiAuth();
-  if (!user) return Response.json({ error: "Not authenticated." }, { status: 401 });
+  if (!user) return Response.json({ error: ERROR_CODES.NOT_AUTHENTICATED }, { status: 401 });
   const ok = await patientBelongsToTenant(user.tenantId, ctx.params.id);
-  if (!ok) return Response.json({ error: "not found" }, { status: 404 });
+  if (!ok) return Response.json({ error: ERROR_CODES.NOT_FOUND }, { status: 404 });
 
   const patientId = ctx.params.id;
   const encoder = new TextEncoder();
@@ -190,7 +191,7 @@ export async function POST(
 
         send({ done: true, brief });
       } catch (err) {
-        send({ error: err instanceof Error ? err.message : String(err) });
+        send({ error: sanitizeStreamError(ERROR_CODES.BRIEF_GENERATION_FAILED, err) });
       }
       await new Promise((r) => setTimeout(r, 50));
       controller.close();

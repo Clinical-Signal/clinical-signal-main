@@ -1,4 +1,5 @@
 import { apiAuth } from "@/lib/auth";
+import { sanitizeStreamError, ERROR_CODES } from "@/lib/api-error";
 import { writeAudit } from "@/lib/audit";
 import { patientBelongsToTenant } from "@/lib/records";
 import {
@@ -12,6 +13,13 @@ import {
 import { getDocumentText, type DocumentWithMeta } from "@/lib/intake-documents";
 import { recordProtocolGenerated } from "@/lib/timeline";
 import { getActivePreferencesForPrompt } from "@/lib/preferences";
+import { runSafetyValidation } from "@/lib/safety-validation";
+import {
+  generateClinicalQuestions,
+  storeDialogueQuestions,
+  getRelevantKnowledge,
+} from "@/lib/clinical-dialogue";
+import { logDebug, logError } from "@/lib/logger";
 
 export const maxDuration = 300;
 
@@ -20,10 +28,10 @@ export async function POST(
   ctx: { params: { id: string } },
 ) {
   const user = await apiAuth();
-  if (!user) return Response.json({ error: "Not authenticated." }, { status: 401 });
+  if (!user) return Response.json({ error: ERROR_CODES.NOT_AUTHENTICATED }, { status: 401 });
   const ok = await patientBelongsToTenant(user.tenantId, ctx.params.id);
   if (!ok) {
-    return Response.json({ error: "Patient not found" }, { status: 404 });
+    return Response.json({ error: ERROR_CODES.NOT_FOUND }, { status: 404 });
   }
 
   const patientId = ctx.params.id;
@@ -44,9 +52,9 @@ export async function POST(
         let docs: DocumentWithMeta[] = [];
         try {
           docs = await getDocumentText(user.tenantId, patientId);
-          console.log("[generate-protocol] Loaded", docs.length, "intake hub documents");
+          logDebug("generate-protocol", "Loaded", docs.length, "intake hub documents");
         } catch (docErr) {
-          console.error("[generate-protocol] Failed to load intake docs (non-fatal):", docErr);
+          logError("generate-protocol", "Failed to load intake docs (non-fatal):", docErr);
         }
 
         send({
@@ -61,12 +69,27 @@ export async function POST(
         try {
           prefsText = await getActivePreferencesForPrompt(user.tenantId, user.practitionerId);
         } catch (prefErr) {
-          console.error("[generate-protocol] Failed to load preferences (non-fatal):", prefErr);
+          logError("generate-protocol", "Failed to load preferences (non-fatal):", prefErr);
+        }
+
+        // Load practitioner clinical knowledge from past dialogues
+        let knowledgeText = "";
+        try {
+          // Extract systems from timeline for targeted knowledge retrieval
+          const allSystems = ["hpa_axis", "gut", "thyroid", "sex_hormones",
+            "blood_sugar_insulin", "detoxification", "immune_inflammatory",
+            "cardiometabolic", "nutrient_status"];
+          knowledgeText = await getRelevantKnowledge(user.tenantId, user.practitionerId, allSystems);
+        } catch (kbErr) {
+          logError("generate-protocol", "Failed to load clinical knowledge (non-fatal):", kbErr);
         }
 
         let timelineText = formatTimelineForPrompt(timeline, docs);
         if (prefsText) {
           timelineText += "\n\n" + prefsText;
+        }
+        if (knowledgeText) {
+          timelineText += "\n\n" + knowledgeText;
         }
         const { findings, meta: aMeta, raw: aRaw } = await runClinicalAnalysis(timelineText);
 
@@ -104,6 +127,26 @@ export async function POST(
           ...(protocol.meta ? { model_meta: protocol.meta } : {}),
         };
 
+        // Run post-generation safety validation (non-blocking for storage,
+        // but we include the result in the response so the UI can show warnings)
+        let safetyResult = null;
+        try {
+          send({ step: 3, total: 3, status: "Running safety validation..." });
+          safetyResult = await runSafetyValidation(findings, protocol);
+        } catch (err) {
+          logError("generate-protocol", "Safety validation failed (non-fatal):", err);
+        }
+
+        // Attach safety validation to clinical content metadata
+        if (safetyResult) {
+          (clinicalContent as Record<string, unknown>)._safety_validation = {
+            passed: safetyResult.passed,
+            warnings: safetyResult.warnings,
+            summary: safetyResult.summary,
+            meta: safetyResult.meta,
+          };
+        }
+
         const protocolId = await insertProtocol({
           tenantId: user.tenantId,
           patientId,
@@ -124,7 +167,25 @@ export async function POST(
         // Record in PatientTimeline (non-blocking)
         recordProtocolGenerated(
           user.tenantId, patientId, protocolId, user.practitionerId, title,
-        ).catch((err) => console.error("[timeline] Failed to record protocol generated:", err));
+        ).catch((err) => logError("timeline", "Failed to record protocol generated:", err));
+
+        // Generate clinical dialogue questions (background — don't block the response)
+        (async () => {
+          try {
+            // Get practitioner's existing knowledge to avoid redundant questions
+            const systems = ((findings.systems_analysis ?? []) as Array<Record<string, unknown>>)
+              .map((s) => String(s.system ?? "")).filter(Boolean);
+            const knowledge = await getRelevantKnowledge(user.tenantId, user.practitionerId, systems);
+            const questions = await generateClinicalQuestions(findings, protocol, knowledge || undefined);
+            if (questions.length > 0) {
+              await storeDialogueQuestions(
+                user.tenantId, user.practitionerId, protocolId, patientId, questions,
+              );
+            }
+          } catch (err) {
+            logError("generate-protocol", "Clinical dialogue generation failed (non-fatal):", err);
+          }
+        })();
 
         send({
           step: 3,
@@ -133,11 +194,14 @@ export async function POST(
           done: true,
           protocolId,
           analysisId,
+          safetyValidation: safetyResult
+            ? { passed: safetyResult.passed, warningCount: safetyResult.warnings.length, summary: safetyResult.summary }
+            : null,
           redirect: `/dashboard/patients/${patientId}/protocol/${protocolId}`,
         });
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        send({ error: msg });
+        send({ error: sanitizeStreamError(ERROR_CODES.PROTOCOL_GENERATION_FAILED, err) });
       } finally {
         controller.close();
       }

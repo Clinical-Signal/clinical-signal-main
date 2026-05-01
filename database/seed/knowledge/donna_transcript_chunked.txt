@@ -1,0 +1,750 @@
+hello | 00:00
+Cain, often testing.
+Speaker 2 | 00:12
+Testing.
+hello | 01:43
+Hi there.
+Speaker 2 | 01:49
+There we go. I'm used to using Teams.
+hello | 01:51
+Got you. Here I am making you go to Zoom. Yeah, just a heads-up.
+Speaker 2 | 01:58
+That's okay, sounds good.
+hello | 02:00
+Our internet here is a little wonky today, so sometimes my video lags temporarily, so just let me know if you're not hearing or anything.
+I can always turn the video off if it's distracting. Yeah. Okay, so I know you took a look at your lab results already. Is that anything you were familiar with before? Was it another language to you? Just so I know where we're starting.
+Speaker 2 | 02:27
+It was another language. Nakai. I did ask AI to help me out.
+hello | 02:30
+It's okay, everybody does now, no worries. [Laughter].
+Speaker 2 | 02:33
+[Laughter] So, I mean, I obviously clearly want to know what you think, but I from what AI told me, I'm. I was relieved. I thought it was going to be worse.
+hello | 02:47
+Yeah, what I'm going to do a couple of things. I'm going to record this so that I can send you a recording in case you want to listen back to it at all, but I'm going to share my screen and pull your results up where we're talking about it so that we can have a visual on it.
+Speaker 2 | 03:05
+Recording in progress.
+hello | 03:10
+Cool. Can you see your labs up there? Perfect.
+Speaker 2 | 03:15
+No, now I can.
+hello | 03:16
+Okay, cool. So when we go through a Gemini map, there are a couple of different things that we look at.
+On this first page, this is really what we call our pathogen page, which is we don't want to see anything show up on this page because these guys are usually pretty intense. They need antibiotics, not the greatest thing.
+So it's a great page to have absolutely no results on. So you did really well there. We want to see that it's a perfect first page. Now this is where things start to get a little bit nuanced. This may be similar to a... I told you or it may not, but in my... I'm just going to take you through how I typically look at these and work through clients.
+So this first box up here and we start with the GI map, we look at the levels of a bacteria called H. Pylori, which lives in the stomach. So if you look up here, you'll see your results aren't flagged in red, but we can see that you have H. Pylori levels. Typically, a GI map will not flag these results unless they are a thousand or higher.
+That's what that reference means. It means we move the decimal point three over to the right if it's a thousand or higher. Typically, that's the standard threshold for an antibiotic cocktail. However, you can see we have levels of about 100, which is still relevant to me for a couple of reasons.
+Because what this tells me is if we can see H. Pylori already in the stool, if it is still detectable, it tells us that the stomach acid environment is probably not optimal, because if that was the case, we wouldn't really have much of growth here in H. Pylori.
+However, it typically means that it's much easier to rebalance these and get rid of this kind of bacterial with just some nutritional approaches, some herbs, and a gentler approach than a two-week antibiotic cocktail.
+So I do think it's still relevant for your case in particular when I look at this in the bigger context of what you've had going on. The other question that it brings up for me is, "Is this a true, accurate reading or are we dealing with something called biofilms?"
+So stay with me here as I walk through this. One of the things that we talked about initially on your initial call was, "Hey, I seem to be having these histamine reactions. Here's all these different things." Carnivore diet helped to a certain point. Think of what's going on there.
+But when we look at people that have had gut-related struggles for a long period of time, the body smart, it will put things away as much as possible to try and maintain a normal level of functioning.
+So something that we see a lot is that people struggle with things called biofilms. If you have never heard of what a biofilm is, the simplest way to think about it is like dental plaque. We go to the dentist once or twice a year. We get all of our plaques scraped off. Plaque is an example of a biofilm.
+It's this matrix of living in dead stuff that the... That walls itself off, and it can cause issues if it goes on too long. But particularly with the example of dental plaque, it's really hard to properly clean your teeth when you've got plaque in the way, right?
+So we have biofilms that can form in different parts of the body, and when those biofilms are in the gut or in the nasal passages, it makes it really challenging for therapeutic measures to get to the target.
+So a lot of times when people have, for example, chronic sinusitis, chronic sinus infections, we actually see that they have biofilms, which means it doesn't matter how many antibiotics and sprays they're taking. It can't get to the target, which is why it keeps coming back.
+So we see that in the gut a lot as well, when people have these chronic inflammatory issues. I bring all that up not to scare you, but to say sometimes when we go in here and we start going after these lower levels of a pilori and things like that, we actually find that there actually was more.
+It's just some of it was hidden in biofilms, and so it didn't test as high as possible. And that's where clinical reasoning and experience come into play versus just interpreting lab results at face value. In cases I've seen like yours, biofilms are almost always present.
+That's basically a long-winded way of saying I still want to address these H. Pylori levels even though they're not flagged red and they're technically below the reference range. I think it's still really important for us to optimize the stomach environment and clear those out because I think it might actually be a little worse than the results are showing based on the symptomatology you're experiencing. Does that make sense?
+Speaker 2 | 07:48
+What symptoms are you correlating to what you're finding there? Is that like the runny nose I have?
+
+---
+
+hello | 07:54
+Yeah.
+Speaker 2 | 07:54
+And...
+hello | 07:54
+So when we're looking at H.
+Pylori, when we're looking at... I don't want to say a poor stomach acid, but like a non-optimal one. We have to think about that's really the first line of not just digestion but protection from the external environment, right?
+So when that stomach environment is not optimized, people might experience downstream impacts of the impaired digestion. Meaning, maybe they do experience bloating. Maybe they don't feel like they fully break down their food.
+Maybe they do have changes in bowel movements. However, it can impact inflammation and immune function because, again, the stomach is supposed to be this first layer of defense against things that we're just consuming and breathing and swallowing from our normal day-to-day environment and food supply.
+So we can tell that people tend to feel a little more sensitive to things if we don't have basically this very acidic environment present to kill off all the stuff that we don't want going through to the rest of the system.
+Because really, if the stomach isn't functioning optimally, it's like a one-two punch in that. Inflammatory things that should have been killed off or not, and they pass out into the system, which stimulates the immune system.
+Foods, especially proteins, are not broken down optimally, which means we get bigger hunks of stuff moving into the digestive system which tend to bang around and cause some inflammation as well.
+So the bacterial piece is some of it but my concern more is the stomach environment as a whole. The other thing that we really seek or at least that I've seen correlation with those two are yes. Any sort of chronic sinus issues, chronic hives issues, like any skin things, redness, histamine type symptoms.
+Then I know we didn't really get into this too much, but just like another fun fact, in case that ever comes up for you, thyroid function is really closely tied to this area as well, because it's one of the biggest things that impacts conversion of T4 to active T3 is proper stomach acid levels.
+So it impacts a lot of systems, some of which like you are having symptoms in some of those buckets but really, it's when we approach gut health, if we're really going to do a top-down approach and get everything. I really don't want to see any growth of H. Plori in a stool test.
+So, yes, it looks low but I don't want to necessarily ignore it.
+Speaker 2 | 10:23
+Just real quick.
+hello | 10:24
+Yeah, sure.
+Speaker 2 | 10:24
+Right before our call, I had taken pictures of my whatever it is, my face. I'm going to send them to you right now so you can kind of see the what the redness looked like. And one of them, I kind of took it really close up. You can see how bad it got.
+hello | 10:40
+Yeah? Was this recently or one of the flares you had, like when you were traveling six.
+Speaker 2 | 10:47
+And the one that no, these are like the one where you could see up close. That's kind of when it first started, in September of twenty five, I guess. And then the other one was kind of recently. That wasn't when I was traveling, but I haven't had that of year of a breakout in quite a while.
+But when? Right when I got back from that really traumatic trip, that's kind of what it looked like right away.
+hello | 11:15
+Right?
+Speaker 2 | 11:17
+It was really bad. I haven't had a breakout like that in quite some time.
+hello | 11:19
+When it gets that bad, like when you were on that trip, does it come with pain and itching too? Or is it just very red and just looks very irritated?
+Speaker 2 | 11:33
+Just very red. It doesn't itch. I mean, there's really no other symptoms besides that.
+hello | 11:38
+Just that it shows up?
+Speaker 2 | 11:40
+And the other symptom is my nose runs like crazy. And then, like, every night, I have to put Vaseline all around my nose.
+Otherwise, I wake up in the morning with a really, like a little kid, a crusty nose.
+hello | 11:50
+Yeah, and that's something that you just do every day or only when those flares happen, got just like proactive.
+Speaker 2 | 11:53
+Yeah, I've gotten to the point where I do it every day. One time when I was traveling for work, I forgot the Vaseline and motion just doesn't do it.
+My whole nose was just looked like a little kid with a scabby nose.
+hello | 12:04
+Yeah, sure, yeah. Yes, I do think. Yes, I do think that is somewhat related to this. I think it's a very strong immune and histamine reaction to something when you get it.
+Because it comes on really fast and hard.
+Speaker 2 | 12:27
+And I get, like, these little. I don't even want to call them pimples, because it's not like a normal pimple, but they're like... They look like little, small, tiny... I mean, pimple, I don't know what else.
+
+---
+
+hello | 12:37
+Okay, like, doesn't quite come to a white head, but like a little bump kind of type thing.
+Speaker 2 | 12:38
+To colum.
+hello | 12:43
+Yeah, do they just kind of pop up and then slowly, like recede?
+Speaker 2 | 12:50
+Yeah, and then they're just they're gone. Like right before Easter, they just kind of flared up. And my husband's cousin's wife, she's a nurse.
+hello | 12:58
+Yeah, yes, for sure.
+Speaker 2 | 12:59
+And I was like, ca she works with someone kind of similar to you, but she wouldn't have been okay with my all meat diet. And she's like, I wonder if you have. You have too much yeast, so I was happy to see.
+And my thing that I had my yeast was negative one.
+hello | 13:12
+I think there's another story just as we get into these next sections that are talking about here. So after the H.B., Laurian stomach conversation, which I'll say one more thing on that just because I can't help myself, is that when we look at H. pylori, the other big thing to consider is that it lives in the stomach, but a huge reservoir for it is actually the mouth, the oral microbiome.
+Speaker 2 | 13:26
+Yeah. No, please.
+hello | 13:35
+So for you, just based on the proximity of... That is why I'm really harping on it. Because, yes, it lives in the stomach, but it lives in the mouth at the end of the day.
+So whenever I see that, yes, we will absolutely address stomach health, but we're going to do oral microbiome work on that because I'm wondering if that's contributing to those flares. There's a little bit of dysbiosis in the oral microbiome. We all talk about the gut,
+but we have a mouth microbiome too.
+Speaker 2 | 14:04
+So what would could something really traumatic and stress because I mean, like I said, I had been doing meat based diet for a year and a half, no problems. I was eating histamine food, like, no problems.
+And then within the same month after. I had, like, this really traumatic experience. I'm. I guess I've always been curious. Like what? All of a sudden started it?
+hello | 14:28
+Yeah. I think a lot of the times with stress, it's almost hard to believe that, "Hey, I know it was a stressful event, but can it really impact things that much?" So what we really have to do is we have to back up and be like, "Okay, well, let's talk about what the downstream impacts of a traumatic stress are, whether it's a physically traumatic stress or an emotionally, mentally, whatever. The body doesn't differentiate between the types of stress or all it knows is, "Holy moly, five-star
+fire alarms. There's a big stressor right now." So when it does that, the downstream impacts, they don't necessarily end just when the stressor does, because it sets off all of these different cascades that impact different areas of the body. It changes how the immune system functions. It increases inflammation. It literally will shift your gut microbiome.
+So we might be seeing the post-stress impact on the gut, whereas if we did this test before the stressor, it might look totally different. Those changes can happen fast.
+We're talking within 36 hours of an event. So it does have these other things that can impact... Then all of a sudden, the things that we were doing that worked really well... Well, why are they not working the same way anymore? Why is this irritating?
+Well, the underlying terrain is different because it experienced something traumatic. So that's probably what happened, even though it wasn't necessarily a physical stressor. You had these big emotional and well-being stressors at that job, and that happened to impact some of these physical systems and it changed the way that...
+Metabolized isn't quite the right word. But the way you process just the different things that you're doing. So that's probably what happened. That happens pretty frequently. The reason that I'm thinking that might be part of the case is when I look at this next section, our commensal and keystone bacteria. These are actually good bacteria. We want these. You have a lot of them hugging the red zone here, which is not what we want. We actually want to see green lights all around here when we have a lot of those that are in these red zones. On the low side, it tells us there's a little bit of what's called an insufficiency dysbiosis. We're depleted. We don't have enough good troops to deal with the opportunistic stuff that will definitely take advantage of a situation.
+That's a really common pattern we see when people have gone through a stressor, whether it's chronic stress or even an acute major stressor like that. So that's definitely, I think, part of the picture of what's going on here because a lot of those symptoms that you are getting... When I see that skin reaction, that's typically an immune-mediated reaction. The immune system is going a little bit haywire there.
+So when we ask why? Okay, well, if we don't have the protector parts of our immune system in the gut, it means that errant signaling is probably going out. So the body is overreacting to things that aren't inherently bad.
+Right.
+Speaker 2 | 17:39
+Yeah. Because I was having... Soon as I got back from RI, Gus, the horrible experience and horrible people... I was having horrible panic attacks, and I hadn't had a panic attack. I'd wake up in the middle of the night with panic like fight or flight.
+I figured out my vagus nerve was shot. I was having horrible dizzy spells, like I was walking like a drunk person, like I would have to hug a wall.
+hello | 18:06
+Yeah.
+Speaker 2 | 18:08
+So my initial reaction was really bad. The only reason I was able to calm my vagus nerve is I did really cold. I did cold pledges, and that really helped tremendously.
+hello | 18:16
+Really effective.
+Speaker 2 | 18:20
+CA my sister, who I talked to all the time, she was she's my kind of like investigator, you know, and so she was like do cold.
+hello | 18:26
+Yes.
+Speaker 2 | 18:30
+I had done cold pledges before, but I hadn't done it in a while, and that helped tremendously.
+I couldn't figure out what was going on with me, and it was like my inner ear, everything. I was so messed up, I was just dizzy all the time, and as soon as I started doing cold plunges, it went away.
+
+---
+
+hello | 18:45
+That was happening right around the time that work stressor was going on. Yeah, I know.
+Speaker 2 | 18:51
+Yes, it was.
+Yeah, it was. I went on this work trip, and it was awful. As soon as I got back, the day I landed at the airport, I got home, and then they fired me.
+hello | 18:59
+Yeah, that's crazy. My goodness, yes. Cold plunging isn't always fun to get in, but it's probably one of the fastest and most effective ways to tamp that nervous system back down.
+So a way to look at it is that your nervous system was doing what it was supposed to. You went through something really unexpected and stressful and traumatic, and it was like, "Danger here. What do we need to do to survive?" This difference being, modern day, it's not actually the end of the world, like a lion or tiger chasing you, but our nervous system doesn't know any better.
+So it did what it was supposed to do in the situation, and then you did something great to help manage that, which is like, "Hey, I know this feels like we're about to get eaten by a lion, but actually, we're going to get through this."
+So let's calm you down so that we can then figure out what the next step is because all of those symptoms, the dizziness, almost feeling like you're drunk. Yeah, that has to do with all of the signaling of these different systems. When we think about what the Vegas nerve does,
+it's the nervous system in a sense of calm. It's digestion, it's blood pressure regulation. It's all of these things that influence how we move around in the world without having to think about it until it's not working.
+Then you're like, "Well, now I'm thinking about it."
+Speaker 2 | 20:16
+So fascinating to learn all about the body and how one stressful event can just kick your body into a different orbit. I find it... I mean, I'm not happy I went through it, but
+I've learned a lot just by doing my own research.
+hello | 20:31
+For sure. It's wild. It's like, to me, it's one of the most interesting things ever.
+Speaker 2 | 20:37
+Yeah.
+hello | 20:38
+And like, I've experienced it myself, and it's just like, okay, well, body's doing something for a reason.
+Speaker 2 | 20:39
+It is.
+hello | 20:45
+This is like aggressive, how quickly it can respond to something.
+It really over time. And I'm sure this will be your experience too. It seems like it already is. It lets you shape your relationship with stress. When you see, "Wow, this can really make a huge impact on my body and how I function." It really helps you prioritize how you relate to stress.
+We're never going to be able to fully avoid it. But we actually do have a lot of say in how we can navigate stressful situations and choose what stress we actually want to deal with at the end of the day.
+Yeah.
+Speaker 2 | 21:20
+Yeah.
+hello | 21:21
+So all that being said, we have some work to do with putting the things that are going to be protective of some of the stuff back in your system because we're definitely like 50% on the low side here.
+So some work to do in that department for sure. Because we really do want higher levels of these guys when we don't have super protective levels of those guys. This next page is where things can get a little hairy. On this page when we see opportunistic and overgrowth bacteria, it doesn't mean that these are inherently bad. It means if they have the opportunity to wreak some havoc, they will take it, and they get that opportunity when we don't have the balance of good things. Now you only have one here that is super high and a RO caucus, which is like a histamine producer.
+So I am wondering if that's contributing in part as well. You do have staff present in the gut. So I want to tie this back to the H. Pylori and the face symptoms as well, because the other thing, when you show me that specific patterning accompanied by the nose running, is very classic of a staff reaction.
+Even though you don't have super high levels in the gut, we know that you have it. The other thing is that staff strap in age pilory you don't really seem to have strap in the gut, but a bigger picture staff, strep, and H. PayPal, Google Sheets, Google Meet, Google Drive, LinkedIn, Slack, GenAI, Gemini, ChatGPT, OpenAI, Anthropic, Claude, LLaMA, Jira, HubSpot, Salesforce, GitHub, Azure, Blockchain, Zapier, Mailchimp, Stripe, Asana, Webex, Zoho, Zendesk, Sendgrid, Canva, Figma, CorelDRAW, Tableau, Dall-E, PicsArt, TikTok, Miro, Loom, Vimeo, DocuSign, Telegram, TED, beta, tech, Krisp. Here is the transcript that needs to be edited: Pylori like to travel together and they all have the mouth as an oral reservoir.
+So what I am actually thinking is happening here is because we have some of these depleted good bacteria, your system's a little out of balance and it's taking bacteria that normally people have on the skin and the gut and the nasal passages and it's letting it get a little bit out of whack, right? Pair that with then some overgrowth of subhistamine producers and we get a very exaggerated reaction to just some staff bacteria normally moving in and out in relationship to things.
+So the carnivore diet will help with not adding more inflammatory load to the picture, but we still need to rebalance the systems underneath so that you don't have to just rely on that if you want to try other food so that you feel like it is having the impact that it had when it first started.
+So my guess is actually if we went and cultured your nose, you probably see some staff in there as well. So what I would like to do is obviously we're going to rebalance your gut.
+But I actually want to do oral microbiome, nose, gut. I want to make sure we're addressing that whole terrain because I want you to think about it this way. If we just focus on the gut and we don't focus on what's up here.
+Well, we're continually swallowing our spit. We're swallowing stuff from the nasal passages. It's just going to keep going down and becoming like a recurring thing. So I want to make sure that we're hitting all pieces as we go. The cool thing about that is we'll see the impact in something very clear, which is the symptoms that you're experiencing because those shouldn't keep coming back as we rebalance that part of it.
+But just that's a very textbook pattern of runny nose and that ready irritation that lasts for a couple of days and then goes away. And so, then you put the Vaseline and stuff on it.
+It's like a protective layer so you don't get the skin contact irritation as it is happening. But I would like to still rebalance those and not have it get to a situation where you have to be going on a ton of antibiotics to knock that stuff out either.
+Obviously, address this guy because we don't want a histamine producer going haywire, which isn't going to help any of that scenario.
+Speaker 2 | 25:00
+Okay.
+hello | 25:07
+Anyway. Are you with me so far? Yeah, cool. Yes, no major yeasts, anything like that, no parasites visible at least.
+Yeah, for that. The last section of the GI map, which to me again fits into this picture of a little bit of depletion. This is basically looking at different markers in the gut and telling us how the machinery is working.
+We're looking at the bacterial balance, what's living there, but how's the machinery working? Last days here, which are on the low side. That's essentially like your digestive enzymes. It's like the enzymes that the pancreas puts out to help you digest your food. It could be a lot better. Basically, this tells us between that and the fact that stomach acid seems to be a little bit off, allowing that age-related pylori to be present. It tells us that it doesn't really matter what diet you're eating. You're not able to properly break that down and assimilate it into nutrients for your body to use.
+So I want to do a little support to help that system get up and running. Now, how does this happen? Some people will say it just happens naturally with age. Not necessarily. To me, I think it tends to be more of a marker of just that chronic stress picture or... I shouldn't even say chronic stress like that healing from a stress or picture that you've been in. I do think that will come back, I do.
+
+---
+
+But you can really help it along with some very specific digestive enzymes. It doesn't seem like it's really impacting the liver and gallbladder part of it because you're staying adequate, which is a measure of fat in stool.
+That's really good. So when people have gallbladder issues, we see that the stay adequate is really off. There's a lot of fat in the stool because they can't break it down. Instead, when we see a last day...
+So we're more looking at protein breakdown and carbohydrates. But for somebody eating a carnivore diet, the ability to break down protein is really important. So we want to make sure that you can do that. The other things here to look at are the secretory IgA, that's very low. Again, this is essentially the base of your immune system.
+So when it's very low that combined with the low commensals, it's just not mounting a response when it needs to, which is why you're getting some of these aggravated inflammatory reactions. We want that to be a strong, robust thing like an immune system. It's a little bit like Goldilocks. You don't want too much, but you don't want too little. We want it to be able to do its job.
+So getting in some immune-nourishing support versus immune-regulating support is a slightly different approach that we'll have to take. You can see inflammation is starting to creep up, probably as a result of not having that immune response.
+So that's what counts protecting. It's just an inflammatory marker, really common to see when there's a little bit of imbalance here, and you should see that fall back down over time. The last marker that I had added on to run was something called Zonulin.
+You're technically in the reference range.
+What Zonulin is, is a little protein that keeps our gut lining nice and tight. If we see a ton of it in the stool, it tells us that basically someone has what's called a leaky gut.
+The lining has started disintegrating and stuff can get in and out. So, you're not totally there yet, which is good. I think this is a good time for intervention because we don't want it to get there.
+That's when people start developing food sensitivities and autoimmune issues and all that kind of stuff that you don't want to deal with. But there is some in the stool, which means there's some inflammation and some intestinal lining support is needed.
+So we'll cover all of that as well. So all in all, not the worst GI map I've ever seen, but definitely some areas for improvement. I think that need to happen. Do you have questions on any parts of that?
+Speaker 2 | 28:51
+The one thing I was curious about, based on your readings, just because I have that from my dermatologist. I have that xanthalasma around my eye and, just kind of.
+hello | 29:03
+Yeah, I think it's a great tool.
+Speaker 2 | 29:07
+What? Of course it's AI. I mean, I trust you more than that, but I was just...
+hello | 29:11
+It's okay.
+Speaker 2 | 29:12
+I was just.
+I know, but I was just wondering, because it did mention something about my pancreas, and so I'm just curious if I was having a hard time breaking down fats, but then you just told me that I wasn't. I'm just. I'm curious of why I'm having this Xantha las breakout around my eye, and I just because I'm assuming it's about bats.
+And so I just. I didn't know if there was anything that you saw that would help. Maybe tie in. Why? I have the analasma around my eye.
+hello | 29:43
+Yeah. So when we look at fats in terms of digestive breakdown of fats, there are a couple of things to look at. And so that marker that I measured, the stay adequate in the stool, tells us if there's fat in the stool.
+If we see fat in the stool, it dates. Basically tells us like, "Wow, this person's really having trouble digesting and absorbing their fats because it's just passed through the system." When we look at what's really important for the body to be able to digest and absorb fats, we look at particularly the gallbladder
+and the liver working together in tandem to release something called bile, because that's really what we need to break down fat into the form it needs to be absorbed. So when we look at stay adequate, to me, that's more of an indirect marker of, "Hey, is the gallbladder and liver doing their job right now?" Where a I probably saw pancreas was with that marker called the elasticse when I was talking about digestive enzyme function.
+Because the pancreas is what makes those enzymes, right? It does make something called light paste, which helps break down fat. It makes proteases and amylases, which break down protein and carbohydrates accordingly.
+So when the elasticse marker is low in your case, it means we're not putting out our light paste, our proteases, and our amylases the way we want to properly break down our food. So yes, it could be impacting fat breakdown. Not quite to the extent that a gallbladder issue would, but it still is.
+You don't have a gallbladder issue, correct?
+Speaker 2 | 31:11
+And I don't have a computer.
+hello | 31:14
+I thought you said you didn't have a gallbladder, and I'm like, "Wait, what?"
+That's information we need to...
+Speaker 2 | 31:20
+No. I have all my organs.
+hello | 31:21
+Yeah, it's... Listen, it's rare in today's world to talk to people that have all their organs, but that's great.
+So that's probably where it was getting at was like, "Yeah, your last taste was low pancreas not working properly."
+Speaker 2 | 31:28
+Yeah.
+hello | 31:34
+That could be an issue leading to fats. And like example, the lamas, when we look at what they are, they're. They're these little. These little soft like cholesterol deposits, essentially.
+And so usually they're around the eyelids. And again, we're looking at now the fat and cholesterol pathways. Could the pancreas play a part in that? Possibly. And it's possibly by getting your digestive enzyme efficiency like working a little bit better that it could. It could help that. Instead, I find it what is more helpful is to look at, like, lipid balance over time.
+And so then usually my next question, which I know we talked a little about with people is like, what's been the patterning and blood work? Has there ever been like elevated cholesterols? Do we have like a family history of that? Does that seem to be an issue for, like. Nope.
+It's totally normal. And like, that's not what it is. Well, 50% of people with Zantyasma still have normal lipids. So then it's like on to the next layer. So ruling things out one at a time, the next thing that we look at typically with Xan, the assmas is.
+Okay, now we're going to look at, like, insulin and metabolic health. Meaning sometimes if people tend to have like, a higher type insulin, maybe they've dealt with a little bit of, like, blood sugar and metabolic stuff sometimes that can impact xanthalasmas.
+And really we have to go in at like the insulin level and like, fix that side of things to look at it. And so like, I don't know if I mean, is that something that started your carnivore journey originally? Was it more looking at, like, blood sugar, metabolic side of things or not so much?
+Speaker 2 | 33:09
+
+---
+
+Not so much.
+I mean, initially it was kind of initially when and I okay, so I joined. It was like a three month program, and it was based off weight loss. But I learned her whole thing was all about in the fat storing hormone.
+I mean, she talked about your mitochondria and. And that's why I started on the meat based diet and getting rid of all the sugars and lowering my insulin, which helped me tremendously. And so and my blood work is fine and I've been it was two years in February since I started eating this way.
+And again, like, I it's been probably a year when I started seeing. It was like maybe June of last year when I started noticing, the spots, like, under my eye in here. And there's a little over here.
+I've gone to the dermatologist, and he's used like, a CO two lay laser to try to remove that, and I'm. He's having AI don't know if the equipment he's using, but he keeps going back and redoing it, but I'm just. I'm. I'm always just, like. Very curious.
+Because that was the first question he asked me is like, do you have really high cholesterol?
+hello | 34:27
+Yeah, I think...
+Speaker 2 | 34:27
+And I was like, no. So, it's just been kind of a head scratcher for me. And is it always going to be there? Is it always going to keep coming?
+And so I was hoping maybe the labs would help me shed some light. And maybe working with you would help that as well.
+hello | 34:45
+And I know we talked about doing some blood work once we kind of like got the stuff rolling with the gut too, which I think looking a little deeper into let me ask you this first, have you done cholesterol panels since starting Carnvore?
+Okay, so I think when we do blood work because I know we were talking about, like, let's check thyroid, let's check hormone stuffs as well.
+Speaker 2 | 35:01
+No.
+hello | 35:09
+I think doing a true functional lipid panel is helpful to see.
+"Hey, here's all the benefits I'm seeing on carnivore. Let's make sure that my body is processing this in proper ratios because sometimes people have to tweak the types of fats, the amounts of fats, things like that. That could be happening.
+So some people, when they start a carnivore, they get what's called lipid surging, which means all of a sudden they are eating more cholesterol than they used to. The body isn't catching up, especially if there are other things going on hormonally. Talking about thyroid a little bit, I think getting a better picture there might give some insight into whether this is a lipid cholesterol processing thing at the blood level.
+Typically, I think there's value in looking at a couple of things beyond just your traditional cholesterol panel, which tells you the total cholesterol, the LDL, and the HDL. That's all good and great. Typically, what I add on to that is I want to see the particle size, meaning I want to see what the shapes of particles are.
+Then I want to see something called a BOB, which is a little protein that's attached to cholesterol. It tells us a little bit about tissue deposition of cholesterol, meaning where it's laying cholesterol down.
+Because you can have normal lipid profiles, low triglycerides, but we can see elevations in BOB, which tells us the body's going and sticking this in tissues, which if that's the case, great. But it tells us that the body's ratios of cholesterol transport, how your body's moving around, are moving faster than clearance, how it's getting it out doesn't necessarily mean that you're bad at clearance. It means the ratio is off.
+If the ratio is off, the body's going to stick that cholesterol somewhere for you. It might be putting it on your eyelids, right? For some people, they get little things called lipomas on other areas of the body. Some people, they get in their blood vessels.
+So it shows up in different areas. None of it is inherently bad. It's just a matter of figuring out whether the body's ratios are keeping up and something when I would still argue that you're somewhat new into this carnivore journey.
+Speaker 2 | 37:05
+No.
+hello | 37:14
+You haven't been doing this for like a decade. It might just be your body still adjusting to those changes because those happen over time, they don't happen overnight, especially when we're talking about metabolic flexibility, meaning the body shifting from carb usage to fat usage for energy. Sometimes it can reveal again imbalances in the body's processing that again, it's not inherently bad, it's just we're putting in specific fuel ratios that it's not set up or able to do right now.
+So you can run things to see if that is actually the case. The reason that I don't just do that in isolation is the body doesn't work in isolation. So gut processing will impact that. Looking at the thyroid, it's like there's any slow thyroid function happening that will impact that ratio.
+So understanding the bigger picture, I think is really relevant in being able to look at all those systems together. Which is like, "Let's do a blood work panel at some point and make sure we're looking at all of those other pieces of information in addition to just what's going on right here right now because chances are there's going to be something there that she is showing us like why is the body getting these peripheral deposits of cholesterol?"
+I think the timing is interesting that it didn't start until after you started carnivore, which is what's making me lean.
+Speaker 2 | 38:34
+It was, let's say, February, March. By June, it was probably 16 months into it.
+hello | 38:38
+Okay, yeah, so I think that's what's worth looking at that.
+The thyroid is what I'd really want to see mostly because with carnivore, it can be helpful for the thyroid sometimes. In women, sometimes you can get this adaptive response where it gets lower levels of free T3.
+So you go a little bit what's called subclinical hypothyroidism. Not enough to really feel the impact, but enough to influence cholesterol clearance because that's one of the roles of it.
+So I think double-checking on that is relevant just knowing that from a woman's lifespan perspective, you're in the phase where hormones are starting to do stuff because we're much more complicated that way much more complicated, right?
+Speaker 2 | 39:22
+Yeah, very much so. I know guys have it so easy.
+hello | 39:28
+They have no idea. They're just such... Being a day and being creatures.
+Speaker 2 | 39:31
+I mean, to be honest, the reason I just... I know I haven't told my regular doctor about my diet because I know I will be talked out of it.
+hello | 39:44
+Two.
+Speaker 2 | 39:47
+And that's why I haven't gone and done my bud work because, you mean, to be fair, I was kind of worried what it was going to look like. And she probably would say. And so. And I don't necessarily want to go to, like.
+And that's why I found you, because I'm like, I don't want to just go to a regular doctor who's gonna be like, okay, here's a script. Go take care of it. I mean, I'm in tune to like what's going on with my body, and I want to heal it in the right way.
+
+---
+
+And so that's why I haven't done bloodwork.
+hello | 40:16
+Yeah, and it's okay, I get that for many reasons. It's frustrating when you feel like you can't go talk to somebody about, "Hey, this is how I would like to do things. Can you work with me within that paradigm? Given that, here's what's going on."
+So, my promise to you is, if I see something that's like, "Ooh, we might need some carbs, we might need to switch ratios here." I will tell you my why for that, but ultimately it will be your decision. I find sometimes with women doing carnivore long-term, you can absolutely do it.
+Getting a little strategic with the fat approaching tree ratios and sometimes just strategically introducing carbs here and there to address some of these hormonal components at a very low level doesn't have to be grains. This can be for berries, honey, and things like that that can go a long way in fine-tuning it for someone's experience.
+Yeah, but I think a couple of things that we can look at within blood work to figure out... Okay, we're talking about the... I would say around the Xth-L-M-A part. I don't know if there's anything... I see in your gut test specifically, that is why it's happening.
+I think that's a blood test. Information to figure out. I know why it's happening. The body's obviously not clearing it well, and it's depositing it somewhere. But figuring out why it's depositing it...
+I think a little more information from bloodwork will probably clear that. So if you want to do that sooner than later, we can do that sooner than later too. We don't... I know. Initially, I said let's wait and start getting on the guided, but we can do that whenever you want.
+Speaker 2 | 41:56
+So when I do blood work, is it similar to... Do you put in the order for the blood work, and then I just go read it?
+hello | 42:01
+Yeah. So, by where you live, is there either a lab court or a Quest anywhere nearby?
+Speaker 2 | 42:13
+Probably not. I live. I live in Colorado. I don't live in Denver. I'm like, in a really tiny small mountain town. It's near Grand Junction, and I don't because I.
+hello | 42:20
+You're up... Like a Junction. Okay.
+Speaker 2 | 42:24
+Yeah, I don't think I have an eco lab in Grand Junction. Because there was another gal that I was considering just working with her to get my blood work done. But my sister worked with her, and I felt like it wasn't what I was needing for my gut.
+hello | 42:40
+Yeah, I mean, I will still be putting in the labs script for you.
+Speaker 2 | 42:41
+So...
+hello | 42:45
+It's more just like I need to find a place where you can go and get the draw, which is why I'm asking.
+Speaker 2 | 42:54
+No, I figured because my sister went to an equal lab.
+hello | 42:54
+And? And so it looks like there's a place in Grand Junction she went to. Where?
+Speaker 2 | 43:02
+She, well, she lives in Iowa.
+hello | 43:03
+Okay, it looks like Grand Junction is a place called Procom II C, which is listed as a drug and alcohol testing service, but they do blood draws.
+Speaker 2 | 43:04
+I'm from Iowa. She went and had an eco lab nearby, and I don't... But if you find something that you think will work, I'll go.
+hello | 43:20
+They have a Quest Labs, which means you can go there and get a blood draw.
+Speaker 2 | 43:30
+Okay, I see it.
+hello | 43:30
+But it looks like they have a location in Grand Junction.
+Speaker 2 | 43:36
+Yeah, it's an hour away, but that's okay. Everything's really far. I live in a really tiny mountain town. So I'm used to driving an hour to doctor's appointments like it's... Colorado. I live on the mountain, it's called the Grand Mesa.
+hello | 43:42
+What's your... What's your technical town name? What is it we're up on the Mesa? Okay, yeah, so it takes you half an hour just to get off the Mesa to get anywhere.
+Speaker 2 | 43:55
+I'm like, yeah, it's yeah, yes, it does.
+hello | 44:03
+Yes.
+Speaker 2 | 44:04
+And you know, my grocery store, the Walmart, everything. Like we have a tiny little we have one street light, we have a tiny little grocery store, and we have a Subway, a Dollar General, but like that, that's it.
+
+---
+
+hello | 44:10
+Yeah, my parents are in the process of transitioning.
+Speaker 2 | 44:15
+So. But it's beautiful. I love it. But it's just it's not conducive to.
+hello | 44:21
+I don't know if I told you this, they're in the process of transitioning from. They've lived up in Silverthorn for a number of years, but they bought a place in Fruta a few years ago and are eventually transitioning over there.
+Speaker 2 | 44:29
+Eight.
+hello | 44:31
+So, they're up on the Grand Mesa cross-country skiing all the time.
+Speaker 2 | 44:34
+My husband grew up in Fruta.
+hello | 44:35
+Yeah, I'm in Arizona, so I'm in Scottsdale.
+Speaker 2 | 44:37
+Yeah, my husband's from Fruta, and my in-laws still live right outside Fruta, really close to the Utah border. So, he grew up there, so I'm very familiar with all that area.
+That's cool. Where do you live now?
+hello | 44:52
+Yeah, I am, because we don't change, which means we change, so it's a pain in the butt.
+Speaker 2 | 44:53
+Okay, so you're on Pacific time right now.
+hello | 44:59
+It's a pain in the butt.
+Speaker 2 | 44:59
+So jealous.
+hello | 45:01
+So. But all that to say. Yes. Well, you probably have to drive down to Grand Junction one day, but like, you know, we can combine it when you have to do other stuff. But the script will be there. I order it through a company called Access Medical, which gets like, the best cash pay prices. Obviously, like, I'm.
+It's all going to be covered for you.
+Speaker 2 | 45:19
+Okay.
+hello | 45:20
+The only thing that you'll probably have to cover is the blood draw, which is usually like $10 at the door, but if it's a place that's a quest like this, you can walk in and it lives in the quest system.
+Speaker 2 | 45:26
+Hey.
+hello | 45:30
+So, I'll email you a copy so you can bring it with you just in case. But it's easy for you to then just go in. You can even make an appointment if that if you don't want to do a walk in.
+And then it's, like, ready to go. And they process it, send it out and send it back that way? Yeah, so yeah, we can definitely do that for sure.
+Speaker 2 | 45:45
+That's easy enough. Yeah.
+hello | 45:48
+And...
+Speaker 2 | 45:50
+I mean, don't you feel like this would be an integral part of information for kind of like my overall. Like what?
+hello | 45:56
+I think it's...
+Speaker 2 | 45:57
+I need to do.
+hello | 45:57
+I think it's good for most people to be doing a panel like this at least once a year, but it definitely fills in some gaps, and it doesn't always change the gut plan side of things, but it brings in other factors for sure.
+Speaker 2 | 46:08
+
+---
+
+Two.
+hello | 46:09
+Like, okay, well, I want to see if the thyroid's a little off. Like does actually addressing the gut fix it? Do you need some other support while we're doing the gut so that you don't feel like fatigued?
+And then I think particularly it'll be insightful, yes, for the xanthalasmas, but just for, like, overall being proactive and understanding. Like, what's the baseline in your body right now? Are there any like, hormonal areas that need support?
+Like, what is the state of fasting insulin of like all of these things that you originally started Carnivore to do? Like, where are we at with that? So that you can like, tweak and fine tune accordingly.
+Speaker 2 | 46:48
+Yeah, and I do have, I do I can take readings for my blood sugar in the morning, and, so I haven't done that in a while. I mean, I used to have to.
+And. So II do have that. I mean, I don't eat any sugar or carbs, so.
+hello | 47:05
+Yeah.
+Speaker 2 | 47:05
+I mean, my insulin's very low.
+hello | 47:07
+So I wouldn't I don't really do much about it.
+Speaker 2 | 47:09
+I only eat twice a day. I eat morning and mid-afternoon, and then I usually fast for 16 hours before my next meal. I love it.
+hello | 47:14
+Yeah, how does that feel for you? Cool, so it feels good for you.
+Speaker 2 | 47:21
+I sleep so much better, I can't even tell you.
+hello | 47:23
+Yeah, it's pretty amazing what the body can do.
+Speaker 2 | 47:26
+And the few times, like if we do go to someone's house and I eat late, I sleep like crap. I just I love it. It's been a game changer. And there's. I'll go to people's houses, like, for parties, and I just don't eat.
+And people always like, my God. I'm like, I'm good. I mean, because how I eat is so. It's so filling like. And I keep track of my macros on an app so I know how much I'm eating. And I, you know, I play with the numbers and so I love it. It was like a game changer for me. It was life changing, and it helps with a lot of my hormonal issues, like I don't have hot flashes, I don't have night sweats anymore. It really helped with a lot of my symptoms for perimenopause.
+Like. It just.
+hello | 48:11
+Yeah, that's great, that's amazing.
+Speaker 2 | 48:12
+It's been a life changer. Yes.
+hello | 48:16
+Cool. So, I mean, yes, that's a long-winded way of me saying, "Yeah, let's just do the blood work too."
+Because I know how annoying it can be when you get those little deposits too. So if we can figure out what needs to change and what other supports are needed here, that'll help there as well. Yes, okay, other questions?
+Speaker 2 | 48:41
+No. I'm just kind of assuming you're gonna give me, like, a game plan.
+hello | 48:44
+So here's what I'll do. I'm going to get that script, and it'll come to you. You'll probably get an email from Rue Health, but I'll pull out the requisition form just so you have a copy to bring with you when you go.
+But once I put it in, it'll be in at like to go get at a quest lab. So you should be able to go to these places. But I'll call them tomorrow and make sure that they can see it. Just since it is a trip for you, I don't want there to be any... I got here, and they can't do it. Shouldn't be an issue.
+But I like to double-check when people are in rural places, just since it's a ride. So we'll do that. Then what I'll send you is like, "Here's what we're doing for the gut plan." So when we're rebalancing a gut, there are a couple of phases to do for you.
+Because some of those areas of depletion in the immune system are going on. I want to do three or four weeks of what's called a building phase before we go in with any sort of antimicrobial. Because the last thing I want to do, and to someone who's depleted, is give you an antimicrobial to deal with that stuff because it's not going to feel good for you.
+So we're going to go in. We're going to boost up some of that immune system. We're going to really support some detox and lymph pathways so that then in a couple of weeks, we can go and we can address the Helicobacter pylori, we can address the staph, we can address that in-office caucus that's elevated so that it should be a smooth process for you in doing that.
+You don't get die-off reactions, which nobody wants to deal with. I'll still lay out the whole plan of what that'll look like, but we'll just take it one phase at a time in terms of what you're doing.
+So usually each one's broken down to a month or so, probably four to six weeks. Once we actually get into the anthro-microbial phase and then after the microbials, we go in and we do another build-up phase where then we give your gut all the stuff it needs to help grow those good bacteria and give you a really strong foundation moving forward. Obviously, at some point in there, we're going to get the information from your other labs back.
+So if there's anything we need to layer in, either for lipid metabolism or for hormonal support, we'll do that as it comes up when we see what's going on.
+Speaker 2 | 50:51
+Okay, yeah, that one's good. As far as the lab work, I know I might have to pay at the door. Is this included in my system with you, or is that additional?
+hello | 51:00
+Yeah. Well, no, I'll cover the labs for you. The only thing you might have to cover is sometimes they let me pay for the draw ahead of time, sometimes they don't.
+Speaker 2 | 51:03
+Okay, that sounds good.
+
+---
+
+hello | 51:08
+So I'll let you know what it says when I put in the form. If they don't cover it, it's typically like $10 at the door, so not... Yeah, but no, the rest of it'll cover.
+Speaker 2 | 51:25
+I think that's all. I'm I was really happy to see I didn't have parasites.
+hello | 51:30
+Right.
+Speaker 2 | 51:31
+I will tell you, though, when I started Carnivore, because let me tell you, I've done all kinds of things. Before I even started Carnivore, I was doing coffee enemas.
+hello | 51:40
+Yeah.
+Speaker 2 | 51:44
+For a while, I was having a really hard time with the coffee enemas and so holding it in. So then I just was doing hot water, and when I had started the program, I did a hot water flush one morning and I passed a very big parasite.
+hello | 51:59
+Parasite, yeah, that'll happen, yeah, and I...
+Speaker 2 | 52:05
+My gosh, it was. I wish I could have taken a picture of it, but I was... That was the only thing. I didn't have any other treatment.
+hello | 52:13
+Yeah, you can see, yeah, that's wild.
+Speaker 2 | 52:14
+It would just. When I looked in the school, it was like just the swarm sitting at the bottom.
+Yeah. And it was like. It was, like, clear.
+hello | 52:20
+Yeah, I know.
+Speaker 2 | 52:20
+And it was big.
+hello | 52:21
+The way I always explain parasites to people is like, "I'm sure in 10-15 years from now, we're going to find it. Just like we found out about gut bacteria."
+I'm sure we're going to find out that parasites are just like part of our biome now, and some might even be beneficial, but it can still be a little alarming when you're not expecting one. I think with parasites, it's like anything.
+It's like microplastics. We're probably all going to come into contact with them. Can your system just deal with them and eliminate them the way it should? We're one of the few countries in the world that doesn't do an annual prophylactic two-week antiparasitic. For some reason, we think we're exempt from that.
+The rest of the world knows that parasites are in our food and water, and it's when it starts to cause problems for people, and they're getting a lot of chronic symptomatology, and we're actually seeing them shed into the stool all the time. Then it's like, "Okay, now we need to really go in here."
+But for most people, if you have a healthy gut, a resilient gut, if you have a strong, balanced gut, it's probably taking care of those things as we interact with them. Sometimes you'll see them in school, sometimes not. I don't think it's the worst idea for people once a year to maybe do a 10-day antiparasitic, especially if they're eating a lot of seafood, raw fish, or traveling a lot or depending on where they live.
+But yeah, anyone who does coffee enemas is probably going to see one at some point for sure.
+Speaker 2 | 53:42
+I mean, I was pretty happy.
+hello | 53:42
+Get better.
+Speaker 2 | 53:43
+I was like, sa yeah, for sure.
+hello | 53:43
+Better out than in, right? That's kind of my attitude towards it.
+Speaker 2 | 53:47
+I mean, overall, I mean, I'm encouraged by the results.
+hello | 53:50
+Yeah.
+Speaker 2 | 53:51
+I don't know if you are. I mean, I didn't know what to expect, but, I.
+hello | 53:54
+I think there's some things that explain, like, why these other symptoms are cropping up at the same time.
+And there's not anything on there that I'm like, this is like, really alarming. Yeah.
+Speaker 2 | 54:06
+
+---
+
+Yeah, for sure. So I'm very happy I found you, and I'm happy I'm doing this and super happy my husband's so... Because he's like, "Do it."
+hello | 54:15
+That makes such a huge difference when you have a supportive person at home.
+Speaker 2 | 54:17
+So, yeah, it does.
+hello | 54:19
+Yeah.
+Speaker 2 | 54:21
+Yeah. So it's just my. And the thing is, like, I'm the one who notices my vest, and like, no one else really notices, but it's just not that I'm vain, but it. I'm very self conscious about it. And, like, I work from home, and so during the week, I don't care. I really don't even wear any makeup.
+But when I like when I was messaging you back in what, February, when I was on that trip, I had that breakout, so I'm trying to put makeup on it, and, I just. I just I'm like, there's something going on.
+hello | 54:52
+For sure.
+Speaker 2 | 54:52
+There's something wrong.
+Like this. This is not normal.
+hello | 54:55
+I think. I think some of it is like depletion, letting normal things have an opportunistic reaction, which is like, okay, we've got to, like, get those stores up and like.
+Speaker 2 | 54:56
+And so.
+hello | 55:04
+That is a common pattern to see when someone goes through a big stressor. And like now it's time to just build your internal stores back up and then send you an Amazon link or something that can help for that in the meantime. Versus the Vaseline is actually a Manuka honey cream. I don't know if you've heard of Manuka honey before, but it's really good for those contact dermatitis reactions that come up like that.
+So it might be a little...
+It's not quite as clogging as Vaseline either, but we can try some of that too, because I think that will help have an antimicrobial effect while giving a little bit of that protective preventative layer too.
+Speaker 2 | 55:43
+Okay, that will be great. Yeah, I would love that. Thank you for sending that.
+hello | 55:45
+Yeah, of course.
+Speaker 2 | 55:46
+So...
+hello | 55:46
+So I will get cracking on getting that stuff over to you. Then usually the plan lays out like, "Here's what we're doing in terms of nutrition and lifestyle supplementation if we need it. Here's what that looks like."
+But you have my number. I'm here to answer any questions. We can hop on a call whenever you can, send me voice notes, photos, whatever you need, and I'll usually just break it down like, "Here's where we start.
+Here's week one, here's what we're doing on the first week. Don't worry about what's in week ten." Like, "Here's week one, let's start here."
+Speaker 2 | 56:10
+Okay, yeah, I'm a good student, so I will follow it to a T, so that's good.
+hello | 56:12
+Yeah. Okay, so. Okay. And then I'll I'll put a copy of this recording in your portal, too, in case you, like, want to go back and listen to anything as well.
+Speaker 2 | 56:26
+Yeah, did you see I filled out that really long form in the portal?
+hello | 56:29
+I did.
+Speaker 2 | 56:31
+Did you see that? Okay, question why you mentioned that? Because I was very curious, because I listed all the supplements I was taking.
+So I'm curious, should I stop taking any of that and just follow what you say? Or are there any supplements that you saw that I shouldn't be taking? Or are you okay with what I'm taking?
+hello | 56:50
+I'm probably going to try and pare it down a little bit for you, just in terms of volume. I did flag something. Hang on. Let me go back to that in one second.
+Speaker 2 | 57:03
+I'm so glad you mentioned the portal, because I was going to ask you, and I totally forgot.
+hello | 57:08
+Let me check my f hag quickly.
+
+---
+
+They're there. Yeah, like when I first looked at it and nothing. I mean, there's nothing on there that's, like, bad per se.
+I mean, like, how do you feel with taking all that stuff? Do you feel like that's a lot to remember? Or is it just like, such a part of your routine now that you're kind of like. Doesn't bother me?
+Speaker 2 | 57:33
+It's part of my routine. I mean, I've always been a supplement girl. I mean, I've from what I used to take and then now what I take. So I am someone who will talk about this supplement like I should be taking that.
+So, I'm a winner because my husband even commented, "You take a lot of supplements." So I've often wondered if they're doing me any good or not. So that's why I wanted to do a really detailed check to let you know what I'm taking.
+I'm very curious of your feedback.
+hello | 58:04
+Yeah. I mean, they do different things. Some of these... There are different layers of supplements, and some are like what the basic fill-in-the-gap supplements are that most people can take and benefit from.
+This is when we look at things like magnesium, fish oil, collagen, and vitamin D, things that most people could use and benefit from. Right? So you do have some... When we start getting into things like the L-lysine, we have a reason for taking that. It sounds like you used to have cold sores, and so that seems to help prevent those.
+So that's pretty valid to take. I think that's something that you could probably trial and error and see what happens if I don't... Do I have to take this? But it's an option there, the milk thistle in the kidney, those two different things.
+So milk thistle is like a hepato protectant, it protects the liver. A lot of people do like to take that. Do you have to take it all the time? No, not necessarily. But it helps the liver basically regenerate new cells.
+I think you wrote a note that someone told you it helps with digestion. Not really. It's more of a liver protectant. So, it's not hurting anything. Is it helping and do you need it right now? I don't know. There might be something that we see in your blood work that we could swap that out with something a little more effective.
+Maybe if we're seeing some of those cholesterol clearance issues, or if you're like, "I want to keep taking it and just add something in," we can talk about that too.
+Speaker 2 | 59:29
+I don't take it all the time because it's herbal and I know it's not good to take it nonstop.
+hello | 59:32
+Yeah.
+Speaker 2 | 59:35
+I do take a break, usually it's three days a week or four days a week. I don't take... Sometimes I'll go a whole week.
+So I do try to take a break from them.
+hello | 59:42
+Something with supplements like that too that I talk with people about is like, "What's the philosophy with supplements?" Meaning a lot of time we think about taking them consistently.
+Like, some supplements are for a reason, some are for a season. And so like, some like vitamin D and magnesium and collagen, like, yeah, we can be consistent with those. And some we take seasonally. So, like, maybe I go in with something like milk thistle or a liver support, like, once a quarter.
+And, like, I don't need it all the time, but I'll do it to just, like, do maintenance.
+Speaker 2 | 01:00:06
+Okay. Okay.
+hello | 01:00:09
+So that's a way to look at supplements too, because number one, it prevents you from taking a ton of stuff every day, but it still lets you get strategic with the type of support based on your overall goals.
+Yeah, and then some of it... As we're going through a gut protocol, I might have you hit pause on a couple just to watch the overall load. It doesn't mean they're bad, doesn't mean you can't bring them back in.
+It's more me just looking at quantity. Yeah, yes, that too, for sure.
+Speaker 2 | 01:00:37
+Yeah, that will help save me some money. Was there anything else that stuck out that maybe I...
+hello | 01:00:46
+Nothing major that I saw. You're talking about some parts of your health history that were interesting. I saw the Eagon psoriasis history which cleared up with the meat-based diet.
+But to me, that says like skin. I don't want to call it a weak point, but that seems to be a point for you. That's like issues are going on for her. They show up in skin. That's really interesting that tells me something because... Well, what do we know about what the skin does?
+Yes, it's protective, yes, it's epithelial tissue. So what are the other areas of the body, like the gut lining, like the respiratory passages that are made of that tissue that we should pay attention to?
+We know that the skin is a big leg circulation detox organ. So let's make sure that we're supporting those pathways and keep it as healthy as possible. Just since that seems to be when you have something going on, that's the part of your physiology that it seems to show up in.
+Speaker 2 | 01:01:40
+On the kidney. I think it was the kidney. The reason I took it is because I read somewhere that it could help with pistamines.
+hello | 01:01:47
+Yeah.
+Speaker 2 | 01:01:48
+So I'm okay not taking it, but I mean, I think it's helped a little bit.
+I mean, I still like I might like today I'm clear, but last week I kind of had a flare up, so I just. I take it before I eat.
+hello | 01:02:04
+Do you feel like it's helped since you introduced that? Hard to say.
+Speaker 2 | 01:02:12
+I think it's hard to say. I feel like I haven't had a massive flare-up. The pictures I sent you that were horrific, but I still get... It's mostly around here, and I still have some flare-ups.
+hello | 01:02:20
+Yeah. Yeah.
+
+---
+
+Speaker 2 | 01:02:24
+I feel like it's not as bad, but like, I love, sauerkraut and kimchi, like, I love those.
+hello | 01:02:24
+Yeah, I have a.
+Yeah.
+Speaker 2 | 01:02:35
+Those are... I love them.
+But then I stopped eating them because they're high in histamine, and I want to be able to eat them again, so that's why I started taking it. So I took a break for a couple of weeks and I didn't take any. I don't know if I really saw a big difference.
+hello | 01:02:49
+Difference. Yeah, I have...
+Speaker 2 | 01:02:54
+So I'm okay with eliminating that.
+hello | 01:02:55
+Yeah, I mean, I have two thoughts on that, which is something about the carnivore diet to consider is that most people aren't eating a true nose-to-tail carnivore or you're eating all the organ meats unless you are, but most people are not.
+Speaker 2 | 01:02:56
+If that need be.
+hello | 01:03:10
+And so rather than doing specific organ supplementation, like they make good organ complexes that are like liver, heart, kidney, like all the awful so like. And I mean, like, offal, not like a W, if you so... That's a nice multivitamin for a carnivore person that you like.
+Okay, let me hit my stones because those organs are typically what provide a lot of the micronutrients, the vitamins and minerals that we were missing through some of the carbohydrates and other foods.
+So that's one way to look at it. Specifically for the histamine conversation, I think there are other things that probably would have a bigger impact than the desicated kidney on that. So I don't think it's a bad idea for what you're doing
+if you want to continue that as a lifestyle long-term. I probably would have you switch over to a whole organ complex just because it makes more sense from a diversity standpoint.
+Speaker 2 | 01:03:59
+Do you have one you can recommend? Like the kidney one? I buy it from Ancestral Supplements.
+hello | 01:04:04
+Yeah, it's a great brand. Yeah, for sure. Then for the histamine side of things, let's work through some of these things and be like, "Can we resolve this by gut?"
+And seeing whatever we find in blood work and clearing up some inflammation and if not, have a go-to a little bit more specific for that versus the kidney, which is a couple of degrees of separation from histamine.
+Speaker 2 | 01:04:28
+Okay, yeah, okay, that's fine.
+hello | 01:04:29
+Yeah, and like as we.
+Speaker 2 | 01:04:32
+And I'm happy to put pause on any of them just to kind of help your protocol really get a chance to do what it's supposed to do. So. But you're okay with the college?
+And I mean, I started taking college inn because that was another st is I lost so much hair.
+hello | 01:04:49
+Yeah, hairskin nail that's great.
+Speaker 2 | 01:04:52
+I mean, I lost so much hair. I mean, my hairstylist was, like, worried, like I was ready to put a wig on.
+hello | 01:04:57
+Yeah.
+Speaker 2 | 01:04:58
+Like it was so bad. It was. It was horrible.
+And so I started taking the collagen.
+hello | 01:05:04
+And the same thing that was after. Like that stressful event, right? Yeah, I mean, your whole system.
+Speaker 2 | 01:05:08
+Yes, just immediately.
+hello | 01:05:10
+Yeah, your whole system went just... For sure. Yeah, I think collagen is great even when someone isn't recovering from a big stressor, but especially when someone is and they're seeing the impact of that hair, skin, and nails.
+Speaker 2 | 01:05:24
+Yeah, and that's an ancestral supplement as well, so that brand.
+
+---
+
+hello | 01:05:26
+Perfect.
+Yeah, I think that's great. Yeah, but I'll have all that outlined for you, too, in terms of, like, "Here's what you're doing. Let's hit pause on this.
+Let's keep this, let's change that." So it should be very simple for you to just integrate those together.
+Speaker 2 | 01:05:38
+Great.
+hello | 01:05:42
+Yeah, it is exciting.
+Speaker 2 | 01:05:43
+So I'm excited, I'm shaking out. I'm like, "I'm excited."
+hello | 01:05:46
+It should be exciting.
+Speaker 2 | 01:05:46
+So that will be good. I think that, yeah, I feel like I've. I've done really well to this point, and then I've just. I've just been at a loss, and you can tell by, like, my supplements, like the kidney, like I'm just kind of, like, grasping, like, does will this work? Will this work?
+And that's when. And Thezantha asthma popped up. And then I was. And I've been searching so long to, like, for some answers. And that's why I finally dove in to find a doctor, and I found you.
+hello | 01:06:15
+Yeah, I get it. It's. Health is really interesting. You know, when we have, like, plumbing issues or car issues, like, we take it to a plumber, we take it to a mechanic. And I think we all put a lot of pressure on ourselves when it comes to, like, our health.
+Like, I have to try everything to figure it out myself first. And sometimes you just need like a brainstorming person to like talk things through with. And you know, I think that's where health care is probably going to keep going, especially as people use AI more like you have the information of the world at your fingertips, but it's a lot of information to sift through.
+So we need to figure out like what makes the most sense for you right now with current goals.
+Speaker 2 | 01:06:48
+Yes.
+hello | 01:06:51
+Then typically the things that you use to heal are going to look a little different than the things you use to maintain that health.
+So knowing how to transition into that maintenance optimization phase when it's time...
+Speaker 2 | 01:07:02
+Yeah, I think that's great. Yeah. CA I mean, for the most part, I mean, I'm 53 and I feel great. I mean, I've seen some other 53 year olds and I'm like, wow, so and I want to continue because I'm very active. I lift weights.
+You know, I do sprints.
+hello | 01:07:17
+For sure.
+Speaker 2 | 01:07:19
+I mean, I and I feel like this is like my last key component is like the gut like, and, I want to continue down this path, and you are definitely a key to helping them.
+hello | 01:07:31
+Yeah. This is the fun part. You've done all the hard work, really. If you have, you've done a lot of hard work already. So now you get to have some fun with it.
+Speaker 2 | 01:07:42
+Yeah. It's been great. And you've been awesome. Very quick to respond. I mean, you make me feel like you have no other patients, so I appreciate that.
+hello | 01:07:48
+I do. I promise it's not just you, but, you know, I it kind.
+Speaker 2 | 01:07:52
+Well, no, I know you do, but that's just the...
+You're just quick to respond, and so it's very nice. Thank you. I've been talking to other people about you, and my one friend's like, "Let me know how it goes. Maybe I'll do that." So maybe I might prefer some people to...
+hello | 01:08:07
+That'd be great. It's really interesting. Just like on the practitioner side of things, when you design the business to give yourself energy, you're able to show up for people that way. Versus I think back to when I used to work in a clinic and my time was owned by insurance and something else.
+You just didn't have the bandwidth to be able to do that because you were so bogged down with other stuff. Yeah. So it's interesting seeing how health and wellness evolve from the business side too.
+Hopefully, it makes it better for all of you guys because it's nice to have someone to just... My God, I have a question today. I don't want to wait six months to get in and ask somebody this.
+Speaker 2 | 01:08:46
+Yeah, okay, great. So, as soon as you call in the blood work, then I can just go and make an appointment whenever.
+hello | 01:08:53
+Yeah. I'll text you tomorrow and confirm because even though I'm going to put the thing in tonight, they're obviously closed for the day, so I want to
+talk to them in the morning and make sure that that's a go.
+Then you can either... Most of them do walk-ins, or you can always call them and make an appointment if that's easier.
+
+---
+
+Speaker 2 | 01:09:11
+Okay, that's great, awesome, I'm excited.
+hello | 01:09:12
+Okay. Awesome. We'll have an amazing rest of your evening. And I will talk to you soon.
+Okay.
+Speaker 2 | 01:09:17
+Yeah, all right, thanks so much, Laura.
+hello | 01:09:18
+Bye.
