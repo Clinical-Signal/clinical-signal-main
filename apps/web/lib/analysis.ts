@@ -941,13 +941,24 @@ Return a valid JSON object with exactly this shape. No prose, no code fences.
 
 {
   "patient_summary": "string — 3-5 sentence synthesis of everything known about this patient. Clinical picture, chief concerns, relevant history.",
+  "data_completeness": {
+    "intake_complete": "boolean — whether intake data is present and substantive",
+    "labs_available": "boolean — whether lab results have been uploaded",
+    "documents_count": "number — how many supporting documents (transcripts, notes) are available",
+    "gaps": ["string — specific data gaps that limit analysis. e.g. 'No thyroid panel available', 'No medication list provided'"]
+  },
+  "safety_flags": {
+    "current_medications": ["string — each medication/supplement currently being taken, with dose if known"],
+    "known_allergies": ["string — known allergies or sensitivities"],
+    "concerns": ["string — any safety-relevant observations: drug interactions to watch, pregnancy/nursing status, red-flag symptoms that need conventional workup first"]
+  },
   "preliminary_observations": [
-    "string — pattern, connection, or red flag you see in the data. Be specific."
+    "string — pattern, connection, or red flag you see in the data. Be specific and cite which data point(s) support each observation."
   ],
   "suggested_lab_panels": [
     {
       "panel": "string — specific lab panel or test",
-      "reasoning": "string — why this would be informative for THIS patient"
+      "reasoning": "string — why this would be informative for THIS patient based on their specific data"
     }
   ],
   "questions_to_ask": [
@@ -968,12 +979,24 @@ Return a valid JSON object with exactly this shape. No prose, no code fences.
   ]
 }
 
+## Clinical approach
+- Think in functional medicine systems: root causes, interconnections, clinical sequencing.
+- Look for patterns across body systems — gut issues affecting hormones, HPA axis dysfunction driving fatigue, etc.
+- Consider the patient's readiness and capacity for change (from intake data) when suggesting agenda items.
+- If you see symptoms the patient may not connect (e.g. thyroid symptoms they haven't identified), flag those in questions_to_ask.
+
+## Safety awareness
+- Always list current medications and supplements in safety_flags — the practitioner needs this at a glance.
+- Flag any potential drug-supplement interactions the practitioner should discuss.
+- Note if pregnancy/nursing/TTC status affects what can be recommended.
+- If symptoms suggest something requiring conventional medical workup first (e.g. chest pain, sudden weight loss, blood in stool), flag it prominently in safety_flags.concerns.
+
 ## Rules
 - Ground every observation in the patient data provided. Do not fabricate.
-- If data is sparse, say so and focus questions_to_ask on filling gaps.
-- Think in functional medicine systems: root causes, interconnections, sequencing.
+- If data is sparse, say so in data_completeness.gaps and focus questions_to_ask on filling those gaps.
 - Be concise — this is a quick-reference document, not a full analysis.
-- Do not include PHI identifiers in the output.`;
+- Do not include PHI identifiers in the output.
+- This is a decision-support tool requiring practitioner review, not autonomous medical advice.`;
 
 export async function generatePrepBrief(
   timelineText: string,

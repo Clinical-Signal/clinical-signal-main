@@ -98,6 +98,9 @@ export interface PatientSummary {
     version: number;
     createdAt: Date;
   } | null;
+  prepBrief: {
+    generatedAt: Date;
+  } | null;
 }
 
 export async function getPatientSummary(
@@ -117,6 +120,7 @@ export async function getPatientSummary(
       proto_status: string | null;
       proto_version: number | null;
       proto_created: Date | null;
+      brief_created: Date | null;
     }>(
       `SELECT p.id,
               pgp_sym_decrypt(p.name_encrypted, $2)::text AS name,
@@ -130,7 +134,8 @@ export async function getPatientSummary(
               latest.title AS proto_title,
               latest.status AS proto_status,
               latest.version AS proto_version,
-              latest.created_at AS proto_created
+              latest.created_at AS proto_created,
+              brief.created_at AS brief_created
          FROM patients p
          LEFT JOIN LATERAL (
            SELECT id, title, status, version, created_at
@@ -139,6 +144,13 @@ export async function getPatientSummary(
             ORDER BY created_at DESC
             LIMIT 1
          ) latest ON true
+         LEFT JOIN LATERAL (
+           SELECT created_at
+             FROM intake_documents
+            WHERE patient_id = p.id AND metadata->>'type' = 'prep_brief'
+            ORDER BY created_at DESC
+            LIMIT 1
+         ) brief ON true
         WHERE p.id = $1`,
       [patientId, phiKey()],
     );
@@ -163,6 +175,9 @@ export async function getPatientSummary(
             version: r.proto_version!,
             createdAt: r.proto_created!,
           }
+        : null,
+      prepBrief: r.brief_created
+        ? { generatedAt: r.brief_created }
         : null,
     };
   });

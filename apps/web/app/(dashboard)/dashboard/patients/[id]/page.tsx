@@ -60,7 +60,7 @@ export default async function PatientDetailPage({
         description={summary.dob ? `Date of birth: ${summary.dob}` : "Date of birth not recorded"}
       />
 
-      <section aria-label="Care stages" className="grid gap-4 md:grid-cols-3">
+      <section aria-label="Care stages" className="grid gap-4 md:grid-cols-2">
         <HubCard
           title="Intake"
           status={intakeStatus(summary)}
@@ -83,9 +83,17 @@ export default async function PatientDetailPage({
           }
         />
         <HubCard
-          title="Documents"
-          status="Transcripts, notes, and files"
-          body={null}
+          title="Documents & prep brief"
+          status={
+            summary.prepBrief
+              ? `Brief generated ${new Date(summary.prepBrief.generatedAt).toLocaleDateString()}`
+              : "No prep brief yet"
+          }
+          body={
+            summary.prepBrief ? (
+              <Badge tone="success">Brief ready</Badge>
+            ) : null
+          }
           primary={{
             href: `/dashboard/patients/${params.id}/intake-hub`,
             label: "Intake hub",

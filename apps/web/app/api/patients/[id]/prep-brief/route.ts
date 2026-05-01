@@ -6,9 +6,65 @@ import {
   generatePrepBrief,
 } from "@/lib/analysis";
 import { getDocumentText } from "@/lib/intake-documents";
+import { getActivePreferencesForPrompt } from "@/lib/preferences";
 import { withTenant } from "@/lib/db";
 
 export const maxDuration = 300;
+
+/** Return the most recently generated prep brief for this patient, if one exists. */
+export async function GET(
+  _req: Request,
+  ctx: { params: { id: string } },
+) {
+  const user = await apiAuth();
+  if (!user) return Response.json({ error: "Not authenticated." }, { status: 401 });
+  const ok = await patientBelongsToTenant(user.tenantId, ctx.params.id);
+  if (!ok) return Response.json({ error: "not found" }, { status: 404 });
+
+  const result = await withTenant(user.tenantId, async (c) => {
+    const res = await c.query(
+      `SELECT extracted_text, created_at, metadata
+       FROM intake_documents
+       WHERE tenant_id = $1 AND patient_id = $2 AND metadata->>'type' = 'prep_brief'
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [user.tenantId, ctx.params.id],
+    );
+    return res.rows[0] ?? null;
+  });
+
+  if (!result) {
+    return Response.json({ exists: false });
+  }
+
+  let brief: Record<string, unknown> = {};
+  try {
+    brief = JSON.parse(result.extracted_text);
+  } catch {
+    brief = {};
+  }
+
+  // Check if new documents were uploaded after the brief was generated
+  const newerDocs = await withTenant(user.tenantId, async (c) => {
+    const res = await c.query(
+      `SELECT COUNT(*)::int AS cnt
+       FROM intake_documents
+       WHERE tenant_id = $1 AND patient_id = $2
+         AND (metadata->>'type' IS DISTINCT FROM 'prep_brief')
+         AND created_at > $3`,
+      [user.tenantId, ctx.params.id, result.created_at],
+    );
+    return res.rows[0]?.cnt ?? 0;
+  });
+
+  return Response.json({
+    exists: true,
+    brief,
+    generatedAt: result.created_at,
+    meta: result.metadata,
+    newDocsSinceGeneration: newerDocs,
+  });
+}
 
 export async function POST(
   _req: Request,
@@ -64,6 +120,14 @@ export async function POST(
             sections.push(text.length > 8000 ? text.slice(0, 8000) + "\n...(truncated)" : text);
           }
         }
+
+        // Include practitioner preferences for style/approach context
+        try {
+          const prefsText = await getActivePreferencesForPrompt(user.tenantId, user.practitionerId);
+          if (prefsText) {
+            sections.push("\n" + prefsText);
+          }
+        } catch { /* non-fatal */ }
 
         const timelineText = sections.join("\n");
 

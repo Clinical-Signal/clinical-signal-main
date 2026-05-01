@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -529,6 +529,17 @@ function PractitionerNote({
 
 interface PrepBrief {
   patient_summary?: string;
+  data_completeness?: {
+    intake_complete?: boolean;
+    labs_available?: boolean;
+    documents_count?: number;
+    gaps?: string[];
+  };
+  safety_flags?: {
+    current_medications?: string[];
+    known_allergies?: string[];
+    concerns?: string[];
+  };
   preliminary_observations?: string[];
   suggested_lab_panels?: Array<{ panel: string; reasoning: string }>;
   questions_to_ask?: Array<{ question: string; why: string }>;
@@ -551,6 +562,29 @@ function PrepBriefSection({
   const [status, setStatus] = useState<string | null>(null);
   const [brief, setBrief] = useState<PrepBrief | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [generatedAt, setGeneratedAt] = useState<string | null>(null);
+  const [newDocsSince, setNewDocsSince] = useState(0);
+  const [loading, setLoading] = useState(true);
+
+  // Load existing prep brief on mount
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/patients/" + patientId + "/prep-brief");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (cancelled) return;
+        if (data.exists && data.brief) {
+          setBrief(data.brief);
+          setGeneratedAt(data.generatedAt ?? null);
+          setNewDocsSince(data.newDocsSinceGeneration ?? 0);
+        }
+      } catch { /* ignore */ }
+      finally { if (!cancelled) setLoading(false); }
+    })();
+    return () => { cancelled = true; };
+  }, [patientId]);
 
   async function generate() {
     setGenerating(true);
@@ -580,7 +614,7 @@ function PrepBriefSection({
             const evt = JSON.parse(line);
             if (evt.error) throw new Error(evt.error);
             if (evt.status) setStatus(evt.status);
-            if (evt.done && evt.brief) { setBrief(evt.brief); onGenerated(); }
+            if (evt.done && evt.brief) { setBrief(evt.brief); setGeneratedAt(new Date().toISOString()); setNewDocsSince(0); onGenerated(); }
           } catch (e) {
             if (e instanceof Error && e.message) throw e;
           }
@@ -589,7 +623,7 @@ function PrepBriefSection({
       if (buffer.trim()) {
         try {
           const evt = JSON.parse(buffer);
-          if (evt.done && evt.brief) { setBrief(evt.brief); onGenerated(); }
+          if (evt.done && evt.brief) { setBrief(evt.brief); setGeneratedAt(new Date().toISOString()); setNewDocsSince(0); onGenerated(); }
           if (evt.error) throw new Error(evt.error);
         } catch (e) {
           if (e instanceof Error && e.message) throw e;
@@ -607,6 +641,29 @@ function PrepBriefSection({
     if (!brief) return;
     const lines: string[] = [];
     if (brief.patient_summary) lines.push("PATIENT SUMMARY\n" + brief.patient_summary + "\n");
+    if (brief.data_completeness?.gaps?.length) {
+      lines.push("DATA GAPS");
+      brief.data_completeness.gaps.forEach((g) => lines.push("- " + g));
+      lines.push("");
+    }
+    if (brief.safety_flags) {
+      const sf = brief.safety_flags;
+      if (sf.current_medications?.length) {
+        lines.push("CURRENT MEDICATIONS");
+        sf.current_medications.forEach((m) => lines.push("- " + m));
+        lines.push("");
+      }
+      if (sf.known_allergies?.length) {
+        lines.push("KNOWN ALLERGIES");
+        sf.known_allergies.forEach((a) => lines.push("- " + a));
+        lines.push("");
+      }
+      if (sf.concerns?.length) {
+        lines.push("SAFETY CONCERNS");
+        sf.concerns.forEach((c) => lines.push("- " + c));
+        lines.push("");
+      }
+    }
     if (brief.preliminary_observations?.length) {
       lines.push("PRELIMINARY OBSERVATIONS");
       brief.preliminary_observations.forEach((o) => lines.push("- " + o));
@@ -644,6 +701,16 @@ function PrepBriefSection({
           <p className="mt-0.5 text-xs text-ink-subtle">
             AI-generated briefing from all uploaded patient data. Read before your call.
           </p>
+          {generatedAt && (
+            <p className="mt-0.5 text-[10px] text-ink-faint">
+              Generated {new Date(generatedAt).toLocaleString()}
+            </p>
+          )}
+          {newDocsSince > 0 && (
+            <p className="mt-1 rounded-md bg-warning-soft/40 px-2 py-1 text-xs font-medium text-warning">
+              {newDocsSince} new document{newDocsSince > 1 ? "s" : ""} uploaded since this brief was generated — consider regenerating.
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-2">
           {brief && (
@@ -680,7 +747,23 @@ function PrepBriefSection({
         </div>
       ) : null}
 
+      {loading && !brief ? (
+        <div className="px-6 py-4">
+          <p className="text-sm text-ink-muted">Loading previous brief...</p>
+        </div>
+      ) : null}
+
       {brief ? <PrepBriefDisplay brief={brief} /> : null}
+
+      {brief ? (
+        <div className="border-t border-line px-6 py-3">
+          <p className="text-xs text-ink-faint">
+            This prep brief was generated with AI assistance and is intended as a clinical
+            decision-support tool. It requires practitioner review and clinical judgment.
+            It is not a substitute for professional medical evaluation.
+          </p>
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -694,6 +777,77 @@ function PrepBriefDisplay({ brief }: { brief: PrepBrief }) {
       {brief.patient_summary ? (
         <BriefSection title="Patient summary" sectionKey="summary" collapsed={collapsed} toggle={toggle}>
           <p className="text-sm text-ink leading-relaxed">{brief.patient_summary}</p>
+        </BriefSection>
+      ) : null}
+
+      {/* Data completeness indicator */}
+      {brief.data_completeness ? (
+        <BriefSection title="Data completeness" sectionKey="data" collapsed={collapsed} toggle={toggle}>
+          <div className="flex flex-wrap gap-3 text-xs">
+            <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-medium ${brief.data_completeness.intake_complete ? "bg-success-soft/40 text-success" : "bg-warning-soft/40 text-warning"}`}>
+              {brief.data_completeness.intake_complete ? "✓" : "○"} Intake
+            </span>
+            <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-medium ${brief.data_completeness.labs_available ? "bg-success-soft/40 text-success" : "bg-warning-soft/40 text-warning"}`}>
+              {brief.data_completeness.labs_available ? "✓" : "○"} Labs
+            </span>
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-surface-sunken px-2.5 py-1 font-medium text-ink-subtle">
+              {brief.data_completeness.documents_count ?? 0} documents
+            </span>
+          </div>
+          {brief.data_completeness.gaps?.length ? (
+            <div className="mt-2">
+              <span className="text-xs font-medium text-warning">Gaps:</span>
+              <ul className="mt-1 flex flex-col gap-1">
+                {brief.data_completeness.gaps.map((gap, i) => (
+                  <li key={i} className="flex gap-2 text-xs text-ink-muted">
+                    <span className="mt-0.5 text-warning">⚠</span> {gap}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+        </BriefSection>
+      ) : null}
+
+      {/* Safety flags */}
+      {brief.safety_flags && (
+        brief.safety_flags.current_medications?.length ||
+        brief.safety_flags.known_allergies?.length ||
+        brief.safety_flags.concerns?.length
+      ) ? (
+        <BriefSection title="Safety at a glance" sectionKey="safety" collapsed={collapsed} toggle={toggle}>
+          <div className="flex flex-col gap-3">
+            {brief.safety_flags.current_medications?.length ? (
+              <div>
+                <span className="text-xs font-medium text-ink-subtle">Current medications / supplements</span>
+                <ul className="mt-1 flex flex-col gap-0.5">
+                  {brief.safety_flags.current_medications.map((m, i) => (
+                    <li key={i} className="text-xs text-ink-muted">• {m}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+            {brief.safety_flags.known_allergies?.length ? (
+              <div>
+                <span className="text-xs font-medium text-ink-subtle">Known allergies</span>
+                <ul className="mt-1 flex flex-col gap-0.5">
+                  {brief.safety_flags.known_allergies.map((a, i) => (
+                    <li key={i} className="text-xs text-ink-muted">• {a}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+            {brief.safety_flags.concerns?.length ? (
+              <div className="rounded-md border border-danger/20 bg-danger/5 p-2">
+                <span className="text-xs font-semibold text-danger">Safety concerns</span>
+                <ul className="mt-1 flex flex-col gap-0.5">
+                  {brief.safety_flags.concerns.map((c, i) => (
+                    <li key={i} className="text-xs text-danger/80">⚠ {c}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </div>
         </BriefSection>
       ) : null}
 
