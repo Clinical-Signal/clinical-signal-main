@@ -25,7 +25,7 @@ export function SignupForm() {
       <Field
         label="Password"
         htmlFor="signup-password"
-        hint="Minimum 12 characters. Checked against the HaveIBeenPwned breach corpus."
+        hint="Minimum 8 characters."
       >
         <Input
           id="signup-password"

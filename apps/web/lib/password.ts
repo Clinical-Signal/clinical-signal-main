@@ -18,20 +18,6 @@ export async function validatePasswordPolicy(pw: string): Promise<PasswordCheckR
   if (pw.length < MIN_LENGTH) {
     return { ok: false, reason: `Password must be at least ${MIN_LENGTH} characters.` };
   }
-  const breached = await isBreachedPassword(pw);
-  if (breached === true) {
-    return {
-      ok: false,
-      reason:
-        "This password appears in a known breach corpus. Choose a different password.",
-    };
-  }
-  if (breached === "error" && process.env.HIBP_FAIL_OPEN !== "true") {
-    return {
-      ok: false,
-      reason: "Unable to verify password safety right now. Please try again shortly.",
-    };
-  }
   return { ok: true };
 }
 
