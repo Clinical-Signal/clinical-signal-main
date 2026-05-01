@@ -86,6 +86,15 @@ export function CallDeckView({ content }: { content: Record<string, unknown> }) 
           );
         })}
       </div>
+
+      {/* Disclaimer */}
+      <div className="mt-6 border-t border-line pt-4">
+        <p className="text-xs text-ink-faint">
+          This call deck was generated with AI assistance and is intended as a clinical
+          decision-support tool. It requires practitioner review and clinical judgment
+          before use. It is not a substitute for professional medical evaluation.
+        </p>
+      </div>
     </div>
   );
 }

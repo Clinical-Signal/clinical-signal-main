@@ -121,8 +121,20 @@ export default async function ProtocolViewPage({
           <RenderSections
             content={p.clinicalContent}
             order={CLINICAL_ORDER}
-            skip={["_generation"]}
+            skip={["_generation", "safety_review"]}
           />
+
+          {/* Safety review (if present from updated prompts) */}
+          {typeof (p.clinicalContent as Record<string, unknown>).safety_review === "object" &&
+            (p.clinicalContent as Record<string, unknown>).safety_review !== null && (
+            <div className="mt-6 rounded-lg border border-accent-soft bg-accent-soft/10 p-4">
+              <h3 className="mb-2 text-sm font-semibold text-ink">Safety review</h3>
+              <RenderSections
+                content={(p.clinicalContent as Record<string, unknown>).safety_review as Record<string, unknown>}
+                order={["drug_interactions_checked", "contraindications_noted", "dose_ceiling_compliance", "pregnancy_nursing_safe"]}
+              />
+            </div>
+          )}
         </article>
 
         <article className="rounded-xl border border-line bg-surface-sunken/40 p-6">
@@ -134,6 +146,16 @@ export default async function ProtocolViewPage({
           </header>
           <RenderSections content={p.clientContent} order={CLIENT_ORDER} />
         </article>
+      </div>
+
+      {/* Disclaimer */}
+      <div className="mt-6 border-t border-line pt-4">
+        <p className="text-xs text-ink-faint">
+          This protocol was generated with AI assistance and is intended as a clinical
+          decision-support tool. It requires practitioner review, clinical judgment, and
+          approval before implementation. It is not a substitute for professional medical
+          evaluation.
+        </p>
       </div>
     </Page>
   );
