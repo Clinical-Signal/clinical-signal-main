@@ -146,23 +146,23 @@ export async function getPatientSummary(
               fp.item_count AS fp_item_count
          FROM patients p
          LEFT JOIN LATERAL (
-           SELECT id, title, status, version, created_at
-             FROM protocols
-            WHERE patient_id = p.id
-            ORDER BY created_at DESC
+           SELECT pr.id, pr.title, pr.status, pr.version, pr.created_at
+             FROM protocols pr
+            WHERE pr.patient_id = p.id
+            ORDER BY pr.created_at DESC
             LIMIT 1
          ) latest ON true
          LEFT JOIN LATERAL (
-           SELECT created_at
-             FROM intake_documents
-            WHERE patient_id = p.id AND metadata->>'type' = 'prep_brief'
-            ORDER BY created_at DESC
+           SELECT id2.created_at
+             FROM intake_documents id2
+            WHERE id2.patient_id = p.id AND id2.metadata->>'type' = 'prep_brief'
+            ORDER BY id2.created_at DESC
             LIMIT 1
          ) brief ON true
          LEFT JOIN LATERAL (
-           SELECT assigned_at, jsonb_array_length(items) AS item_count
-             FROM foundational_plans
-            WHERE patient_id = p.id
+           SELECT fp2.assigned_at, jsonb_array_length(fp2.items) AS item_count
+             FROM foundational_plans fp2
+            WHERE fp2.patient_id = p.id
             LIMIT 1
          ) fp ON true
         WHERE p.id = $1`,
