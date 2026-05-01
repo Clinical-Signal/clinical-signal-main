@@ -214,14 +214,14 @@ export function EditForm(props: Props) {
           title="Output A · Clinical protocol"
           subtitle="Practitioner copy"
           tone="surface"
-          editor={<ClinicalEditor value={clinical} onChange={setClinical} />}
+          editor={<ClinicalEditor value={clinical} onChange={setClinical} original={initialClinicalStripped} />}
           preview={<JsonPreview data={clinical} />}
         />
         <PanelWithPreview
           title="Output B · Client action plan"
           subtitle="Patient copy"
           tone="sunken"
-          editor={<ClientEditor value={client} onChange={setClient} />}
+          editor={<ClientEditor value={client} onChange={setClient} original={props.initialClient} />}
           preview={<JsonPreview data={client} />}
         />
       </div>
@@ -648,26 +648,28 @@ function ItemList<T extends Record<string, any>>({
 // ---------------------------------------------------------------------------
 
 const CLINICAL_SECTIONS = [
-  { key: "summary_of_findings", label: "Summary" },
-  { key: "systems_analysis", label: "Systems" },
-  { key: "dietary_recommendations", label: "Diet" },
-  { key: "supplement_protocol", label: "Supplements" },
-  { key: "lifestyle_modifications", label: "Lifestyle" },
-  { key: "lab_retesting", label: "Lab retesting" },
-  { key: "follow_up_timeline", label: "Follow-up" },
-  { key: "clinical_reasoning", label: "Reasoning" },
-  { key: "areas_of_uncertainty", label: "Uncertainty" },
+  { key: "summary_of_findings", label: "Summary", help: "High-level synthesis of key findings across all patient data. Check that it captures the full clinical picture." },
+  { key: "systems_analysis", label: "Systems", help: "Body systems involved and how they interconnect. Verify root-cause reasoning and system relationships." },
+  { key: "daily_protocol", label: "Daily routine", help: "Structured daily protocol organized by timing (morning, with meals, evening). Review for practicality." },
+  { key: "dietary_recommendations", label: "Diet", help: "Specific dietary changes with clinical rationale. Confirm recommendations align with patient's relationship with food." },
+  { key: "supplement_protocol", label: "Supplements", help: "Supplements with dosages, timing, and rationale. Verify doses are within safe ranges and check for interactions." },
+  { key: "lifestyle_modifications", label: "Lifestyle", help: "Sleep, movement, stress management changes. Ensure these are realistic given the patient's current capacity." },
+  { key: "oral_nasal_protocol", label: "Oral / nasal", help: "Oral and nasal microbiome support (tongue scraping, nasal spray, etc.). Often informed by GI Map bacterial patterns." },
+  { key: "lab_retesting", label: "Lab retesting", help: "Which labs to re-run and when. Verify timing makes clinical sense for monitoring progress." },
+  { key: "follow_up_timeline", label: "Follow-up", help: "Milestones and check-in schedule. Confirm pacing works for this patient's engagement level." },
+  { key: "clinical_reasoning", label: "Reasoning", help: "The AI's clinical reasoning chain. Review this carefully — it reveals the logic behind every recommendation." },
+  { key: "areas_of_uncertainty", label: "Uncertainty", help: "What the AI is unsure about. These are the areas most likely to need your clinical judgment." },
 ];
 
 const CLIENT_SECTIONS = [
-  { key: "intro", label: "Intro" },
-  { key: "layers", label: "Layers" },  // v2 prompt
-  { key: "phases", label: "Phases" },   // v1 fallback
-  { key: "closing_note", label: "Closing" },
-  { key: "if_something_feels_off", label: "If issues" },
+  { key: "intro", label: "Intro", help: "Personal greeting and context-setting for the patient. Should feel warm, not clinical." },
+  { key: "layers", label: "Layers", help: "Symptom-based progression — patient moves forward when symptoms stabilize, not by calendar. Review layer sequencing." },
+  { key: "phases", label: "Phases", help: "Calendar-based progression (legacy format). Used by older protocols." },
+  { key: "closing_note", label: "Closing", help: "Encouragement and next steps. Should leave the patient feeling supported." },
+  { key: "if_something_feels_off", label: "If issues", help: "Safety net — what the patient should do if they experience side effects or concerns." },
 ];
 
-function SectionNav({ sections, data }: { sections: { key: string; label: string }[]; data: Record<string, any> }) {
+function SectionNav({ sections, data }: { sections: { key: string; label: string; help?: string }[]; data: Record<string, any> }) {
   return (
     <nav className="mb-3 flex flex-wrap gap-1 border-b border-line pb-3">
       {sections.map((s) => {
@@ -677,6 +679,7 @@ function SectionNav({ sections, data }: { sections: { key: string; label: string
           <button
             key={s.key}
             type="button"
+            title={s.help}
             onClick={() => document.getElementById("sec-" + s.key)?.scrollIntoView({ behavior: "smooth", block: "start" })}
             className={`rounded-md px-2 py-1 text-xs font-medium transition-colors ${
               filled ? "bg-accent-soft text-accent" : "bg-surface-sunken text-ink-faint"
@@ -690,12 +693,107 @@ function SectionNav({ sections, data }: { sections: { key: string; label: string
   );
 }
 
+/** Inline help text shown below each section heading in the editor */
+function SectionHelp({ text }: { text?: string }) {
+  if (!text) return null;
+  return (
+    <p className="mb-2 text-xs text-ink-muted italic">{text}</p>
+  );
+}
+
+/** "Reset to AI original" button — only visible when the section differs from original */
+function ResetSectionButton({
+  sectionKey,
+  current,
+  original,
+  onReset,
+}: {
+  sectionKey: string;
+  current: unknown;
+  original: unknown;
+  onReset: () => void;
+}) {
+  const changed = JSON.stringify(current) !== JSON.stringify(original);
+  if (!changed) return null;
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        if (confirm(`Reset "${sectionKey.replace(/_/g, " ")}" to the AI-generated original?`)) {
+          onReset();
+        }
+      }}
+      className="self-end rounded-md border border-line-strong bg-surface px-2 py-1 text-[10px] font-medium text-ink-subtle transition-colors hover:bg-surface-sunken hover:text-ink"
+      title="Reset this section to the original AI-generated content"
+    >
+      Reset to original
+    </button>
+  );
+}
+
+function SafetyReviewCard({ review }: { review: Record<string, any> | undefined }) {
+  if (!review || typeof review !== "object") {
+    return (
+      <div className="rounded-lg border border-line bg-surface-sunken/40 p-4">
+        <h3 className="text-sm font-semibold text-ink-subtle">Safety review</h3>
+        <p className="mt-1 text-xs text-ink-faint">
+          Not available — this protocol was generated before safety guardrails were added.
+          Consider regenerating to include safety checks.
+        </p>
+      </div>
+    );
+  }
+
+  const checks = [
+    { key: "drug_interactions_checked", label: "Drug-supplement interactions checked", icon: "⚖️" },
+    { key: "contraindications_noted", label: "Contraindications noted", icon: "⚠️" },
+    { key: "dose_ceiling_compliance", label: "Dose ceilings within safe ranges", icon: "📊" },
+    { key: "pregnancy_nursing_safe", label: "Pregnancy / nursing screened", icon: "🛡️" },
+  ];
+
+  return (
+    <div className="rounded-lg border border-accent-soft bg-accent-soft/10 p-4">
+      <h3 className="mb-3 text-sm font-semibold text-ink">Safety review</h3>
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        {checks.map(({ key, label, icon }) => {
+          const val = review[key];
+          const isOk = val === true || val === "yes" || val === "Yes" ||
+            (typeof val === "string" && val.toLowerCase().includes("yes"));
+          const isFlagged = val === false || val === "no" || val === "No" ||
+            (typeof val === "string" && val.toLowerCase().includes("no"));
+          return (
+            <div key={key} className="flex items-start gap-2 rounded-md border border-line bg-surface p-2.5">
+              <span className="text-base leading-none">{icon}</span>
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium text-ink">{label}</span>
+                  {isOk && <span className="rounded-full bg-success-soft px-1.5 py-0.5 text-[10px] font-semibold text-success">OK</span>}
+                  {isFlagged && <span className="rounded-full bg-danger/10 px-1.5 py-0.5 text-[10px] font-semibold text-danger">FLAG</span>}
+                </div>
+                {typeof val === "string" && val.length > 3 && (
+                  <p className="mt-0.5 text-xs text-ink-muted">{val}</p>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function helpFor(sections: { key: string; help?: string }[], key: string): string | undefined {
+  return sections.find((s) => s.key === key)?.help;
+}
+
 function ClinicalEditor({
   value,
   onChange,
+  original,
 }: {
   value: Record<string, any>;
   onChange: (next: Record<string, any>) => void;
+  original: Record<string, any>;
 }) {
   function patch(p: Record<string, any>) {
     onChange({ ...value, ...p });
@@ -703,8 +801,13 @@ function ClinicalEditor({
 
   return (
     <>
+      {/* Safety review — shown prominently before all sections */}
+      <SafetyReviewCard review={value.safety_review} />
+
       <SectionNav sections={CLINICAL_SECTIONS} data={value} />
       <span id="sec-summary_of_findings" className="scroll-mt-32" />
+      <SectionHelp text={helpFor(CLINICAL_SECTIONS, "summary_of_findings")} />
+      <ResetSectionButton sectionKey="summary_of_findings" current={value.summary_of_findings} original={original.summary_of_findings} onReset={() => patch({ summary_of_findings: original.summary_of_findings })} />
       <FieldText
         label="Summary of findings"
         value={value.summary_of_findings ?? ""}
@@ -712,6 +815,8 @@ function ClinicalEditor({
         rows={4}
       />
       <span id="sec-systems_analysis" className="scroll-mt-32" />
+      <SectionHelp text={helpFor(CLINICAL_SECTIONS, "systems_analysis")} />
+      <ResetSectionButton sectionKey="systems_analysis" current={value.systems_analysis} original={original.systems_analysis} onReset={() => patch({ systems_analysis: original.systems_analysis })} />
       <ItemList
         label="Systems analysis"
         items={value.systems_analysis ?? []}
@@ -729,7 +834,38 @@ function ClinicalEditor({
           </div>
         )}
       />
+      <span id="sec-daily_protocol" className="scroll-mt-32" />
+      <SectionHelp text={helpFor(CLINICAL_SECTIONS, "daily_protocol")} />
+      {value.daily_protocol && typeof value.daily_protocol === "object" ? (
+        <div className="flex flex-col gap-3">
+          <span className={labelClass}>Daily protocol</span>
+          {["morning", "with_meals", "evening", "as_needed"].map((timeslot) => {
+            const items = (value.daily_protocol as Record<string, any>)[timeslot];
+            if (!items && !Array.isArray(items)) return null;
+            return (
+              <StringList
+                key={timeslot}
+                label={timeslot.replace(/_/g, " ").replace(/^\w/, (c: string) => c.toUpperCase())}
+                items={Array.isArray(items) ? items : []}
+                onChange={(next) =>
+                  patch({ daily_protocol: { ...value.daily_protocol, [timeslot]: next } })
+                }
+              />
+            );
+          })}
+        </div>
+      ) : (
+        <FieldText
+          label="Daily protocol"
+          value={typeof value.daily_protocol === "string" ? value.daily_protocol : ""}
+          onChange={(v) => patch({ daily_protocol: v })}
+          rows={4}
+          placeholder="Structured daily routine — morning, with meals, evening"
+        />
+      )}
       <span id="sec-dietary_recommendations" className="scroll-mt-32" />
+      <SectionHelp text={helpFor(CLINICAL_SECTIONS, "dietary_recommendations")} />
+      <ResetSectionButton sectionKey="dietary_recommendations" current={value.dietary_recommendations} original={original.dietary_recommendations} onReset={() => patch({ dietary_recommendations: original.dietary_recommendations })} />
       <ItemList
         label="Dietary recommendations"
         items={value.dietary_recommendations ?? []}
@@ -744,6 +880,8 @@ function ClinicalEditor({
         )}
       />
       <span id="sec-supplement_protocol" className="scroll-mt-32" />
+      <SectionHelp text={helpFor(CLINICAL_SECTIONS, "supplement_protocol")} />
+      <ResetSectionButton sectionKey="supplement_protocol" current={value.supplement_protocol} original={original.supplement_protocol} onReset={() => patch({ supplement_protocol: original.supplement_protocol })} />
       <ItemList
         label="Supplement protocol"
         items={value.supplement_protocol ?? []}
@@ -767,6 +905,8 @@ function ClinicalEditor({
         )}
       />
       <span id="sec-lifestyle_modifications" className="scroll-mt-32" />
+      <SectionHelp text={helpFor(CLINICAL_SECTIONS, "lifestyle_modifications")} />
+      <ResetSectionButton sectionKey="lifestyle_modifications" current={value.lifestyle_modifications} original={original.lifestyle_modifications} onReset={() => patch({ lifestyle_modifications: original.lifestyle_modifications })} />
       <ItemList
         label="Lifestyle modifications"
         items={value.lifestyle_modifications ?? []}
@@ -780,7 +920,27 @@ function ClinicalEditor({
           </div>
         )}
       />
+      <span id="sec-oral_nasal_protocol" className="scroll-mt-32" />
+      <SectionHelp text={helpFor(CLINICAL_SECTIONS, "oral_nasal_protocol")} />
+      <ItemList
+        label="Oral / nasal protocol"
+        items={value.oral_nasal_protocol ?? []}
+        empty={() => ({ intervention: "", product: "", dosage: "", timing: "", rationale: "" })}
+        onChange={(next) => patch({ oral_nasal_protocol: next })}
+        renderItem={(it, p) => (
+          <div className="flex flex-col gap-2">
+            <div className="grid grid-cols-2 gap-2">
+              <FieldText label="Intervention" value={it.intervention ?? ""} onChange={(v) => p({ intervention: v })} placeholder="e.g. tongue scraping, nasal spray" />
+              <FieldText label="Product" value={it.product ?? ""} onChange={(v) => p({ product: v })} placeholder="e.g. Xlear, Dentalcidin" />
+              <FieldText label="Dosage" value={it.dosage ?? ""} onChange={(v) => p({ dosage: v })} />
+              <FieldText label="Timing" value={it.timing ?? ""} onChange={(v) => p({ timing: v })} />
+            </div>
+            <FieldText label="Rationale" value={it.rationale ?? ""} onChange={(v) => p({ rationale: v })} rows={2} />
+          </div>
+        )}
+      />
       <span id="sec-lab_retesting" className="scroll-mt-32" />
+      <SectionHelp text={helpFor(CLINICAL_SECTIONS, "lab_retesting")} />
       <ItemList
         label="Lab re-testing"
         items={value.lab_retesting ?? []}
@@ -795,6 +955,7 @@ function ClinicalEditor({
         )}
       />
       <span id="sec-follow_up_timeline" className="scroll-mt-32" />
+      <SectionHelp text={helpFor(CLINICAL_SECTIONS, "follow_up_timeline")} />
       <ItemList
         label="Follow-up timeline"
         items={value.follow_up_timeline ?? []}
@@ -808,6 +969,8 @@ function ClinicalEditor({
         )}
       />
       <span id="sec-clinical_reasoning" className="scroll-mt-32" />
+      <SectionHelp text={helpFor(CLINICAL_SECTIONS, "clinical_reasoning")} />
+      <ResetSectionButton sectionKey="clinical_reasoning" current={value.clinical_reasoning} original={original.clinical_reasoning} onReset={() => patch({ clinical_reasoning: original.clinical_reasoning })} />
       <FieldText
         label="Clinical reasoning"
         value={value.clinical_reasoning ?? ""}
@@ -815,6 +978,7 @@ function ClinicalEditor({
         rows={6}
       />
       <span id="sec-areas_of_uncertainty" className="scroll-mt-32" />
+      <SectionHelp text={helpFor(CLINICAL_SECTIONS, "areas_of_uncertainty")} />
       <ItemList
         label="Areas of uncertainty"
         items={value.areas_of_uncertainty ?? []}
@@ -859,9 +1023,11 @@ function PrioritySelect({
 function ClientEditor({
   value,
   onChange,
+  original,
 }: {
   value: Record<string, any>;
   onChange: (next: Record<string, any>) => void;
+  original: Record<string, any>;
 }) {
   function patch(p: Record<string, any>) {
     onChange({ ...value, ...p });
@@ -871,6 +1037,8 @@ function ClientEditor({
     <>
       <SectionNav sections={CLIENT_SECTIONS} data={value} />
       <span id="sec-intro" className="scroll-mt-32" />
+      <SectionHelp text={helpFor(CLIENT_SECTIONS, "intro")} />
+      <ResetSectionButton sectionKey="intro" current={value.intro} original={original.intro} onReset={() => patch({ intro: original.intro })} />
       <FieldText
         label="Intro"
         value={value.intro ?? ""}
@@ -881,6 +1049,8 @@ function ClientEditor({
       {(value.layers ?? []).length > 0 && (
         <>
           <span id="sec-layers" className="scroll-mt-32" />
+          <SectionHelp text={helpFor(CLIENT_SECTIONS, "layers")} />
+          <ResetSectionButton sectionKey="layers" current={value.layers} original={original.layers} onReset={() => patch({ layers: original.layers })} />
           <ItemList
             label="Layers"
             items={value.layers ?? []}
@@ -920,6 +1090,7 @@ function ClientEditor({
       {(value.phases ?? []).length > 0 && (
         <>
           <span id="sec-phases" className="scroll-mt-32" />
+          <SectionHelp text={helpFor(CLIENT_SECTIONS, "phases")} />
           <ItemList
             label="Phases"
             items={value.phases ?? []}
@@ -968,6 +1139,7 @@ function ClientEditor({
         </>
       )}
       <span id="sec-closing_note" className="scroll-mt-32" />
+      <SectionHelp text={helpFor(CLIENT_SECTIONS, "closing_note")} />
       <FieldText
         label="Closing note"
         value={value.closing_note ?? ""}
@@ -975,6 +1147,7 @@ function ClientEditor({
         rows={3}
       />
       <span id="sec-if_something_feels_off" className="scroll-mt-32" />
+      <SectionHelp text={helpFor(CLIENT_SECTIONS, "if_something_feels_off")} />
       <StringList
         label="If something feels off"
         items={value.if_something_feels_off ?? []}
