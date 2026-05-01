@@ -205,6 +205,50 @@ export async function approveProtocol(
   });
 }
 
+/**
+ * Get the original AI-generated protocol (version 1) for a patient.
+ * Used to compute diffs when the practitioner edits and approves a later version.
+ */
+export async function getOriginalProtocol(
+  tenantId: string,
+  patientId: string,
+): Promise<ProtocolDetail | null> {
+  return withTenant(tenantId, async (c) => {
+    const { rows } = await c.query<{
+      id: string;
+      patient_id: string;
+      analysis_id: string | null;
+      title: string;
+      status: ProtocolStatus;
+      version: number;
+      clinical_content: Record<string, unknown>;
+      client_content: Record<string, unknown>;
+      created_at: Date;
+    }>(
+      `SELECT id, patient_id, analysis_id, title, status, version,
+              clinical_content, client_content, created_at
+         FROM protocols
+        WHERE patient_id = $1
+        ORDER BY version ASC
+        LIMIT 1`,
+      [patientId],
+    );
+    if (!rows[0]) return null;
+    const r = rows[0];
+    return {
+      id: r.id,
+      patientId: r.patient_id,
+      analysisId: r.analysis_id,
+      title: r.title,
+      status: r.status,
+      version: r.version,
+      clinicalContent: r.clinical_content,
+      clientContent: r.client_content,
+      createdAt: r.created_at,
+    };
+  });
+}
+
 export async function listProtocolVersions(
   tenantId: string,
   patientId: string,

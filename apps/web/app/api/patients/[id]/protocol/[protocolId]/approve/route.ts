@@ -2,9 +2,10 @@ import { NextResponse } from "next/server";
 import { apiAuth } from "@/lib/auth";
 import { writeAudit } from "@/lib/audit";
 import { patientBelongsToTenant } from "@/lib/records";
-import { getProtocol, approveProtocol } from "@/lib/protocols";
+import { getProtocol, getOriginalProtocol, approveProtocol } from "@/lib/protocols";
 import { generateDerivativeOutputs } from "@/lib/protocol-outputs";
 import { recordProtocolApproved } from "@/lib/timeline";
+import { computeProtocolDiff, storeProtocolEdits } from "@/lib/protocol-edits";
 
 export async function POST(
   _req: Request,
@@ -52,6 +53,36 @@ export async function POST(
     recordProtocolApproved(
       user.tenantId, ctx.params.id, ctx.params.protocolId, user.practitionerId,
     ).catch((err) => console.error("[timeline] Failed to record approval:", err));
+
+    // Track edits: compare approved version against the original AI output.
+    // If the practitioner edited the protocol, capture structured diffs for
+    // pattern learning. Runs in background — does not block approval.
+    if (protocol.version > 1) {
+      (async () => {
+        try {
+          const original = await getOriginalProtocol(user.tenantId, ctx.params.id);
+          if (original) {
+            const edits = computeProtocolDiff(
+              { clinical: original.clinicalContent, client: original.clientContent },
+              { clinical: protocol.clinicalContent, client: protocol.clientContent },
+            );
+            if (edits.length > 0) {
+              await storeProtocolEdits({
+                tenantId: user.tenantId,
+                protocolId: ctx.params.protocolId,
+                patientId: ctx.params.id,
+                practitionerId: user.practitionerId,
+                edits,
+                originalClinical: original.clinicalContent,
+                originalClient: original.clientContent,
+              });
+            }
+          }
+        } catch (err) {
+          console.error("[protocol-edits] Failed to track edits:", err);
+        }
+      })();
+    }
 
     // Trigger derivative output generation (client doc, call deck, email draft).
     // This runs in the background — the approval response returns immediately.
