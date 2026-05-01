@@ -111,8 +111,14 @@ export async function getActivePreferencesForPrompt(
       "## Practitioner preferences",
       "",
       "The practitioner who will review this output has specified the following",
-      "rules and preferences. You MUST follow these when generating the protocol",
-      "and all derivative outputs. These take priority over default formatting.",
+      "style, structure, and formatting preferences. Follow these when generating",
+      "the protocol and all derivative outputs.",
+      "",
+      "IMPORTANT: These preferences customize presentation and structure. They",
+      "are ADDITIVE to — and never override — clinical safety guardrails,",
+      "evidence-based reasoning, drug-supplement interaction checks, dose",
+      "ceiling limits, or contraindication screening. If a preference conflicts",
+      "with clinical safety, prioritize safety and note the conflict.",
       "",
     ];
 
