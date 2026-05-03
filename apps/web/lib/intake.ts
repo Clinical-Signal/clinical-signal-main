@@ -136,35 +136,15 @@ export async function getPatientSummary(
               p.status,
               p.intake_data,
               (SELECT count(*)::text FROM records r WHERE r.patient_id = p.id) AS record_count,
-              latest.id AS proto_id,
-              latest.title AS proto_title,
-              latest.status AS proto_status,
-              latest.version AS proto_version,
-              latest.created_at AS proto_created,
-              brief.created_at AS brief_created,
-              fp.assigned_at AS fp_assigned_at,
-              fp.item_count AS fp_item_count
+              (SELECT pr.id FROM protocols pr WHERE pr.patient_id = p.id ORDER BY pr.created_at DESC LIMIT 1) AS proto_id,
+              (SELECT pr.title FROM protocols pr WHERE pr.patient_id = p.id ORDER BY pr.created_at DESC LIMIT 1) AS proto_title,
+              (SELECT pr.status FROM protocols pr WHERE pr.patient_id = p.id ORDER BY pr.created_at DESC LIMIT 1) AS proto_status,
+              (SELECT pr.version FROM protocols pr WHERE pr.patient_id = p.id ORDER BY pr.created_at DESC LIMIT 1) AS proto_version,
+              (SELECT pr.created_at FROM protocols pr WHERE pr.patient_id = p.id ORDER BY pr.created_at DESC LIMIT 1) AS proto_created,
+              (SELECT d.uploaded_at FROM intake_documents d WHERE d.patient_id = p.id AND d.metadata->>'type' = 'prep_brief' ORDER BY d.uploaded_at DESC LIMIT 1) AS brief_created,
+              (SELECT fp2.assigned_at FROM foundational_plans fp2 WHERE fp2.patient_id = p.id LIMIT 1) AS fp_assigned_at,
+              (SELECT jsonb_array_length(fp2.items) FROM foundational_plans fp2 WHERE fp2.patient_id = p.id LIMIT 1) AS fp_item_count
          FROM patients p
-         LEFT JOIN LATERAL (
-           SELECT pr.id, pr.title, pr.status, pr.version, pr.created_at
-             FROM protocols pr
-            WHERE pr.patient_id = p.id
-            ORDER BY pr.created_at DESC
-            LIMIT 1
-         ) latest ON true
-         LEFT JOIN LATERAL (
-           SELECT id2.uploaded_at AS created_at
-             FROM intake_documents id2
-            WHERE id2.patient_id = p.id AND id2.metadata->>'type' = 'prep_brief'
-            ORDER BY id2.uploaded_at DESC
-            LIMIT 1
-         ) brief ON true
-         LEFT JOIN LATERAL (
-           SELECT fp2.assigned_at, jsonb_array_length(fp2.items) AS item_count
-             FROM foundational_plans fp2
-            WHERE fp2.patient_id = p.id
-            LIMIT 1
-         ) fp ON true
         WHERE p.id = $1`,
       [patientId, phiKey()],
     );
