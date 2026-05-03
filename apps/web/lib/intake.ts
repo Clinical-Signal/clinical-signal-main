@@ -153,10 +153,10 @@ export async function getPatientSummary(
             LIMIT 1
          ) latest ON true
          LEFT JOIN LATERAL (
-           SELECT id2.created_at
+           SELECT id2.uploaded_at AS created_at
              FROM intake_documents id2
             WHERE id2.patient_id = p.id AND id2.metadata->>'type' = 'prep_brief'
-            ORDER BY id2.created_at DESC
+            ORDER BY id2.uploaded_at DESC
             LIMIT 1
          ) brief ON true
          LEFT JOIN LATERAL (
