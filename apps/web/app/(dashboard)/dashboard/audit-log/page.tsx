@@ -1,7 +1,7 @@
 import { requireAuth } from "@/lib/auth";
 import { Page, PageHeader } from "@/components/ui/page";
 import { AuditLogViewer } from "./audit-log-viewer";
-import { withTenant } from "@/lib/db";
+import { withTenant, phiKey } from "@/lib/db";
 
 interface PatientOption {
   id: string;
@@ -14,7 +14,8 @@ export default async function AuditLogPage() {
   // Fetch patient list for the filter dropdown
   const patients = await withTenant(user.tenantId, async (c) => {
     const { rows } = await c.query<PatientOption>(
-      `SELECT id::text, name FROM patients ORDER BY name`,
+      `SELECT id::text, pgp_sym_decrypt(name_encrypted, $1)::text AS name FROM patients ORDER BY 2`,
+      [phiKey()],
     );
     return rows;
   });
