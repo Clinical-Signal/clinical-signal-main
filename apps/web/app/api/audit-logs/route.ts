@@ -104,11 +104,9 @@ export async function GET(req: NextRequest) {
          a.metadata,
          a.created_at,
          p.name AS practitioner_name,
-         pt.name AS patient_name
+         NULL::text AS patient_name
        FROM audit_log a
        LEFT JOIN practitioners p ON p.id = a.practitioner_id
-       LEFT JOIN patients pt ON pt.id::text = a.resource_id
-         AND a.resource_type IN ('patient', 'intake', 'protocol', 'record')
        WHERE ${where}
        ORDER BY a.created_at DESC
        LIMIT $${idx} OFFSET $${idx + 1}`,
