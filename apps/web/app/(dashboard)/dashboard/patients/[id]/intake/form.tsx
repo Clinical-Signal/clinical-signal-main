@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   intakeCompletionPct,
@@ -61,6 +62,7 @@ interface Props {
 }
 
 export function IntakeForm({ patientId, initial }: Props) {
+  const router = useRouter();
   const [submitting, startSubmit] = useTransition();
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [draft, setDraft] = useState<IntakeData>(initial);
@@ -298,7 +300,11 @@ export function IntakeForm({ patientId, initial }: Props) {
               startSubmit(async () => {
                 setSubmitError(null);
                 const res = await submitIntakeAction(patientId);
-                if (res && !res.ok) setSubmitError(res.error);
+                if (res.ok) {
+                  router.push(res.redirectTo);
+                } else {
+                  setSubmitError(res.error);
+                }
               })
             }
           >

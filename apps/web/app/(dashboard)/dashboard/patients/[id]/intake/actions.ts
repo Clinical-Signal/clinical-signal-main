@@ -1,6 +1,5 @@
 "use server";
 
-import { redirect } from "next/navigation";
 import { requireAuth } from "@/lib/auth";
 import { writeAudit } from "@/lib/audit";
 import { patientBelongsToTenant } from "@/lib/records";
@@ -49,9 +48,13 @@ export async function saveSectionAction(
   }
 }
 
+export type SubmitIntakeResult =
+  | { ok: true; redirectTo: string }
+  | { ok: false; error: string };
+
 export async function submitIntakeAction(
   patientId: string,
-): Promise<{ ok: false; error: string } | never> {
+): Promise<SubmitIntakeResult> {
   const user = await requireAuth();
   const ok = await patientBelongsToTenant(user.tenantId, patientId);
   if (!ok) return { ok: false, error: "Patient not found." };
@@ -68,9 +71,8 @@ export async function submitIntakeAction(
     recordIntakeSubmitted(user.tenantId, patientId, user.practitionerId).catch(
       (err) => console.error("[timeline] Failed to record intake submission:", err),
     );
-    redirect(`/dashboard/patients/${patientId}/intake/review`);
+    return { ok: true, redirectTo: `/dashboard/patients/${patientId}/intake/review` };
   } catch (err) {
-    if (err && typeof err === "object" && "digest" in err) throw err; // Next redirect
     return {
       ok: false,
       error: err instanceof Error ? err.message : String(err),
