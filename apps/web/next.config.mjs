@@ -10,6 +10,12 @@ const nextConfig = {
     serverActions: {
       bodySizeLimit: "55mb",
     },
+    // lib/llm.ts loads prompts at runtime via fs.readFileSync. The Next
+    // standalone bundler only traces statically-imported files, so we have
+    // to opt the prompts directory in explicitly.
+    outputFileTracingIncludes: {
+      "*": ["./lib/prompts/**/*.md"],
+    },
   },
 };
 
