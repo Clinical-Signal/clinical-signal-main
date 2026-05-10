@@ -381,19 +381,15 @@ def list_concepts(tenant_id: str, concept_type: str | None = None, limit: int = 
 # Composite-confidence threshold for the auto-flag pass. Anything strictly
 # below this gets enqueued as 'low_confidence'.
 #
-# Why 0.75 by default: with the post-C.1.3 dev distribution (range 0.68 —
-# 0.98, mean 0.712, dominated by entries that floor out at 0.68 because
-# they have zero corroboration at the 0.70 similarity threshold), 0.75
-# flags roughly the bottom-half of the corpus. That's a lot for a first
-# review session — and that's deliberate. We need *some* entries in the
-# queue to validate the workflow end-to-end; setting the threshold tight
-# (e.g. 0.65) catches near-zero rows on this corpus and we can't see if
-# the queue UI even renders.
-#
-# Production tuning happens *after* Dr. Laura tells us her per-session
-# review capacity. "I can do ~25 entries per 30 min" implies a different
-# threshold than "100." Tune to the practitioner, not to the corpus.
-LOW_CONFIDENCE_THRESHOLD = 0.75
+# Calibrated to the current dev-DB state where 633 entries collapse to a
+# single floor (~0.68) due to absent breadth in source_authority +
+# review_bonus variance. 0.51 catches only entries that haven't been
+# confidence-recomputed (e.g., the post-C.1.3 donna ingestion). Will
+# become inert once the post-load recompute hook lands (filed as
+# follow-up). Once external leader content creates real distribution
+# variance, threshold should move back up to 0.75 to catch genuine
+# outliers.
+LOW_CONFIDENCE_THRESHOLD = 0.51
 
 
 def enqueue_review_items(
