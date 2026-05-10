@@ -353,3 +353,35 @@ export async function getProtocol(
     };
   });
 }
+
+/** Returns true iff the given protocol exists, belongs to the given patient,
+ *  and lives in the given tenant.
+ *
+ *  Closes an in-tenant URL-walking gap: routes that take both `[id]` and
+ *  `[protocolId]` as URL params can confirm patient-belongs-to-tenant via
+ *  `patientBelongsToTenant`, but without this check a tenant user with
+ *  multiple patients could URL-walk to another of their own patients'
+ *  protocols. RLS already prevents cross-tenant leakage; this fixes
+ *  in-tenant manipulation.
+ *
+ *  Tenant scoping is implicit: the `withTenant` wrapper sets
+ *  `app.current_tenant_id` so the RLS policy on `protocols` filters out
+ *  rows from other tenants automatically. Mirrors the
+ *  `patientBelongsToTenant` helper in lib/records.ts.
+ */
+export async function protocolBelongsToPatient(
+  tenantId: string,
+  protocolId: string,
+  patientId: string,
+): Promise<boolean> {
+  return withTenant(tenantId, async (c) => {
+    const { rows } = await c.query<{ exists: boolean }>(
+      `SELECT EXISTS(
+         SELECT 1 FROM protocols
+          WHERE id = $1 AND patient_id = $2
+       ) AS exists`,
+      [protocolId, patientId],
+    );
+    return rows[0]?.exists === true;
+  });
+}
