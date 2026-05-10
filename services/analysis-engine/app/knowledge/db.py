@@ -40,17 +40,36 @@ def insert_knowledge_item(
     metadata: dict[str, Any],
     source_channel: str | None,
     source_chunk_hash: str | None,
+    *,
+    faithfulness_score: float | None = None,
+    faithfulness_breakdown: dict[str, Any] | None = None,
+    faithfulness_notes: str | None = None,
+    review_status: str | None = None,
 ) -> str | None:
     """Inserts a row; returns id. Returns None if the (tenant, chunk_hash, title)
-    triple already exists (idempotent ingestion)."""
+    triple already exists (idempotent ingestion).
+
+    The faithfulness_* and review_status keyword args are written through
+    when present (C.1.4 ingest pipeline). Older callers that don't pass
+    them get NULL columns and the schema-default review_status, which
+    keeps backward compat with pre-C.1.4 JSONL.
+    """
     cat = category if category in VALID_CATEGORIES else "other"
+    breakdown_json = (
+        json.dumps(faithfulness_breakdown) if faithfulness_breakdown is not None else None
+    )
     with tenant_conn(tenant_id) as conn, conn.cursor() as cur:
+        # Use COALESCE on review_status so omitting it falls back to the
+        # column default ('unreviewed') rather than overwriting with NULL.
         cur.execute(
             """
             INSERT INTO clinical_knowledge
                 (tenant_id, category, title, content, embedding, metadata,
-                 source_channel, source_chunk_hash)
-            VALUES (%s, %s, %s, %s, %s::vector, %s::jsonb, %s, %s)
+                 source_channel, source_chunk_hash,
+                 faithfulness_score, faithfulness_breakdown,
+                 faithfulness_notes, review_status)
+            VALUES (%s, %s, %s, %s, %s::vector, %s::jsonb, %s, %s,
+                    %s, %s::jsonb, %s, COALESCE(%s, 'unreviewed'))
             ON CONFLICT (tenant_id, source_chunk_hash, title) DO NOTHING
             RETURNING id
             """,
@@ -63,6 +82,10 @@ def insert_knowledge_item(
                 json.dumps(metadata),
                 source_channel,
                 source_chunk_hash,
+                faithfulness_score,
+                breakdown_json,
+                faithfulness_notes,
+                review_status,
             ),
         )
         row = cur.fetchone()
