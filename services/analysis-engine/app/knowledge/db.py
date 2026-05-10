@@ -374,3 +374,126 @@ def list_concepts(tenant_id: str, concept_type: str | None = None, limit: int = 
         {"id": str(r[0]), "concept_type": r[1], "name": r[2], "description": r[3]}
         for r in rows
     ]
+
+
+# ---------- review queue (C.1.5) ----------
+
+# Composite-confidence threshold for the auto-flag pass. Anything strictly
+# below this gets enqueued as 'low_confidence'.
+#
+# Why 0.75 by default: with the post-C.1.3 dev distribution (range 0.68 —
+# 0.98, mean 0.712, dominated by entries that floor out at 0.68 because
+# they have zero corroboration at the 0.70 similarity threshold), 0.75
+# flags roughly the bottom-half of the corpus. That's a lot for a first
+# review session — and that's deliberate. We need *some* entries in the
+# queue to validate the workflow end-to-end; setting the threshold tight
+# (e.g. 0.65) catches near-zero rows on this corpus and we can't see if
+# the queue UI even renders.
+#
+# Production tuning happens *after* Dr. Laura tells us her per-session
+# review capacity. "I can do ~25 entries per 30 min" implies a different
+# threshold than "100." Tune to the practitioner, not to the corpus.
+LOW_CONFIDENCE_THRESHOLD = 0.75
+
+
+def enqueue_review_items(
+    conn,
+    tenant_id: str,
+    threshold: float = LOW_CONFIDENCE_THRESHOLD,
+) -> dict[str, int]:
+    """Populate knowledge_review_queue from clinical_knowledge.
+
+    Two flag conditions, run as separate INSERT ... SELECT statements:
+
+      1. low_confidence  — composite confidence_score below ``threshold``.
+      2. low_faithfulness — review_status='pending_review' (set by the
+         C.1.4 ingestion pass when faithfulness landed in 0.50 — 0.75).
+
+    Idempotent: each insert's NOT EXISTS subquery skips entries that are
+    already queued for the same review_type with status pending or
+    in_review, so re-running this function (post-load hook + standalone
+    sweep) never creates duplicate rows. Resolved/skipped queue rows in
+    history don't block re-queueing if a later recompute drops the entry
+    back below threshold.
+
+    The schema's queue table uses ``entry_ids UUID[]`` (designed for
+    multi-entry review briefs); we insert single-element arrays per flag
+    to fit the per-entry semantics here. A future smart-batching pass
+    could fold related single-entry briefs into multi-entry briefs.
+
+    Caller must have set app.current_tenant_id on ``conn`` before calling
+    so RLS lets the SELECT/INSERT see the tenant's rows.
+
+    Returns ``{'low_confidence': N, 'low_faithfulness': M}`` — the number
+    of new queue rows inserted in this call (excludes skipped duplicates).
+    """
+    counts: dict[str, int] = {}
+
+    with conn.cursor() as cur:
+        # 1. Low composite confidence
+        cur.execute(
+            """
+            INSERT INTO knowledge_review_queue (
+                tenant_id, review_type, entry_ids, brief_title, status, notes
+            )
+            SELECT
+                %s,
+                'low_confidence',
+                ARRAY[ck.id],
+                'Low composite confidence: ' || left(ck.title, 140),
+                'pending',
+                'Composite confidence ' || ck.confidence_score::text
+                  || ' below threshold ' || %s::text
+            FROM clinical_knowledge ck
+            WHERE ck.tenant_id = %s
+              AND ck.confidence_score IS NOT NULL
+              AND ck.confidence_score < %s
+              AND NOT EXISTS (
+                SELECT 1 FROM knowledge_review_queue q
+                WHERE q.tenant_id = ck.tenant_id
+                  AND q.review_type = 'low_confidence'
+                  AND ck.id = ANY(q.entry_ids)
+                  AND q.status IN ('pending', 'in_review')
+              )
+            RETURNING id
+            """,
+            (tenant_id, threshold, tenant_id, threshold),
+        )
+        counts["low_confidence"] = cur.rowcount
+
+        # 2. Borderline faithfulness — review_status was flipped by the
+        #    C.1.4 ingest pass for entries that landed in the 0.50 — 0.75
+        #    faithfulness band. Faithfulness notes get rolled into the
+        #    queue row's notes field so the reviewer doesn't have to
+        #    cross-reference the original record.
+        cur.execute(
+            """
+            INSERT INTO knowledge_review_queue (
+                tenant_id, review_type, entry_ids, brief_title, status, notes
+            )
+            SELECT
+                %s,
+                'low_faithfulness',
+                ARRAY[ck.id],
+                'Borderline faithfulness: ' || left(ck.title, 140),
+                'pending',
+                'Faithfulness ' || COALESCE(ck.faithfulness_score::text, 'NULL')
+                  || ' (' || COALESCE(ck.faithfulness_notes, 'no notes') || ')'
+            FROM clinical_knowledge ck
+            WHERE ck.tenant_id = %s
+              AND ck.review_status = 'pending_review'
+              AND NOT EXISTS (
+                SELECT 1 FROM knowledge_review_queue q
+                WHERE q.tenant_id = ck.tenant_id
+                  AND q.review_type = 'low_faithfulness'
+                  AND ck.id = ANY(q.entry_ids)
+                  AND q.status IN ('pending', 'in_review')
+              )
+            RETURNING id
+            """,
+            (tenant_id, tenant_id),
+        )
+        counts["low_faithfulness"] = cur.rowcount
+
+    conn.commit()
+    return counts
