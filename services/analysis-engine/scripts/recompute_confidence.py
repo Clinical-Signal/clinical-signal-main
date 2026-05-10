@@ -40,9 +40,11 @@ import psycopg  # noqa: E402
 # module constants so a tuning PR is a one-line diff.
 
 # Cosine-similarity threshold above which two entries count as
-# "corroborating" each other. The C.1.3 spec calls out 0.85 as the
-# starting heuristic.
-CORROBORATION_SIMILARITY = 0.85
+# "corroborating" each other. Started at 0.85 per the spec; lowered to
+# 0.70 after the first run came back degenerate (only 33 of 1,144 rows
+# had any corroborator at 0.85). At 0.70 the same corpus has 511 rows
+# with ≥1 corroborator (max 15, avg 2.41), giving the factor real signal.
+CORROBORATION_SIMILARITY = 0.70
 
 # Divisor that maps raw corroboration count to the [0, 1] factor.
 # 10+ corroborating entries → 1.0.
@@ -57,19 +59,36 @@ SOURCE_AUTHORITY_IN_DOMAIN = 0.85      # external + entry domain ∈ leader.auth
 SOURCE_AUTHORITY_OUT_DOMAIN = 0.65     # external + no domain overlap
 SOURCE_AUTHORITY_NO_LEADER = 0.50      # leader_id IS NULL (defensive)
 
-# Review bonus — semantic mapping from the actual DB enum to the
-# C.1.3 spec's intent. The DB enum is
+# Review bonus — source-aware. Internal (practitioner-of-record) content
+# is treated as already-validated by virtue of the source: the unreviewed
+# default is 0.95, not 0.5. External content uses the original spec's
+# tighter scale.
+#
+# DB enum mapping (the migration uses
 # {unreviewed, pending_review, approved, corrected, rejected}; the spec
-# references {reviewed_approved, reviewed_edited, unreviewed, flagged,
-# reviewed_rejected}. Mapping is documented in the PR description.
-REVIEW_BONUS: dict[str, float] = {
+# references {approved, edited, unreviewed, flagged, rejected}):
+#   approved        ↔ approved
+#   corrected       ↔ edited
+#   pending_review  ↔ flagged   (the auto-flag state from C.1.5)
+#   rejected        ↔ rejected
+#   unreviewed      ↔ unreviewed
+REVIEW_BONUS_INTERNAL: dict[str, float] = {
     "approved":       1.00,
-    "corrected":      0.85,   # Dr. Laura touched it but didn't reject
-    "unreviewed":     0.50,   # current state for all 1,144 entries
-    "pending_review": 0.50,   # queued for review, no signal yet
+    "corrected":      0.95,   # she edited her own — still her voice
+    "unreviewed":     0.95,   # source IS the validation for internal
+    "pending_review": 0.20,   # auto-flagged → real problem
     "rejected":       0.00,
 }
-REVIEW_BONUS_DEFAULT = 0.50
+REVIEW_BONUS_INTERNAL_DEFAULT = 0.95
+
+REVIEW_BONUS_EXTERNAL: dict[str, float] = {
+    "approved":       1.00,
+    "corrected":      0.85,   # touched but not rejected
+    "unreviewed":     0.50,
+    "pending_review": 0.20,   # auto-flagged → real problem
+    "rejected":       0.00,
+}
+REVIEW_BONUS_EXTERNAL_DEFAULT = 0.50
 
 # Composite weights — must sum to 1.0.
 W_AUTHORITY = 0.30
@@ -119,8 +138,21 @@ def compute_recency(created_at: datetime, now: datetime) -> float:
     return max(0.0, 1.0 - (years_old / RECENCY_HALFLIFE_YEARS))
 
 
-def compute_review_bonus(review_status: str | None) -> float:
-    return REVIEW_BONUS.get(review_status or "", REVIEW_BONUS_DEFAULT)
+def compute_review_bonus(review_status: str | None, is_internal: bool | None) -> float:
+    """Source-aware review bonus.
+
+    Internal (Dr. Laura) entries treat the source itself as validation:
+    the unreviewed baseline is 0.95, not 0.5. External entries follow
+    the original tighter scale. `is_internal=None` (no leader) is
+    treated as external defensively.
+    """
+    if is_internal:
+        return REVIEW_BONUS_INTERNAL.get(
+            review_status or "", REVIEW_BONUS_INTERNAL_DEFAULT,
+        )
+    return REVIEW_BONUS_EXTERNAL.get(
+        review_status or "", REVIEW_BONUS_EXTERNAL_DEFAULT,
+    )
 
 
 def composite(authority: float, corroboration: float, recency: float, review: float) -> float:
@@ -278,7 +310,7 @@ def main() -> int:
                 )
                 corroboration = compute_corroboration(count)
                 recency = compute_recency(created_at, now)
-                review = compute_review_bonus(review_status)
+                review = compute_review_bonus(review_status, is_internal)
                 score = composite(authority, corroboration, recency, review)
 
                 updates.append((rid_s, score, count))
