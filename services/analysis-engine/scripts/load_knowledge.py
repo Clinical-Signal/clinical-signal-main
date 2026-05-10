@@ -15,8 +15,44 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from app.knowledge.db import insert_knowledge_item  # noqa: E402
+import os  # noqa: E402
+
+import psycopg  # noqa: E402
+
+from app.knowledge.db import (  # noqa: E402
+    enqueue_review_items,
+    insert_knowledge_item,
+)
 from app.knowledge.embeddings import embed  # noqa: E402
+
+
+def _enqueue_review_for_tenant(tenant_id: str) -> dict[str, int] | None:
+    """Open a tenant-scoped connection and run the C.1.5 auto-flag pass.
+
+    Wrapped in try/except because a failure here should NOT roll back the
+    successful insert phase — the queue-population step is recoverable
+    by re-running scripts/enqueue_review.py.
+    """
+    db_url = os.environ.get("DATABASE_URL")
+    if not db_url:
+        return None
+    try:
+        with psycopg.connect(db_url, autocommit=False) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT set_config('app.current_tenant_id', %s, false)",
+                    (tenant_id,),
+                )
+            conn.commit()
+            return enqueue_review_items(conn, tenant_id)
+    except Exception as err:
+        print(
+            f"[load] WARN: post-load enqueue_review failed: "
+            f"{type(err).__name__}: {err}",
+            file=sys.stderr,
+            flush=True,
+        )
+        return None
 
 
 def _embed_text(item: dict) -> str:
@@ -109,6 +145,17 @@ def main() -> int:
             skipped += 1
 
     print(f"[load] done inserted={inserted} skipped_duplicates={skipped}")
+
+    # C.1.5 post-load hook: auto-populate the review queue so newly-loaded
+    # entries with low confidence or borderline faithfulness land in front
+    # of Dr. Laura without an operator step. Idempotent and non-fatal.
+    counts = _enqueue_review_for_tenant(args.tenant)
+    if counts is not None:
+        print(
+            f"[load] enqueued review: low_confidence={counts['low_confidence']} "
+            f"low_faithfulness={counts['low_faithfulness']}"
+        )
+
     return 0
 
 
