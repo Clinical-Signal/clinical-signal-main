@@ -96,6 +96,12 @@ def main() -> int:
             metadata=metadata,
             source_channel=src.get("channel"),
             source_chunk_hash=src.get("chunk_hash"),
+            # C.1.4 fields — present when the JSONL came from a faithfulness-
+            # enabled ingest run; absent (None) for older JSONL.
+            faithfulness_score=item.get("faithfulness_score"),
+            faithfulness_breakdown=item.get("faithfulness_breakdown"),
+            faithfulness_notes=item.get("faithfulness_notes"),
+            review_status=item.get("review_status"),
         )
         if rid:
             inserted += 1
