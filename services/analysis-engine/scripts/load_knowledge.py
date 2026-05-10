@@ -20,34 +20,34 @@ import os  # noqa: E402
 import psycopg  # noqa: E402
 
 from app.knowledge.db import (  # noqa: E402
-    enqueue_review_items,
     insert_knowledge_item,
+    post_ingest_finalize,
 )
 from app.knowledge.embeddings import embed  # noqa: E402
 
 
-def _enqueue_review_for_tenant(tenant_id: str) -> dict[str, int] | None:
-    """Open a tenant-scoped connection and run the C.1.5 auto-flag pass.
+def _finalize_for_tenant(tenant_id: str) -> dict | None:
+    """Open a tenant-scoped connection and run the C.2-prep finalize step.
+
+    Replaces the standalone C.1.5 enqueue hook with the unified
+    autotag → recompute → enqueue sequence.
 
     Wrapped in try/except because a failure here should NOT roll back the
-    successful insert phase — the queue-population step is recoverable
-    by re-running scripts/enqueue_review.py.
+    successful insert phase — the finalize step is recoverable by
+    re-running scripts/autotag_domains.py, scripts/recompute_confidence.py,
+    and scripts/enqueue_review.py individually (or just re-loading, which
+    triggers the hook again with idempotent NOT EXISTS / WHERE-clause
+    guards on all three operations).
     """
     db_url = os.environ.get("DATABASE_URL")
     if not db_url:
         return None
     try:
         with psycopg.connect(db_url, autocommit=False) as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    "SELECT set_config('app.current_tenant_id', %s, false)",
-                    (tenant_id,),
-                )
-            conn.commit()
-            return enqueue_review_items(conn, tenant_id)
+            return post_ingest_finalize(conn, tenant_id)
     except Exception as err:
         print(
-            f"[load] WARN: post-load enqueue_review failed: "
+            f"[load] WARN: post-load finalize failed: "
             f"{type(err).__name__}: {err}",
             file=sys.stderr,
             flush=True,
@@ -146,14 +146,23 @@ def main() -> int:
 
     print(f"[load] done inserted={inserted} skipped_duplicates={skipped}")
 
-    # C.1.5 post-load hook: auto-populate the review queue so newly-loaded
-    # entries with low confidence or borderline faithfulness land in front
-    # of Dr. Laura without an operator step. Idempotent and non-fatal.
-    counts = _enqueue_review_for_tenant(args.tenant)
-    if counts is not None:
+    # C.2-prep post-load hook: autotag domains → recompute confidence →
+    # enqueue review queue items. Each step is idempotent and non-fatal;
+    # ordering inside the helper is enforced (recompute must come after
+    # autotag because the corroboration self-join is domain-gated).
+    result = _finalize_for_tenant(args.tenant)
+    if result is not None:
+        a = result["autotag"]
+        c = result["confidence"]
+        e = result["enqueue"]
         print(
-            f"[load] enqueued review: low_confidence={counts['low_confidence']} "
-            f"low_faithfulness={counts['low_faithfulness']}"
+            f"[load] finalize: "
+            f"autotag(processed={a['processed']} channel={a['channel_mapped']} "
+            f"llm={a['llm_classified']} failed={a['failed']}) "
+            f"confidence(total={c['total']} avg="
+            f"{(c['score_sum'] / max(c['total'], 1)):.3f}) "
+            f"enqueue(low_confidence={e['low_confidence']} "
+            f"low_faithfulness={e['low_faithfulness']})"
         )
 
     return 0

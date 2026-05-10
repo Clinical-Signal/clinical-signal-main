@@ -493,3 +493,86 @@ def enqueue_review_items(
 
     conn.commit()
     return counts
+
+
+# ---------- C.2-prep: unified post-ingest finalize ----------
+
+def post_ingest_finalize(
+    conn,
+    tenant_id: str,
+    *,
+    threshold: float | None = None,
+) -> dict:
+    """Run the standard post-ingestion sequence for a tenant.
+
+    Order matters and is enforced here:
+
+      1. Autotag domains on any new entries (rows with domains = '{}').
+      2. Recompute composite confidence_score for the entire tenant.
+         A new entry can change corroboration counts for existing entries
+         on the same topic, so this must be a tenant-wide recompute, not
+         a delta on the new rows alone.
+      3. Enqueue low-confidence and low-faithfulness entries into
+         knowledge_review_queue. The NOT EXISTS pattern from C.1.5 dedups
+         against already-queued items.
+
+    Idempotent end-to-end: a second invocation on an unchanged tenant
+    reports all-zero counts (no untagged rows, no score changes since the
+    formula is deterministic, no new queue rows since dedup catches them).
+
+    The three operations commit independently (each currently commits in
+    its own batched loop). Full transactional atomicity across all three
+    would require refactoring the batch commits inside autotag and
+    recompute; ordering is the strict invariant, and any mid-run failure
+    is recoverable by re-running this function — idempotency makes
+    re-runs safe.
+
+    Args:
+      conn: open psycopg connection. Each step sets RLS context as needed.
+      tenant_id: tenant UUID as string.
+      threshold: low_confidence threshold for step 3; defaults to
+        LOW_CONFIDENCE_THRESHOLD.
+
+    Returns:
+      {"autotag": {...}, "confidence": {...}, "enqueue": {...}}
+    """
+    # Lazy import to keep db.py loadable in contexts that don't have the
+    # engine root on sys.path (the scripts add it themselves at import
+    # time; load_knowledge.py — the live caller — sets it before reaching
+    # here). Also avoids any chance of circular import at module load.
+    from scripts.autotag_domains import autotag_tenant
+    from scripts.recompute_confidence import recompute_confidence_tenant
+
+    print(f"[finalize] tenant {tenant_id}: starting (autotag → confidence → enqueue)", flush=True)
+
+    # Step 1 — autotag any rows where domains = '{}'.
+    autotag_result = autotag_tenant(
+        conn, tenant_id, log_prefix="[finalize/autotag]",
+    )
+
+    # Step 2 — tenant-wide confidence recompute. Order matters: must come
+    # after autotag because the corroboration self-join is gated on
+    # `r1.domains && r2.domains` and would skip newly-loaded rows whose
+    # domain tags haven't been written yet.
+    confidence_result = recompute_confidence_tenant(
+        conn, tenant_id, log_prefix="[finalize/confidence]",
+    )
+
+    # Step 3 — enqueue review items. Reads the freshly-written
+    # confidence_score and review_status from steps 1+2.
+    enqueue_result = enqueue_review_items(
+        conn, tenant_id, threshold or LOW_CONFIDENCE_THRESHOLD,
+    )
+    print(
+        f"[finalize/enqueue] tenant {tenant_id}: "
+        f"low_confidence={enqueue_result['low_confidence']} "
+        f"low_faithfulness={enqueue_result['low_faithfulness']}",
+        flush=True,
+    )
+
+    print(f"[finalize] tenant {tenant_id}: done", flush=True)
+    return {
+        "autotag": autotag_result,
+        "confidence": confidence_result,
+        "enqueue": enqueue_result,
+    }

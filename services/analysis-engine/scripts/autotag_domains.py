@@ -185,6 +185,148 @@ def flush_batch(
     return n
 
 
+def _load_system_prompt() -> str:
+    """Cached read of the domain-classification prompt."""
+    return PROMPT_PATH.read_text(encoding="utf-8")
+
+
+def _build_client() -> Anthropic:
+    """Create the Anthropic client. Raises if ANTHROPIC_API_KEY is unset."""
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        raise RuntimeError("ANTHROPIC_API_KEY is not set")
+    return Anthropic(api_key=api_key)
+
+
+def autotag_tenant(
+    conn: psycopg.Connection,
+    tenant_id: str,
+    *,
+    client: Anthropic | None = None,
+    system_prompt: str | None = None,
+    dry_run: bool = False,
+    limit: int = 0,
+    log_prefix: str = "[autotag]",
+) -> dict:
+    """Autotag untagged clinical_knowledge entries for one tenant.
+
+    Sets `app.current_tenant_id` on the connection, fetches every row with
+    `domains = '{}'`, and writes tags via the channel-map prior + LLM
+    classification fallback documented at the top of this module.
+
+    Args:
+      conn: open psycopg connection. RLS context will be set here.
+      tenant_id: tenant UUID as string.
+      client: optional pre-built Anthropic client. Created on demand if None.
+      system_prompt: optional pre-loaded prompt body. Loaded from disk if None.
+      dry_run: classify but do not write back.
+      limit: cap rows processed (0 = all).
+      log_prefix: prefix on stdout lines; lets the unified finalize step
+        distinguish autotag output from later steps.
+
+    Returns a dict with per-tenant counts:
+      {processed, channel_mapped, llm_classified, refusal_fallback, failed,
+       rows_written, domain_counts}.
+
+    Idempotent: only touches rows where domains = '{}'. Re-running on a
+    clean tenant returns all-zero counts.
+    """
+    if client is None:
+        client = _build_client()
+    if system_prompt is None:
+        system_prompt = _load_system_prompt()
+
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT set_config('app.current_tenant_id', %s, false)",
+            (tenant_id,),
+        )
+    conn.commit()
+
+    rows = fetch_untagged(conn)
+    if limit:
+        rows = rows[:limit]
+    print(f"{log_prefix} tenant {tenant_id}: {len(rows)} untagged rows", flush=True)
+
+    counts = {
+        "processed": 0,
+        "channel_mapped": 0,
+        "llm_classified": 0,
+        "refusal_fallback": 0,
+        "failed": 0,
+        "rows_written": 0,
+        "domain_counts": {d: 0 for d in VALID_DOMAINS},
+    }
+    start = time.time()
+    updates: list[tuple[str, list[str]]] = []
+
+    for rid, channel, category, title, content in rows:
+        domains: list[str] | None = None
+
+        if channel in CHANNEL_MAP:
+            domains = CHANNEL_MAP[channel]
+            counts["channel_mapped"] += 1
+        else:
+            try:
+                domains = classify_with_llm(
+                    client, system_prompt,
+                    title or "", category or "", content or "",
+                )
+                counts["llm_classified"] += 1
+            except LLMRefusal as err:
+                # Claude's safety classifier blocked the response —
+                # observed on benign clinical content (e.g. H. pylori
+                # supplement guidance) where the model treats the
+                # underlying condition as off-limits. Fall back to
+                # `foundational` (the cross-cutting catch-all per the
+                # seeded knowledge_domains description) so the row
+                # still gets a tag we can audit later.
+                domains = ["foundational"]
+                counts["refusal_fallback"] += 1
+                print(
+                    f"{log_prefix} REFUSAL row {rid} "
+                    f"channel={channel!r} title={title!r}: "
+                    f"{err} — defaulting to ['foundational']",
+                    file=sys.stderr,
+                    flush=True,
+                )
+            except Exception as err:
+                print(
+                    f"{log_prefix} FAILED row {rid} "
+                    f"channel={channel!r}: "
+                    f"{type(err).__name__}: {err}",
+                    file=sys.stderr,
+                    flush=True,
+                )
+                counts["failed"] += 1
+                continue
+
+        updates.append((str(rid), domains))
+        for d in domains:
+            counts["domain_counts"][d] = counts["domain_counts"].get(d, 0) + 1
+
+        if len(updates) >= BATCH_SIZE:
+            if not dry_run:
+                counts["rows_written"] += flush_batch(conn, updates)
+            counts["processed"] += len(updates)
+            updates = []
+            print(
+                f"{log_prefix} processed={counts['processed']} "
+                f"channel={counts['channel_mapped']} "
+                f"llm={counts['llm_classified']} "
+                f"failed={counts['failed']} "
+                f"elapsed={time.time() - start:.1f}s",
+                flush=True,
+            )
+
+    if updates:
+        if not dry_run:
+            counts["rows_written"] += flush_batch(conn, updates)
+        counts["processed"] += len(updates)
+
+    return counts
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--dry-run", action="store_true",
@@ -197,20 +339,18 @@ def main() -> int:
     if not db_url:
         print("DATABASE_URL not set", file=sys.stderr)
         return 2
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
-        print("ANTHROPIC_API_KEY not set", file=sys.stderr)
+    try:
+        client = _build_client()
+    except RuntimeError as err:
+        print(str(err), file=sys.stderr)
         return 2
 
-    system_prompt = PROMPT_PATH.read_text(encoding="utf-8")
-    client = Anthropic(api_key=api_key)
+    system_prompt = _load_system_prompt()
 
-    totals_processed = 0
-    totals_channel = 0
-    totals_llm = 0
-    totals_refusal_fallback = 0
-    totals_failed = 0
-    totals_written = 0
+    grand = {
+        "processed": 0, "channel_mapped": 0, "llm_classified": 0,
+        "refusal_fallback": 0, "failed": 0, "rows_written": 0,
+    }
     domain_counts: dict[str, int] = {d: 0 for d in VALID_DOMAINS}
     start = time.time()
 
@@ -223,104 +363,32 @@ def main() -> int:
         print(f"[autotag] tenants discovered: {len(tenants)}", flush=True)
 
         for tenant_id in tenants:
-            with conn.cursor() as cur:
-                cur.execute(
-                    "SELECT set_config('app.current_tenant_id', %s, false)",
-                    (tenant_id,),
-                )
-            conn.commit()
-
-            rows = fetch_untagged(conn)
-            if args.limit:
-                rows = rows[: args.limit]
-            print(
-                f"[autotag] tenant {tenant_id}: "
-                f"{len(rows)} untagged rows",
-                flush=True,
+            counts = autotag_tenant(
+                conn, tenant_id,
+                client=client, system_prompt=system_prompt,
+                dry_run=args.dry_run, limit=args.limit,
             )
-
-            updates: list[tuple[str, list[str]]] = []
-            for rid, channel, category, title, content in rows:
-                domains: list[str] | None = None
-
-                if channel in CHANNEL_MAP:
-                    domains = CHANNEL_MAP[channel]
-                    totals_channel += 1
-                else:
-                    try:
-                        domains = classify_with_llm(
-                            client, system_prompt,
-                            title or "", category or "", content or "",
-                        )
-                        totals_llm += 1
-                    except LLMRefusal as err:
-                        # Claude's safety classifier blocked the response —
-                        # observed on benign clinical content (e.g. H. pylori
-                        # supplement guidance) where the model treats the
-                        # underlying condition as off-limits. Fall back to
-                        # `foundational` (the cross-cutting catch-all per the
-                        # seeded knowledge_domains description) so the row
-                        # still gets a tag we can audit later.
-                        domains = ["foundational"]
-                        totals_refusal_fallback += 1
-                        print(
-                            f"[autotag] REFUSAL row {rid} "
-                            f"channel={channel!r} title={title!r}: "
-                            f"{err} — defaulting to ['foundational']",
-                            file=sys.stderr,
-                            flush=True,
-                        )
-                    except Exception as err:
-                        print(
-                            f"[autotag] FAILED row {rid} "
-                            f"channel={channel!r}: "
-                            f"{type(err).__name__}: {err}",
-                            file=sys.stderr,
-                            flush=True,
-                        )
-                        totals_failed += 1
-                        continue
-
-                updates.append((str(rid), domains))
-                for d in domains:
-                    domain_counts[d] = domain_counts.get(d, 0) + 1
-
-                if len(updates) >= BATCH_SIZE:
-                    if not args.dry_run:
-                        totals_written += flush_batch(conn, updates)
-                    totals_processed += len(updates)
-                    updates = []
-                    print(
-                        f"[autotag] processed={totals_processed} "
-                        f"channel={totals_channel} llm={totals_llm} "
-                        f"failed={totals_failed} "
-                        f"elapsed={time.time() - start:.1f}s",
-                        flush=True,
-                    )
-
-            # Flush trailing partial batch.
-            if updates:
-                if not args.dry_run:
-                    totals_written += flush_batch(conn, updates)
-                totals_processed += len(updates)
-                updates = []
+            for k in grand:
+                grand[k] += counts[k]
+            for d, n in counts["domain_counts"].items():
+                domain_counts[d] = domain_counts.get(d, 0) + n
     finally:
         conn.close()
 
     print()
     print(f"[autotag] DONE in {time.time() - start:.1f}s")
-    print(f"[autotag]   processed:        {totals_processed}")
-    print(f"[autotag]   channel-mapped:   {totals_channel}")
-    print(f"[autotag]   llm-classified:   {totals_llm}")
-    print(f"[autotag]   refusal-fallback: {totals_refusal_fallback}")
-    print(f"[autotag]   failed:           {totals_failed}")
+    print(f"[autotag]   processed:        {grand['processed']}")
+    print(f"[autotag]   channel-mapped:   {grand['channel_mapped']}")
+    print(f"[autotag]   llm-classified:   {grand['llm_classified']}")
+    print(f"[autotag]   refusal-fallback: {grand['refusal_fallback']}")
+    print(f"[autotag]   failed:           {grand['failed']}")
     print(f"[autotag]   rows written:     "
-          f"{totals_written}{' (dry-run, 0 written)' if args.dry_run else ''}")
+          f"{grand['rows_written']}{' (dry-run, 0 written)' if args.dry_run else ''}")
     print(f"[autotag] domain breakdown (entries can carry 1-3 tags):")
     for d in sorted(domain_counts, key=lambda k: domain_counts[k], reverse=True):
         print(f"   {d:16s} {domain_counts[d]}")
 
-    return 0 if totals_failed == 0 else 1
+    return 0 if grand["failed"] == 0 else 1
 
 
 if __name__ == "__main__":

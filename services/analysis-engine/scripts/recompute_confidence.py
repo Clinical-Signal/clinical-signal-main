@@ -242,6 +242,122 @@ def flush_batch(
     return n
 
 
+# --- Tenant-level callable ------------------------------------------------
+
+def recompute_confidence_tenant(
+    conn: psycopg.Connection,
+    tenant_id: str,
+    *,
+    dry_run: bool = False,
+    limit: int = 0,
+    now: datetime | None = None,
+    log_prefix: str = "[confidence]",
+) -> dict:
+    """Recompute composite confidence_score for every entry in one tenant.
+
+    Sets `app.current_tenant_id` on the connection, computes the
+    corroboration self-join, then iterates clinical_knowledge joined with
+    knowledge_leaders to write fresh (score, count) pairs.
+
+    Args:
+      conn: open psycopg connection. RLS context will be set here.
+      tenant_id: tenant UUID as string.
+      dry_run: compute and bucket but do not write back.
+      limit: cap rows scored (0 = all).
+      now: timestamp to use for the recency factor (defaults to now(UTC)).
+        Exposed so a unified finalize step can share one timestamp across
+        all tenants for cleaner audit trails.
+      log_prefix: prefix on stdout lines.
+
+    Returns:
+      {"total": int, "buckets": {...}, "score_sum": float,
+       "corroborated_rows": int}.
+    """
+    if now is None:
+        now = datetime.now(timezone.utc)
+
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT set_config('app.current_tenant_id', %s, false)",
+            (tenant_id,),
+        )
+    conn.commit()
+
+    print(
+        f"{log_prefix} tenant {tenant_id}: "
+        f"computing corroboration self-join...",
+        flush=True,
+    )
+    t0 = time.time()
+    corro = compute_corroboration_counts(conn)
+    print(
+        f"{log_prefix} corroboration computed in "
+        f"{time.time() - t0:.1f}s ({len(corro)} rows have ≥1 corroborator "
+        f"at sim≥{CORROBORATION_SIMILARITY})",
+        flush=True,
+    )
+
+    rows = fetch_rows_with_leader(conn)
+    if limit:
+        rows = rows[:limit]
+    print(
+        f"{log_prefix} tenant {tenant_id}: scoring {len(rows)} entries",
+        flush=True,
+    )
+
+    updates: list[tuple[str, float, int]] = []
+    buckets = {"very_low": 0, "low": 0, "medium": 0, "high": 0}
+    score_sum = 0.0
+
+    for (rid, created_at, review_status,
+         entry_domains, is_internal, authority_domains) in rows:
+        rid_s = str(rid)
+        count = corro.get(rid_s, 0)
+        authority = compute_source_authority(
+            is_internal, authority_domains, entry_domains or [],
+        )
+        corroboration = compute_corroboration(count)
+        recency = compute_recency(created_at, now)
+        review = compute_review_bonus(review_status, is_internal)
+        score = composite(authority, corroboration, recency, review)
+
+        updates.append((rid_s, score, count))
+        score_sum += score
+        if score < 0.40:
+            buckets["very_low"] += 1
+        elif score < 0.60:
+            buckets["low"] += 1
+        elif score < 0.80:
+            buckets["medium"] += 1
+        else:
+            buckets["high"] += 1
+
+        if len(updates) >= BATCH_SIZE:
+            if not dry_run:
+                flush_batch(conn, updates)
+            updates = []
+
+    if updates:
+        if not dry_run:
+            flush_batch(conn, updates)
+        updates = []
+
+    print(
+        f"{log_prefix} tenant {tenant_id} buckets: "
+        f"very_low={buckets['very_low']} low={buckets['low']} "
+        f"medium={buckets['medium']} high={buckets['high']} "
+        f"avg={score_sum / max(len(rows), 1):.3f}",
+        flush=True,
+    )
+
+    return {
+        "total": len(rows),
+        "buckets": buckets,
+        "score_sum": score_sum,
+        "corroborated_rows": len(corro),
+    }
+
+
 # --- Main -----------------------------------------------------------------
 
 def main() -> int:
@@ -269,82 +385,14 @@ def main() -> int:
         print(f"[confidence] tenants discovered: {len(tenants)}", flush=True)
 
         for tenant_id in tenants:
-            with conn.cursor() as cur:
-                cur.execute(
-                    "SELECT set_config('app.current_tenant_id', %s, false)",
-                    (tenant_id,),
-                )
-            conn.commit()
-
-            print(
-                f"[confidence] tenant {tenant_id}: "
-                f"computing corroboration self-join...",
-                flush=True,
+            result = recompute_confidence_tenant(
+                conn, tenant_id,
+                dry_run=args.dry_run, limit=args.limit, now=now,
             )
-            t0 = time.time()
-            corro = compute_corroboration_counts(conn)
-            print(
-                f"[confidence] corroboration computed in "
-                f"{time.time() - t0:.1f}s ({len(corro)} rows have ≥1 corroborator "
-                f"at sim≥{CORROBORATION_SIMILARITY})",
-                flush=True,
-            )
-
-            rows = fetch_rows_with_leader(conn)
-            if args.limit:
-                rows = rows[: args.limit]
-            print(
-                f"[confidence] tenant {tenant_id}: scoring {len(rows)} entries",
-                flush=True,
-            )
-
-            updates: list[tuple[str, float, int]] = []
-            buckets = {"very_low": 0, "low": 0, "medium": 0, "high": 0}
-            score_sum = 0.0
-            for (rid, created_at, review_status,
-                 entry_domains, is_internal, authority_domains) in rows:
-                rid_s = str(rid)
-                count = corro.get(rid_s, 0)
-                authority = compute_source_authority(
-                    is_internal, authority_domains, entry_domains or [],
-                )
-                corroboration = compute_corroboration(count)
-                recency = compute_recency(created_at, now)
-                review = compute_review_bonus(review_status, is_internal)
-                score = composite(authority, corroboration, recency, review)
-
-                updates.append((rid_s, score, count))
-                score_sum += score
-                if score < 0.40:
-                    buckets["very_low"] += 1
-                elif score < 0.60:
-                    buckets["low"] += 1
-                elif score < 0.80:
-                    buckets["medium"] += 1
-                else:
-                    buckets["high"] += 1
-
-                if len(updates) >= BATCH_SIZE:
-                    if not args.dry_run:
-                        flush_batch(conn, updates)
-                    updates = []
-
-            if updates:
-                if not args.dry_run:
-                    flush_batch(conn, updates)
-                updates = []
-
-            print(
-                f"[confidence] tenant {tenant_id} buckets: "
-                f"very_low={buckets['very_low']} low={buckets['low']} "
-                f"medium={buckets['medium']} high={buckets['high']} "
-                f"avg={score_sum / max(len(rows), 1):.3f}",
-                flush=True,
-            )
+            grand_total += result["total"]
+            grand_score_sum += result["score_sum"]
             for k in grand_buckets:
-                grand_buckets[k] += buckets[k]
-            grand_total += len(rows)
-            grand_score_sum += score_sum
+                grand_buckets[k] += result["buckets"][k]
     finally:
         conn.close()
 
