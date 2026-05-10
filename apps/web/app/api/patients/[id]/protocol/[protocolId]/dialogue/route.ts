@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { apiAuth } from "@/lib/auth";
 import { apiError, ERROR_CODES } from "@/lib/api-error";
 import { patientBelongsToTenant } from "@/lib/records";
+import { protocolBelongsToPatient } from "@/lib/protocols";
 import {
   getDialogueForProtocol,
   answerDialogueQuestion,
@@ -19,6 +20,11 @@ export async function GET(
     if (!user) return apiError(ERROR_CODES.NOT_AUTHENTICATED, 401);
     const ok = await patientBelongsToTenant(user.tenantId, ctx.params.id);
     if (!ok) return apiError(ERROR_CODES.NOT_FOUND, 404);
+
+    const protocolOk = await protocolBelongsToPatient(
+      user.tenantId, ctx.params.protocolId, ctx.params.id,
+    );
+    if (!protocolOk) return apiError(ERROR_CODES.NOT_FOUND, 404);
 
     const dialogue = await getDialogueForProtocol(user.tenantId, ctx.params.protocolId);
     return NextResponse.json({ questions: dialogue });
