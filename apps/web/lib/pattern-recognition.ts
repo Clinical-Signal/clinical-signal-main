@@ -15,11 +15,13 @@
  */
 
 import { withTenant } from "./db";
+import { callModel, loadPrompt, stripCodeFences } from "./llm";
 import type { EditType, StoredEdit } from "./protocol-edits";
 import { getPractitionerEdits, getEditPatternCounts } from "./protocol-edits";
 import type { PreferenceCategory } from "./preferences";
 
 const PATTERN_MODEL = "claude-sonnet-4-5-20250929";
+const PATTERN_PROMPT_VERSION = "pattern_synthesis_v1";
 
 // Minimum number of times an edit pattern must occur before we suggest it
 const MIN_PATTERN_COUNT = 3;
@@ -245,37 +247,6 @@ function detectLayerPatterns(edits: StoredEdit[]): DetectedPattern[] {
 // Pattern → Suggested Preference (AI synthesis)
 // ---------------------------------------------------------------------------
 
-const PATTERN_SYNTHESIS_PROMPT = `You are a clinical protocol assistant. You've detected recurring patterns in how a functional medicine practitioner edits their AI-generated protocols. Your job is to convert these patterns into clear, actionable preference rules the practitioner can review and accept.
-
-For each pattern, write:
-1. A clear preference rule in the practitioner's voice (as if they're telling the AI what to do)
-2. A short label (3-6 words)
-3. A reasoning statement explaining why the system thinks this is a pattern
-
-## Output contract
-
-Return ONLY valid JSON with this shape:
-
-{
-  "suggestions": [
-    {
-      "category": "supplements | clinical | protocol_structure | communication_style | general",
-      "suggested_rule": "string — the preference rule, written as an instruction to the AI (e.g. 'Never include ashwagandha in protocols' or 'Always use magnesium glycinate 400mg rather than 300mg')",
-      "label": "string — short label, e.g. 'No ashwagandha' or 'Higher magnesium dose'",
-      "reasoning": "string — why the system thinks this, with specifics (e.g. 'You removed ashwagandha from 4 of your last 6 protocols')",
-      "confidence": "number 0-1 — how confident this pattern is (higher count + consistency = higher confidence)"
-    }
-  ]
-}
-
-## Rules
-- Only suggest rules that the practitioner clearly and consistently applies.
-- Do not suggest rules from a single edit — patterns must be repeated.
-- Use warm, professional language. These are preferences, not criticisms.
-- Keep rules concise and specific — "Never include X" is better than a paragraph.
-- If a pattern seems contradictory (e.g., sometimes adds, sometimes removes the same supplement), do NOT suggest it — it may be context-dependent.
-- Map each suggestion to the most appropriate category.`;
-
 /**
  * Use AI to synthesize detected patterns into natural-language preference
  * suggestions the practitioner can accept with one click.
@@ -284,11 +255,6 @@ export async function synthesizePatterns(
   patterns: DetectedPattern[],
 ): Promise<SuggestedPreference[]> {
   if (patterns.length === 0) return [];
-
-  const key = process.env.ANTHROPIC_API_KEY;
-  if (!key) throw new Error("ANTHROPIC_API_KEY is not set");
-  const { default: Anthropic } = await import("@anthropic-ai/sdk");
-  const claude = new Anthropic({ apiKey: key, timeout: 60_000 });
 
   const userContent =
     "Analyze these recurring edit patterns and suggest preference rules. Respond with JSON only.\n\n" +
@@ -305,25 +271,15 @@ export async function synthesizePatterns(
     "\n</patterns>";
 
   console.log("[pattern-recognition] Synthesizing", patterns.length, "patterns");
-  const response = await claude.messages.create({
+  const response = await callModel({
     model: PATTERN_MODEL,
-    max_tokens: 2000,
-    system: PATTERN_SYNTHESIS_PROMPT,
+    maxTokens: 2000,
+    system: loadPrompt(PATTERN_PROMPT_VERSION),
     messages: [{ role: "user", content: userContent }],
+    timeoutMs: 60_000,
   });
 
-  let raw = "";
-  for (const block of response.content) {
-    if (block.type === "text") raw += block.text;
-  }
-
-  let cleaned = raw.trim();
-  if (cleaned.startsWith("```")) {
-    cleaned = cleaned.replace(/^```[a-zA-Z0-9]*\n/, "");
-    cleaned = cleaned.replace(/\n```\s*$/, "");
-  }
-
-  const parsed = JSON.parse(cleaned) as {
+  const parsed = JSON.parse(stripCodeFences(response.text)) as {
     suggestions: Array<{
       category: PreferenceCategory;
       suggested_rule: string;
