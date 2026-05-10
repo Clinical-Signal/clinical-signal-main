@@ -11,7 +11,7 @@ The email should:
 Return ONLY valid JSON with this shape:
 {
   "subject_line": "string - email subject",
-  "body": "string - full email body in plain text (use \\n for line breaks)",
+  "body": "string - full email body in plain text (use \n for line breaks)",
   "closing": "string - sign-off line",
   "disclaimer_footer": "This communication contains personalized health guidance developed with AI assistance. It is not a substitute for professional medical advice."
 }
