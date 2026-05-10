@@ -17,7 +17,6 @@ import {
   type IntakeData,
   type IntakeAnythingElseSection,
   type IntakeDiagnosis,
-  type IntakeGoalsSection,
   type IntakeHistorySection,
   type IntakeLifestyleSection,
   type IntakeMedication,
@@ -264,12 +263,9 @@ export function IntakeForm({ patientId, initial }: Props) {
         onDraftChange={(v) => setDraft((d) => ({ ...d, previous_labs: v }))}
       />
 
-      {/* Section 11: Goals (kept from v1, overlaps with WhyHere) */}
-      <GoalsSection
-        patientId={patientId}
-        initial={initial.goals}
-        onDraftChange={(v) => setDraft((d) => ({ ...d, goals: v }))}
-      />
+      {/* Section 11 (Goals) removed per Dr. Laura QA May 5, 2026 — overlapped with
+          "Why you're here". Existing goals data is preserved in the database
+          for back-compat; just no longer collected. */}
 
       {/* Section 12: Wearables */}
       <WearablesSection
@@ -913,51 +909,11 @@ function ImmuneDeepDiveSection({
 }
 
 // ---------------------------------------------------------------------------
-// Goals (v1 — kept for backward compat)
+// Goals section removed per Dr. Laura QA May 5, 2026 (intake feedback issue
+// #166). Overlapped with "Why you're here". The IntakeGoalsSection type is
+// still exported from intake-schema.ts and persisted goals data is preserved
+// in the database for back-compat — just no longer collected via this form.
 // ---------------------------------------------------------------------------
-
-function GoalsSection({
-  patientId,
-  initial,
-  onDraftChange,
-}: {
-  patientId: string;
-  initial: IntakeGoalsSection | undefined;
-  onDraftChange?: (v: IntakeGoalsSection) => void;
-}) {
-  const [data, setData] = useState<IntakeGoalsSection>(
-    initial && typeof initial.desired_outcomes === "string"
-      ? initial
-      : { desired_outcomes: "", failed_approaches: "", commitment: null },
-  );
-  const status = useDebouncedSave(patientId, "goals", data);
-  useEffect(() => { onDraftChange?.(data); }, [data, onDraftChange]);
-  return (
-    <SectionShell
-      title="Health goals"
-      description="What the patient wants to achieve, and what they've already tried."
-      status={status}
-    >
-      <TextArea
-        label="What are you hoping to achieve?"
-        value={data.desired_outcomes}
-        onChange={(v) => setData((d) => ({ ...d, desired_outcomes: v }))}
-        rows={3}
-      />
-      <TextArea
-        label="What have you tried that hasn't worked?"
-        value={data.failed_approaches}
-        onChange={(v) => setData((d) => ({ ...d, failed_approaches: v }))}
-        rows={3}
-      />
-      <SliderField
-        label="Commitment to making changes (1–10)"
-        value={data.commitment}
-        onChange={(v) => setData((d) => ({ ...d, commitment: v }))}
-      />
-    </SectionShell>
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Previous Labs
