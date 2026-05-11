@@ -56,6 +56,10 @@ services:
       # Web connects as app_user (NOSUPERUSER) so RLS policies actually apply.
       DATABASE_URL: postgresql://app_user:app_user_dev_password@postgres:5432/${POSTGRES_DB:-clinical_signal}
       ANALYSIS_ENGINE_URL: http://analysis-engine:8000
+      # Web layer calls Claude directly for prep brief, clinical analysis,
+      # protocol generation, and the derivative outputs. Forwarded from the
+      # host .env so both web and analysis-engine share the same key.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       AUTH_SECRET: ${AUTH_SECRET:-dev_only_change_me_minimum_32_chars_long}
       SESSION_IDLE_MINUTES: ${SESSION_IDLE_MINUTES:-15}
       DEFAULT_TENANT_ID: ${DEFAULT_TENANT_ID:-00000000-0000-0000-0000-000000000001}
