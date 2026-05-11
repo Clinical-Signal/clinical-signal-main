@@ -5,6 +5,35 @@ declare global {
   var __pgPool: Pool | undefined;
 }
 
+// Hostnames treated as dev-local (no SSL required). Includes Docker service
+// names so docker-compose's `postgres:5432` resolves correctly instead of
+// being classified as remote and demanding SSL against a dev Postgres that
+// doesn't speak SSL — see issue #193 for the regression that motivated this.
+const LOCAL_HOSTNAMES: ReadonlySet<string> = new Set([
+  "localhost",
+  "127.0.0.1",
+  "::1",
+  "postgres",
+  "db",
+]);
+
+/**
+ * True iff the connection string targets a non-local Postgres.
+ *
+ * Uses URL parsing (not substring matching) so query strings and ports
+ * can't accidentally match a hostname check. Malformed connection strings
+ * fall through to `true` — production deploys with a bad DATABASE_URL
+ * fail closed (SSL required) instead of open.
+ */
+export function isRemoteHost(connectionString: string): boolean {
+  try {
+    const url = new URL(connectionString);
+    return !LOCAL_HOSTNAMES.has(url.hostname);
+  } catch {
+    return true;
+  }
+}
+
 // Lazy pool — defers construction until the first query so the module can
 // be imported at Next.js build time without DATABASE_URL being set. Every
 // runtime call goes through getPool(), which throws on the first real
@@ -15,11 +44,14 @@ function getPool(): Pool {
   if (!connectionString) {
     throw new Error("DATABASE_URL is not set");
   }
-  // Enable SSL for any non-localhost database (Aptible, Railway, etc.)
-  // or when the connection string explicitly requests it.
-  const isRemote =
-    !connectionString.includes("localhost") &&
-    !connectionString.includes("127.0.0.1");
+  // Enable SSL for any non-local database (Aptible, Railway, etc.) or when
+  // the connection string explicitly requests it. "Local" matches the
+  // LOCAL_HOSTNAMES set above — including the Docker service names
+  // ("postgres", "db") that docker-compose uses in dev. The prior
+  // substring check on "localhost"/"127.0.0.1" misclassified those Docker
+  // hostnames as remote and broke every authenticated request after a
+  // clean container rebuild (#193).
+  const isRemote = isRemoteHost(connectionString);
   const needsSsl =
     isRemote ||
     connectionString.includes("sslmode=require") ||
