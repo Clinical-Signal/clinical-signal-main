@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,9 +15,11 @@ import {
   emptyMedication,
   emptySymptom,
   type IntakeData,
+  type IntakeAboutYouSection,
   type IntakeAnythingElseSection,
   type IntakeDiagnosis,
   type IntakeHistorySection,
+  type IntakeHormoneSection,
   type IntakeLifestyleSection,
   type IntakeMedication,
   type IntakeMedicationsSection,
@@ -26,6 +28,7 @@ import {
   type IntakeSymptom,
   type IntakeSymptomsSection,
   type IntakeWearablesSection,
+  type IntakeWhyHereSection,
 } from "@/lib/intake-schema";
 import { submitIntakeAction } from "./actions";
 import {
@@ -50,10 +53,10 @@ import { HormonesSection } from "./sections/hormones";
 import { WearablesSection } from "./sections/wearables";
 import { AnythingElseSection } from "./sections/anything-else";
 // v3 conditional deep dives
-import { SleepDeepDiveSection } from "./sections/sleep-deep-dive";
-import { StressDeepDiveSection } from "./sections/stress-deep-dive";
-import { SkinDeepDiveSection } from "./sections/skin-deep-dive";
-import { MetabolismDeepDiveSection } from "./sections/metabolism-deep-dive";
+import { SleepDeepDiveSection, type SleepDeepDiveData } from "./sections/sleep-deep-dive";
+import { StressDeepDiveSection, type StressDeepDiveData } from "./sections/stress-deep-dive";
+import { SkinDeepDiveSection, type SkinDeepDiveData } from "./sections/skin-deep-dive";
+import { MetabolismDeepDiveSection, type MetabolismDeepDiveData } from "./sections/metabolism-deep-dive";
 
 interface Props {
   patientId: string;
@@ -80,6 +83,90 @@ export function IntakeForm({ patientId, initial }: Props) {
 
   // Count visible conditional sections for progress display
   const conditionalCount = [showGut, showImmune, showSleep, showStress, showSkin, showMetabolism].filter(Boolean).length;
+
+  // Stable onDraftChange handlers per section.
+  //
+  // Each section's useEffect depends on `onDraftChange`, so passing a fresh
+  // inline arrow on every render triggers a setDraft → re-render → fresh
+  // arrow → infinite loop (issue #195, "Maximum update depth exceeded" 600+
+  // times during normal use, blocked form submission). useCallback with an
+  // empty dep array gives every section a stable function reference.
+  // setDraft itself is reference-stable per React's setState contract.
+  const onAboutYouChange = useCallback(
+    (v: IntakeAboutYouSection) => setDraft((d) => ({ ...d, about_you: v })),
+    [],
+  );
+  const onWhyHereChange = useCallback(
+    (v: IntakeWhyHereSection) => setDraft((d) => ({ ...d, why_here: v })),
+    [],
+  );
+  const onSymptomsChange = useCallback(
+    (v: IntakeSymptomsSection) => setDraft((d) => ({ ...d, symptoms: v })),
+    [],
+  );
+  const onHistoryChange = useCallback(
+    (v: IntakeHistorySection) => setDraft((d) => ({ ...d, history: v })),
+    [],
+  );
+  const onMedicationsChange = useCallback(
+    (v: IntakeMedicationsSection) => setDraft((d) => ({ ...d, medications: v })),
+    [],
+  );
+  const onLifestyleChange = useCallback(
+    (v: IntakeLifestyleSection) => setDraft((d) => ({ ...d, lifestyle: v })),
+    [],
+  );
+  const onHormonesChange = useCallback(
+    (v: IntakeHormoneSection) => setDraft((d) => ({ ...d, hormones: v })),
+    [],
+  );
+  const onGutChange = useCallback(
+    (v: NonNullable<IntakeData["gut_deep_dive"]>) =>
+      setDraft((d) => ({ ...d, gut_deep_dive: v })),
+    [],
+  );
+  const onImmuneChange = useCallback(
+    (v: NonNullable<IntakeData["immune_deep_dive"]>) =>
+      setDraft((d) => ({ ...d, immune_deep_dive: v })),
+    [],
+  );
+  // Deep-dive sections use locally-defined data shapes that don't match the
+  // IntakeData column type — the `as any` casts here preserve the existing
+  // behavior of the inline arrows before this fix. Cleaning up the shape
+  // mismatch is a separate concern.
+  const onSleepChange = useCallback(
+    (v: SleepDeepDiveData) =>
+      setDraft((d) => ({ ...d, sleep_deep_dive: v as any })),
+    [],
+  );
+  const onStressChange = useCallback(
+    (v: StressDeepDiveData) =>
+      setDraft((d) => ({ ...d, stress_deep_dive: v as any })),
+    [],
+  );
+  const onSkinChange = useCallback(
+    (v: SkinDeepDiveData) =>
+      setDraft((d) => ({ ...d, skin_deep_dive: v as any })),
+    [],
+  );
+  const onMetabolismChange = useCallback(
+    (v: MetabolismDeepDiveData) =>
+      setDraft((d) => ({ ...d, metabolism_deep_dive: v as any })),
+    [],
+  );
+  const onPreviousLabsChange = useCallback(
+    (v: IntakePreviousLabsSection) => setDraft((d) => ({ ...d, previous_labs: v })),
+    [],
+  );
+  const onWearablesChange = useCallback(
+    (v: IntakeWearablesSection) => setDraft((d) => ({ ...d, wearables: v })),
+    [],
+  );
+  const onAnythingElseChange = useCallback(
+    (v: IntakeAnythingElseSection) =>
+      setDraft((d) => ({ ...d, anything_else: v })),
+    [],
+  );
 
   return (
     <div className="flex flex-col gap-6">
@@ -157,49 +244,49 @@ export function IntakeForm({ patientId, initial }: Props) {
       <AboutYouSection
         patientId={patientId}
         initial={draft.about_you}
-        onDraftChange={(v) => setDraft((d) => ({ ...d, about_you: v }))}
+        onDraftChange={onAboutYouChange}
       />
 
       {/* Section 2: Why You're Here */}
       <WhyHereSection
         patientId={patientId}
         initial={draft.why_here}
-        onDraftChange={(v) => setDraft((d) => ({ ...d, why_here: v }))}
+        onDraftChange={onWhyHereChange}
       />
 
       {/* Section 3: Current Symptoms (MSQ) */}
       <MsqSymptomsSection
         patientId={patientId}
         initial={draft.symptoms}
-        onDraftChange={(v) => setDraft((d) => ({ ...d, symptoms: v }))}
+        onDraftChange={onSymptomsChange}
       />
 
       {/* Section 4: Health History */}
       <HistorySection
         patientId={patientId}
         initial={initial.history}
-        onDraftChange={(v) => setDraft((d) => ({ ...d, history: v }))}
+        onDraftChange={onHistoryChange}
       />
 
       {/* Section 5: Medications & Supplements */}
       <MedicationsSection
         patientId={patientId}
         initial={initial.medications}
-        onDraftChange={(v) => setDraft((d) => ({ ...d, medications: v }))}
+        onDraftChange={onMedicationsChange}
       />
 
       {/* Section 6: Lifestyle */}
       <LifestyleSection
         patientId={patientId}
         initial={initial.lifestyle}
-        onDraftChange={(v) => setDraft((d) => ({ ...d, lifestyle: v }))}
+        onDraftChange={onLifestyleChange}
       />
 
       {/* Section 7: Hormones & Cycle (REQUIRED — not conditional) */}
       <HormonesSection
         patientId={patientId}
         initial={getHormoneData(draft)}
-        onDraftChange={(v) => setDraft((d) => ({ ...d, hormones: v }))}
+        onDraftChange={onHormonesChange}
       />
 
       {/* Section 8: Gut Health Deep Dive (conditional) */}
@@ -207,7 +294,7 @@ export function IntakeForm({ patientId, initial }: Props) {
         <GutDeepDiveSection
           patientId={patientId}
           initial={draft.gut_deep_dive}
-          onDraftChange={(v) => setDraft((d) => ({ ...d, gut_deep_dive: v }))}
+          onDraftChange={onGutChange}
         />
       )}
 
@@ -216,7 +303,7 @@ export function IntakeForm({ patientId, initial }: Props) {
         <ImmuneDeepDiveSection
           patientId={patientId}
           initial={draft.immune_deep_dive}
-          onDraftChange={(v) => setDraft((d) => ({ ...d, immune_deep_dive: v }))}
+          onDraftChange={onImmuneChange}
         />
       )}
 
@@ -225,7 +312,7 @@ export function IntakeForm({ patientId, initial }: Props) {
         <SleepDeepDiveSection
           patientId={patientId}
           initial={draft.sleep_deep_dive as any}
-          onDraftChange={(v) => setDraft((d) => ({ ...d, sleep_deep_dive: v as any }))}
+          onDraftChange={onSleepChange}
         />
       )}
 
@@ -234,7 +321,7 @@ export function IntakeForm({ patientId, initial }: Props) {
         <StressDeepDiveSection
           patientId={patientId}
           initial={draft.stress_deep_dive as any}
-          onDraftChange={(v) => setDraft((d) => ({ ...d, stress_deep_dive: v as any }))}
+          onDraftChange={onStressChange}
         />
       )}
 
@@ -243,7 +330,7 @@ export function IntakeForm({ patientId, initial }: Props) {
         <SkinDeepDiveSection
           patientId={patientId}
           initial={draft.skin_deep_dive as any}
-          onDraftChange={(v) => setDraft((d) => ({ ...d, skin_deep_dive: v as any }))}
+          onDraftChange={onSkinChange}
         />
       )}
 
@@ -252,7 +339,7 @@ export function IntakeForm({ patientId, initial }: Props) {
         <MetabolismDeepDiveSection
           patientId={patientId}
           initial={draft.metabolism_deep_dive as any}
-          onDraftChange={(v) => setDraft((d) => ({ ...d, metabolism_deep_dive: v as any }))}
+          onDraftChange={onMetabolismChange}
         />
       )}
 
@@ -260,7 +347,7 @@ export function IntakeForm({ patientId, initial }: Props) {
       <PreviousLabsSection
         patientId={patientId}
         initial={initial.previous_labs}
-        onDraftChange={(v) => setDraft((d) => ({ ...d, previous_labs: v }))}
+        onDraftChange={onPreviousLabsChange}
       />
 
       {/* Section 11 (Goals) removed per Dr. Laura QA May 5, 2026 — overlapped with
@@ -271,14 +358,14 @@ export function IntakeForm({ patientId, initial }: Props) {
       <WearablesSection
         patientId={patientId}
         initial={initial.wearables}
-        onDraftChange={(v) => setDraft((d) => ({ ...d, wearables: v }))}
+        onDraftChange={onWearablesChange}
       />
 
       {/* Section 13: Anything Else */}
       <AnythingElseSection
         patientId={patientId}
         initial={initial.anything_else}
-        onDraftChange={(v) => setDraft((d) => ({ ...d, anything_else: v }))}
+        onDraftChange={onAnythingElseChange}
       />
 
       {/* Submit */}
