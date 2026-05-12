@@ -334,7 +334,118 @@ def render_client_pdf(
         story.append(_para(BODY, cc["intro"]))
         story.append(Spacer(1, 6))
 
+    # protocol_generation_v1's `client_action_plan` schema renamed "phases"
+    # to "layers" and replaced flat `what_to_start` with a structured
+    # `daily_routine: {morning, with_meals, evening}`. Field names elsewhere
+    # (intro, desired_outcomes, how_youll_know_its_working, closing_note,
+    # if_something_feels_off, how_it_helps) carry over from v1. Render
+    # whichever shape is present; fall back to the v1 phases path for
+    # legacy protocols still in the corpus. Mirrors the apps/web protocol
+    # viewer's dual-key handling (page.tsx:27-28).
+    layers = cc.get("layers") or []
     phases = cc.get("phases") or []
+
+    if layers:
+        _render_layers_v2(story, layers)
+    elif phases:
+        _render_phases_v1(story, phases)
+
+    if cc.get("closing_note"):
+        story.append(_para(H2, "A note from your practitioner"))
+        story.append(_para(BODY, cc["closing_note"]))
+
+    if cc.get("if_something_feels_off"):
+        story.append(_para(H2, "If something feels off"))
+        b = _bullets(cc["if_something_feels_off"])
+        if b:
+            story.append(b)
+
+    return _build(story)
+
+
+def _render_layers_v2(story: list[Any], layers: list[Any]) -> None:
+    """Render the v2 `layers` schema from protocol_generation_v1.md.
+
+    Each layer object carries:
+      - layer (int), title (str)
+      - why_this_comes_first (str)
+      - daily_routine: {morning, with_meals, evening} → [{action, how_it_helps}, ...]
+      - what_to_continue (list[str])
+      - desired_outcomes (list[str])
+      - how_youll_know_its_working (list[str])
+      - when_to_move_forward (str) — symptom-based criterion, replaces v1's `weeks`
+    """
+    daily_routine_labels = [
+        ("morning", "In the morning"),
+        ("with_meals", "With your meals"),
+        ("evening", "In the evening"),
+    ]
+    for ly in layers:
+        if not isinstance(ly, dict):
+            continue
+        block: list[Any] = []
+        layer_no = ly.get("layer")
+        title = ly.get("title") or ""
+        head = (
+            f"Layer {layer_no}: {title}" if layer_no and title
+            else (title or (f"Layer {layer_no}" if layer_no else "Layer"))
+        )
+        block.append(_para(H2, _esc(head)))
+
+        if ly.get("why_this_comes_first"):
+            block.append(_para(BODY, ly["why_this_comes_first"]))
+
+        daily = ly.get("daily_routine") or {}
+        if isinstance(daily, dict) and any(daily.get(k) for k, _ in daily_routine_labels):
+            block.append(_para(H3, "Your daily routine"))
+            for key, label in daily_routine_labels:
+                items = daily.get(key) or []
+                if not items:
+                    continue
+                block.append(_para(BODY, f"<b>{_esc(label)}</b>"))
+                for item in items:
+                    if isinstance(item, dict):
+                        block.append(_para(BODY, _esc(item.get("action", ""))))
+                        if item.get("how_it_helps"):
+                            block.append(_para(META, _esc(item["how_it_helps"])))
+                    else:
+                        block.append(_para(BODY, _esc(item)))
+
+        if ly.get("what_to_continue"):
+            block.append(_para(H3, "What to continue"))
+            b = _bullets(ly["what_to_continue"])
+            if b:
+                block.append(b)
+
+        if ly.get("desired_outcomes"):
+            block.append(_para(H3, "What you can expect"))
+            b = _bullets(ly["desired_outcomes"])
+            if b:
+                block.append(b)
+
+        if ly.get("how_youll_know_its_working"):
+            block.append(_para(H3, "How you'll know it's working"))
+            b = _bullets(ly["how_youll_know_its_working"])
+            if b:
+                block.append(b)
+
+        if ly.get("when_to_move_forward"):
+            block.append(_para(H3, "When to move forward"))
+            block.append(_para(BODY, ly["when_to_move_forward"]))
+
+        # Keep the layer header + first content together; long layers
+        # break naturally.
+        story.append(KeepTogether(block[:3]))
+        story.extend(block[3:])
+        story.append(Spacer(1, 8))
+
+
+def _render_phases_v1(story: list[Any], phases: list[Any]) -> None:
+    """Render the v1 client_doc 'phases' schema (calendar-based, legacy).
+
+    Preserved for any pre-#200 protocols still in the corpus. New
+    protocols use the layers schema rendered by _render_layers_v2 above.
+    """
     for ph in phases:
         if not isinstance(ph, dict):
             continue
@@ -376,20 +487,6 @@ def render_client_pdf(
             if b:
                 phase_block.append(b)
 
-        # Try to keep the phase header + first content together; long phases
-        # will still break naturally.
         story.append(KeepTogether(phase_block[:3]))
         story.extend(phase_block[3:])
         story.append(Spacer(1, 8))
-
-    if cc.get("closing_note"):
-        story.append(_para(H2, "A note from your practitioner"))
-        story.append(_para(BODY, cc["closing_note"]))
-
-    if cc.get("if_something_feels_off"):
-        story.append(_para(H2, "If something feels off"))
-        b = _bullets(cc["if_something_feels_off"])
-        if b:
-            story.append(b)
-
-    return _build(story)
