@@ -111,8 +111,14 @@ def _bullets(items: list[Any]) -> ListFlowable | None:
     return ListFlowable(flowables, bulletType="bullet", leftIndent=14, bulletFontSize=8)
 
 
-def _para(style: ParagraphStyle, text: Any):
-    return Paragraph(_esc(text), style)
+def _para(style: ParagraphStyle, text: Any, *, escape: bool = True):
+    # Default escape=True is safe for raw text; pass escape=False when the
+    # caller has already pre-escaped dynamic substrings and wants literal
+    # ReportLab inline markup (e.g. <b>...</b>) preserved.
+    s = "" if text is None else (str(text) if not isinstance(text, str) else text)
+    if escape:
+        s = _esc(s)
+    return Paragraph(s, style)
 
 
 def _header(story: list, practice: str, audience: str, patient_name: str | None,
@@ -215,10 +221,11 @@ def render_clinical_pdf(
             sys = s.get("system") or "System"
             story.append(_para(H3, sys))
             if s.get("finding"):
-                story.append(_para(BODY, f"<b>Finding:</b> {_esc(s['finding'])}"))
+                story.append(_para(BODY, f"<b>Finding:</b> {_esc(s['finding'])}", escape=False))
             if s.get("connects_to"):
                 story.append(_para(BODY,
-                    f"<b>Connects to:</b> {_esc(', '.join(s['connects_to']))}"))
+                    f"<b>Connects to:</b> {_esc(', '.join(s['connects_to']))}",
+                    escape=False))
 
     diet = cc.get("dietary_recommendations") or []
     if diet:
@@ -227,7 +234,7 @@ def render_clinical_pdf(
             if not isinstance(d, dict):
                 continue
             line = f"<b>[{_esc(d.get('priority', '—'))}]</b> {_esc(d.get('recommendation', ''))}"
-            story.append(_para(BODY, line))
+            story.append(_para(BODY, line, escape=False))
             if d.get("rationale"):
                 story.append(_para(META, f"Rationale: {_esc(d['rationale'])}"))
 
@@ -242,13 +249,13 @@ def render_clinical_pdf(
                 _esc(x) for x in [sup.get("dosage"), sup.get("timing"), sup.get("duration")]
                 if x
             )
-            story.append(_para(H3, head))
+            story.append(_para(H3, head, escape=False))
             if sub:
-                story.append(_para(META, sub))
+                story.append(_para(META, sub, escape=False))
             if sup.get("rationale"):
-                story.append(_para(BODY, f"<b>Rationale:</b> {_esc(sup['rationale'])}"))
+                story.append(_para(BODY, f"<b>Rationale:</b> {_esc(sup['rationale'])}", escape=False))
             if sup.get("cautions"):
-                story.append(_para(BODY, f"<b>Cautions:</b> {_esc(sup['cautions'])}"))
+                story.append(_para(BODY, f"<b>Cautions:</b> {_esc(sup['cautions'])}", escape=False))
 
     life = cc.get("lifestyle_modifications") or []
     if life:
@@ -257,7 +264,8 @@ def render_clinical_pdf(
             if not isinstance(l, dict):
                 continue
             story.append(_para(BODY,
-                f"<b>[{_esc(l.get('priority', '—'))}]</b> {_esc(l.get('modification', ''))}"))
+                f"<b>[{_esc(l.get('priority', '—'))}]</b> {_esc(l.get('modification', ''))}",
+                escape=False))
             if l.get("rationale"):
                 story.append(_para(META, f"Rationale: {_esc(l['rationale'])}"))
 
@@ -270,7 +278,7 @@ def render_clinical_pdf(
             head = f"<b>{_esc(r.get('test', ''))}</b>"
             if r.get("timing"):
                 head += f" — {_esc(r['timing'])}"
-            story.append(_para(BODY, head))
+            story.append(_para(BODY, head, escape=False))
             if r.get("rationale"):
                 story.append(_para(META, _esc(r["rationale"])))
 
@@ -281,7 +289,7 @@ def render_clinical_pdf(
             if not isinstance(f, dict):
                 continue
             head = f"<b>{_esc(f.get('milestone', ''))}</b>"
-            story.append(_para(BODY, head))
+            story.append(_para(BODY, head, escape=False))
             if f.get("focus"):
                 story.append(_para(META, _esc(f["focus"])))
 
@@ -300,7 +308,8 @@ def render_clinical_pdf(
             story.append(_para(H3, u.get("issue") or "Uncertainty"))
             if u.get("recommended_evaluation"):
                 story.append(_para(BODY,
-                    f"<b>Recommended evaluation:</b> {_esc(u['recommended_evaluation'])}"))
+                    f"<b>Recommended evaluation:</b> {_esc(u['recommended_evaluation'])}",
+                    escape=False))
             if u.get("impact_if_wrong"):
                 story.append(_para(META, f"Impact if wrong: {_esc(u['impact_if_wrong'])}"))
 
@@ -402,7 +411,7 @@ def _render_layers_v2(story: list[Any], layers: list[Any]) -> None:
                 items = daily.get(key) or []
                 if not items:
                     continue
-                block.append(_para(BODY, f"<b>{_esc(label)}</b>"))
+                block.append(_para(BODY, f"<b>{_esc(label)}</b>", escape=False))
                 for item in items:
                     if isinstance(item, dict):
                         block.append(_para(BODY, _esc(item.get("action", ""))))
@@ -463,7 +472,7 @@ def _render_phases_v1(story: list[Any], phases: list[Any]) -> None:
             for item in ph["what_to_start"]:
                 if isinstance(item, dict):
                     line = f"<b>{_esc(item.get('action', ''))}</b>"
-                    phase_block.append(_para(BODY, line))
+                    phase_block.append(_para(BODY, line, escape=False))
                     if item.get("how_it_helps"):
                         phase_block.append(_para(META, _esc(item["how_it_helps"])))
                 else:
