@@ -8,6 +8,7 @@ import {
   chunkText,
   listIntakeDocs,
 } from "@/lib/intake-documents";
+import { validateMagicBytes } from "@/lib/upload-validation";
 
 export async function GET(
   _req: Request,
@@ -89,9 +90,25 @@ export async function POST(
 
       if (name.endsWith(".pdf")) {
         docType = "pdf";
-        extractedText = "(PDF text extracted client-side)";
       } else if (name.endsWith(".docx")) {
         docType = "docx";
+      } else if (name.endsWith(".txt") || name.endsWith(".vtt") || name.endsWith(".srt")) {
+        docType = "txt";
+      } else if (/\.(jpg|jpeg|png|gif|webp)$/i.test(name)) {
+        docType = "image";
+      } else {
+        return apiError(ERROR_CODES.VALIDATION_ERROR, 400);
+      }
+
+      try {
+        validateMagicBytes(bytes, docType, file.name);
+      } catch (err) {
+        return apiError(ERROR_CODES.VALIDATION_ERROR, 400, err);
+      }
+
+      if (docType === "pdf") {
+        extractedText = "(PDF text extracted client-side)";
+      } else if (docType === "docx") {
         try {
           const mammoth = await import("mammoth");
           const result = await mammoth.extractRawText({ buffer: bytes });
@@ -99,14 +116,10 @@ export async function POST(
         } catch (err) {
           return apiError(ERROR_CODES.VALIDATION_ERROR, 400, err);
         }
-      } else if (name.endsWith(".txt") || name.endsWith(".vtt") || name.endsWith(".srt")) {
-        docType = "txt";
+      } else if (docType === "txt") {
         extractedText = bytes.toString("utf-8");
-      } else if (/\.(jpg|jpeg|png|gif|webp)$/i.test(name)) {
-        docType = "image";
+      } else if (docType === "image") {
         extractedText = "(image — no text extraction)";
-      } else {
-        return apiError(ERROR_CODES.VALIDATION_ERROR, 400);
       }
 
       const docId = await insertDocument({
