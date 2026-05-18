@@ -8,6 +8,7 @@ Usage (inside analysis-engine container):
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sys
 import time
@@ -20,7 +21,9 @@ import os  # noqa: E402
 import psycopg  # noqa: E402
 
 from app.knowledge.db import (  # noqa: E402
+    get_or_create_source,
     insert_knowledge_item,
+    mark_source_extracted,
     post_ingest_finalize,
 )
 from app.knowledge.embeddings import embed  # noqa: E402
@@ -72,11 +75,94 @@ def _embed_text(item: dict) -> str:
     return "\n".join(p for p in parts if p).strip()
 
 
+def _resolve_per_file_source(
+    tenant_id: str,
+    items: list[dict],
+    jsonl_path: Path,
+    leader_id: str | None,
+    source_type: str,
+) -> str | None:
+    """Create a knowledge_sources row for the JSONL file as a whole.
+
+    Returns the source_id, or None if every item in the file already
+    embeds its own ``_source.source_id`` (in which case the PDF or
+    custom ingest already created per-source rows and we'd just be
+    minting an orphan slack_thread row otherwise).
+
+    Channel name comes from the first item's ``_source.channel``;
+    raw_text_hash is sha256 of the whole JSONL bytes for idempotency
+    across re-loads.
+    """
+    if items and all((it.get("_source") or {}).get("source_id") for it in items):
+        return None
+
+    raw_text_hash = hashlib.sha256(jsonl_path.read_bytes()).hexdigest()
+    first_src = (items[0].get("_source") if items else None) or {}
+    channel = first_src.get("channel") or jsonl_path.stem
+
+    return get_or_create_source(
+        tenant_id,
+        source_type,
+        title=channel,
+        leader_id=leader_id,
+        file_path=str(jsonl_path),
+        raw_text_hash=raw_text_hash,
+        metadata={"jsonl_filename": jsonl_path.name, "entry_count": len(items)},
+    )
+
+
+def _resolve_leader_id(tenant_id: str, leader_slug: str | None) -> str | None:
+    """Look up a leader UUID by slug. Returns None if slug is None or
+    not found (we log and continue rather than block — leader_id is
+    nullable on knowledge_sources)."""
+    if not leader_slug:
+        return None
+    db_url = os.environ.get("DATABASE_URL")
+    if not db_url:
+        return None
+    with psycopg.connect(db_url) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT set_config('app.current_tenant_id', %s, false)",
+                (tenant_id,),
+            )
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id FROM knowledge_leaders "
+                "WHERE tenant_id = %s AND slug = %s",
+                (tenant_id, leader_slug),
+            )
+            row = cur.fetchone()
+            if not row:
+                print(
+                    f"[load] WARN: no knowledge_leaders row found for "
+                    f"slug={leader_slug!r} — source rows will have leader_id NULL",
+                    file=sys.stderr, flush=True,
+                )
+                return None
+            return str(row[0])
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--input", required=True)
     ap.add_argument("--tenant", required=True)
     ap.add_argument("--batch", type=int, default=32, help="embedding batch size")
+    ap.add_argument(
+        "--leader-slug",
+        default="dr-laura",
+        help="Leader slug recorded on the per-file knowledge_sources row "
+             "(default: dr-laura). Ignored when every entry already embeds "
+             "_source.source_id from an upstream ingest script.",
+    )
+    ap.add_argument(
+        "--source-type",
+        default="slack_thread",
+        help="source_type for the per-file knowledge_sources row "
+             "(default: slack_thread). Set to course_module / book / etc. "
+             "when loading non-Slack JSONLs that don't carry their own "
+             "source_id.",
+    )
     args = ap.parse_args()
 
     path = Path(args.input)
@@ -96,6 +182,23 @@ def main() -> int:
     if not items:
         return 0
 
+    # Per-file knowledge_sources row (skipped when every entry already
+    # has its own source_id from upstream — e.g. ingest_pdf.py which
+    # creates one course_module source per PDF).
+    leader_id = _resolve_leader_id(args.tenant, args.leader_slug)
+    per_file_source_id = _resolve_per_file_source(
+        args.tenant, items, path, leader_id, args.source_type,
+    )
+    if per_file_source_id:
+        print(
+            f"[load] per-file source: id={per_file_source_id} "
+            f"type={args.source_type}",
+            flush=True,
+        )
+    else:
+        print("[load] per-file source: skipped (entries carry own source_id)",
+              flush=True)
+
     # Batch-embed the text we intend to search against.
     texts = [_embed_text(it) for it in items]
     vectors: list[list[float]] = []
@@ -111,8 +214,13 @@ def main() -> int:
 
     inserted = 0
     skipped = 0
+    per_file_used = 0
     for item, vec in zip(items, vectors):
         src = item.get("_source") or {}
+        # Per-entry source_id wins (PDF path). Fall back to per-file.
+        source_id = src.get("source_id") or per_file_source_id
+        if source_id == per_file_source_id and per_file_source_id is not None:
+            per_file_used += 1
         metadata = {
             "conditions": item.get("conditions") or [],
             "symptoms": item.get("symptoms") or [],
@@ -132,6 +240,7 @@ def main() -> int:
             metadata=metadata,
             source_channel=src.get("channel"),
             source_chunk_hash=src.get("chunk_hash"),
+            source_id=source_id,
             # C.1.4 fields — present when the JSONL came from a faithfulness-
             # enabled ingest run; absent (None) for older JSONL.
             faithfulness_score=item.get("faithfulness_score"),
@@ -143,6 +252,12 @@ def main() -> int:
             inserted += 1
         else:
             skipped += 1
+
+    # Mark the per-file source as extracted with the count of entries
+    # that actually used it (excludes PDF entries that referenced their
+    # own source_id).
+    if per_file_source_id is not None:
+        mark_source_extracted(args.tenant, per_file_source_id, per_file_used)
 
     print(f"[load] done inserted={inserted} skipped_duplicates={skipped}")
 

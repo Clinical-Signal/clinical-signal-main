@@ -31,12 +31,20 @@ import re
 import sys
 import time
 from pathlib import Path
+from typing import Any
 
 # Make `app.*` imports work when invoked from the service root.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import fitz  # PyMuPDF — already in requirements.txt
 from anthropic import Anthropic  # noqa: E402
+
+import psycopg  # noqa: E402
+
+from app.knowledge.db import (  # noqa: E402
+    ALLOWED_SOURCE_TYPES,
+    get_or_create_source,
+)
 
 PROMPT_PATH = (
     Path(__file__).resolve().parents[1] / "prompts" / "pdf_categorization_v1.md"
@@ -279,16 +287,32 @@ def build_entry(
     file_name: str,
     source_channel: str,
     source_title: str,
+    source_id: str | None = None,
 ) -> dict:
     """Assemble a knowledge entry that matches the v2 JSONL shape
     consumed by load_knowledge.py + insert_knowledge_item.
 
-    chunk_hash is sha256(content)[:16] — stable across runs so the loader's
-    `(tenant_id, source_chunk_hash, title)` unique constraint dedups
-    re-ingestion of the same PDF.
+    chunk_hash is sha256(content)[:16] — stable across runs. Since
+    migration 0022 the loader's dedup key is per-item content hash
+    (computed inside insert_knowledge_item), so chunk_hash is now
+    provenance metadata rather than the uniqueness driver.
+
+    source_id, when provided, is the knowledge_sources UUID minted by
+    this script before extraction started; the loader passes it through
+    to insert_knowledge_item for rich provenance.
     """
     content = chunk["content"]
     chunk_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()[:16]
+    source_block: dict[str, Any] = {
+        "channel": source_channel,
+        "chunk_hash": chunk_hash,
+        "file": file_name,
+        "source_title": source_title,
+        "section": chunk["title"],
+        "page_range": chunk.get("page_range", ""),
+    }
+    if source_id:
+        source_block["source_id"] = source_id
     return {
         "category": category,
         "title": chunk["title"][:200],
@@ -306,20 +330,33 @@ def build_entry(
             "prompt_version": PROMPT_VERSION,
             "lens": category,
         },
-        "_source": {
-            "channel": source_channel,
-            "chunk_hash": chunk_hash,
-            "file": file_name,
-            "source_title": source_title,
-            "section": chunk["title"],
-            "page_range": chunk.get("page_range", ""),
-        },
+        "_source": source_block,
     }
 
 
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
+
+def _resolve_leader_id(tenant_id: str, leader_slug: str) -> str | None:
+    db_url = os.environ.get("DATABASE_URL")
+    if not db_url:
+        return None
+    with psycopg.connect(db_url) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT set_config('app.current_tenant_id', %s, false)",
+                (tenant_id,),
+            )
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id FROM knowledge_leaders "
+                "WHERE tenant_id = %s AND slug = %s",
+                (tenant_id, leader_slug),
+            )
+            row = cur.fetchone()
+            return str(row[0]) if row else None
+
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
@@ -331,10 +368,23 @@ def main() -> int:
     ap.add_argument("--source-title", required=True,
                     help="Human-readable source title")
     ap.add_argument("--output", required=True, help="Output JSONL path")
+    ap.add_argument(
+        "--tenant",
+        help="Tenant UUID. When supplied (and not --dry-run), creates a "
+             "knowledge_sources row before extraction and embeds source_id "
+             "into each entry's _source. Omit for legacy JSONL-only mode.",
+    )
+    ap.add_argument(
+        "--source-type",
+        default="course_module",
+        choices=sorted(ALLOWED_SOURCE_TYPES),
+        help="source_type for the knowledge_sources row (default: course_module)",
+    )
     ap.add_argument("--max-tokens-per-chunk", type=int, default=400,
                     help="Reserved for future use; current chunker uses MAX_CHUNK_CHARS")
     ap.add_argument("--dry-run", action="store_true",
-                    help="Extract + chunk + classify, but don't write JSONL")
+                    help="Extract + chunk + classify, but don't write JSONL "
+                         "and don't create a knowledge_sources row")
     args = ap.parse_args()
 
     pdf_path = Path(args.pdf_path)
@@ -357,6 +407,36 @@ def main() -> int:
     chunks = build_chunks(pages)
     print(f"[ingest_pdf] {len(chunks)} chunks after merging + splitting", flush=True)
 
+    # Create the knowledge_sources row once, eagerly — before any LLM
+    # spend. raw_text_hash is sha256 of the full extracted text (joined
+    # page bodies), so re-runs over the same PDF map to the same source
+    # row via the schema's UNIQUE (tenant_id, raw_text_hash) constraint.
+    source_id: str | None = None
+    if args.tenant and not args.dry_run:
+        full_text = "\n\n".join(t for _, t in pages)
+        raw_text_hash = hashlib.sha256(full_text.encode("utf-8")).hexdigest()
+        leader_id = _resolve_leader_id(args.tenant, args.leader_slug)
+        if not leader_id:
+            print(
+                f"[ingest_pdf] WARN: no knowledge_leaders row for slug="
+                f"{args.leader_slug!r} — source will have leader_id NULL",
+                file=sys.stderr, flush=True,
+            )
+        source_id = get_or_create_source(
+            args.tenant,
+            args.source_type,
+            title=pdf_path.stem,
+            leader_id=leader_id,
+            file_path=str(pdf_path),
+            raw_text_hash=raw_text_hash,
+            metadata={
+                "source_channel": args.source_channel,
+                "source_title": args.source_title,
+                "page_count": len(pages),
+            },
+        )
+        print(f"[ingest_pdf] source_id={source_id}", flush=True)
+
     # Category-classifier pass.
     category_counts: dict[str, int] = {c: 0 for c in VALID_CATEGORIES}
     entries: list[dict] = []
@@ -369,6 +449,7 @@ def main() -> int:
             file_name=pdf_path.name,
             source_channel=args.source_channel,
             source_title=args.source_title,
+            source_id=source_id,
         ))
         if i % 20 == 0 or i == len(chunks):
             print(
