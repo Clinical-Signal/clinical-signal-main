@@ -51,9 +51,13 @@ database/seed/knowledge/*.jsonl
 # Cert PDFs are an exception (committed at database/seed/dr-laura-drive/
 # certification-materials/). Other staging dirs are re-populated from
 # Drive per docs/SLACK-EXTRACTION-RECIPE.md and the exhaust plan.
-database/seed/dr-laura-slack/
-database/seed/dr-laura-drive/peptide-workshop/
-database/seed/dr-laura-drive/fellowship-curriculum/
+# .gitkeep files are preserved so the staging dir structure persists in git.
+database/seed/dr-laura-slack/raw-export/*
+!database/seed/dr-laura-slack/raw-export/.gitkeep
+database/seed/dr-laura-drive/peptide-workshop/*
+!database/seed/dr-laura-drive/peptide-workshop/.gitkeep
+database/seed/dr-laura-drive/fellowship-curriculum/*
+!database/seed/dr-laura-drive/fellowship-curriculum/.gitkeep
 
 # Office / LibreOffice lock files (auto-created when a doc is open)
 .~lock.*#

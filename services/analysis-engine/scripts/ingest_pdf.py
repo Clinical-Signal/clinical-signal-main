@@ -288,6 +288,7 @@ def build_entry(
     source_channel: str,
     source_title: str,
     source_id: str | None = None,
+    extra_metadata: dict[str, Any] | None = None,
 ) -> dict:
     """Assemble a knowledge entry that matches the v2 JSONL shape
     consumed by load_knowledge.py + insert_knowledge_item.
@@ -300,6 +301,11 @@ def build_entry(
     source_id, when provided, is the knowledge_sources UUID minted by
     this script before extraction started; the loader passes it through
     to insert_knowledge_item for rich provenance.
+
+    extra_metadata, when provided, is merged into the entry's top-level
+    metadata block (alongside conditions/symptoms/etc.). Used for the
+    Fellowship attribution model: original_speaker, original_presentation,
+    curated_by, curation_source. Keys with None/empty values are dropped.
     """
     content = chunk["content"]
     chunk_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()[:16]
@@ -313,7 +319,7 @@ def build_entry(
     }
     if source_id:
         source_block["source_id"] = source_id
-    return {
+    entry: dict[str, Any] = {
         "category": category,
         "title": chunk["title"][:200],
         "content": content,
@@ -332,6 +338,11 @@ def build_entry(
         },
         "_source": source_block,
     }
+    if extra_metadata:
+        for k, v in extra_metadata.items():
+            if v not in (None, ""):
+                entry[k] = v
+    return entry
 
 
 # ---------------------------------------------------------------------------
@@ -385,7 +396,28 @@ def main() -> int:
     ap.add_argument("--dry-run", action="store_true",
                     help="Extract + chunk + classify, but don't write JSONL "
                          "and don't create a knowledge_sources row")
+    # Attribution metadata flags for content where the on-screen author
+    # differs from the curator. The four were designed for the Fellowship
+    # curriculum decks: each Module 2 deck has an original speaker
+    # (Perlmutter / LePine / Houston / etc.) curated and taught by Dr.
+    # Laura. Empty / unset → key isn't written into the entry's metadata.
+    ap.add_argument("--metadata-original-speaker", default=None,
+                    help="metadata.original_speaker — e.g., 'Perlmutter'")
+    ap.add_argument("--metadata-original-presentation", default=None,
+                    help="metadata.original_presentation — e.g., 'Heart Brain'")
+    ap.add_argument("--metadata-curated-by", default=None,
+                    help="metadata.curated_by — e.g., 'Dr. Laura'")
+    ap.add_argument("--metadata-curation-source", default=None,
+                    help="metadata.curation_source — e.g., "
+                         "'Academy for Anti-Aging Medicine Longevity Fellowship - Module 2'")
     args = ap.parse_args()
+
+    extra_metadata = {
+        "original_speaker": args.metadata_original_speaker,
+        "original_presentation": args.metadata_original_presentation,
+        "curated_by": args.metadata_curated_by,
+        "curation_source": args.metadata_curation_source,
+    }
 
     pdf_path = Path(args.pdf_path)
     if not pdf_path.exists():
@@ -450,6 +482,7 @@ def main() -> int:
             source_channel=args.source_channel,
             source_title=args.source_title,
             source_id=source_id,
+            extra_metadata=extra_metadata,
         ))
         if i % 20 == 0 or i == len(chunks):
             print(
