@@ -1,10 +1,14 @@
 """DB helpers for clinical_knowledge + concepts/relationships tables."""
 from __future__ import annotations
 
+import hashlib
 import json
+import logging
 from typing import Any
 
 from app.pipeline.db import tenant_conn
+
+log = logging.getLogger(__name__)
 
 
 # ---------- knowledge ----------
@@ -31,6 +35,14 @@ def _vector_literal(vec: list[float]) -> str:
     return "[" + ",".join(f"{v:.8f}" for v in vec) + "]"
 
 
+def _compute_item_content_hash(content: str) -> str:
+    """Per-item content hash used as the dedup key for clinical_knowledge.
+
+    Mirrors migration 0022's backfill: encode(sha256(content::bytea), 'hex').
+    """
+    return hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+
 def insert_knowledge_item(
     tenant_id: str,
     category: str,
@@ -41,13 +53,26 @@ def insert_knowledge_item(
     source_channel: str | None,
     source_chunk_hash: str | None,
     *,
+    source_id: str | None = None,
     faithfulness_score: float | None = None,
     faithfulness_breakdown: dict[str, Any] | None = None,
     faithfulness_notes: str | None = None,
     review_status: str | None = None,
 ) -> str | None:
-    """Inserts a row; returns id. Returns None if the (tenant, chunk_hash, title)
-    triple already exists (idempotent ingestion).
+    """Inserts a row; returns id. Returns None if the (tenant, item_content_hash)
+    pair already exists (idempotent ingestion per migration 0022).
+
+    Dedup semantics: item_content_hash = sha256(content) is computed inside
+    this function. Same content → same hash → ON CONFLICT DO NOTHING
+    short-circuits. Multiple distinct items extracted from the same source
+    chunk (each with its own content) all land as separate rows.
+    source_chunk_hash is preserved as provenance metadata but no longer
+    drives uniqueness.
+
+    source_id is the knowledge_sources UUID for richer provenance and
+    citation support (Phase 1 of the historical batch ingest). Callers
+    after Phase 1 should always supply it; a warning is logged when None
+    so we can spot orphan callers and backfill.
 
     The faithfulness_* and review_status keyword args are written through
     when present (C.1.4 ingest pipeline). Older callers that don't pass
@@ -55,9 +80,16 @@ def insert_knowledge_item(
     keeps backward compat with pre-C.1.4 JSONL.
     """
     cat = category if category in VALID_CATEGORIES else "other"
+    item_content_hash = _compute_item_content_hash(content)
     breakdown_json = (
         json.dumps(faithfulness_breakdown) if faithfulness_breakdown is not None else None
     )
+    if source_id is None:
+        log.warning(
+            "insert_knowledge_item called without source_id "
+            "(tenant=%s, title=%r) — will land as orphan",
+            tenant_id, title[:80],
+        )
     with tenant_conn(tenant_id) as conn, conn.cursor() as cur:
         # Use COALESCE on review_status so omitting it falls back to the
         # column default ('unreviewed') rather than overwriting with NULL.
@@ -65,12 +97,14 @@ def insert_knowledge_item(
             """
             INSERT INTO clinical_knowledge
                 (tenant_id, category, title, content, embedding, metadata,
-                 source_channel, source_chunk_hash,
+                 source_channel, source_chunk_hash, item_content_hash,
+                 source_id,
                  faithfulness_score, faithfulness_breakdown,
                  faithfulness_notes, review_status)
-            VALUES (%s, %s, %s, %s, %s::vector, %s::jsonb, %s, %s,
+            VALUES (%s, %s, %s, %s, %s::vector, %s::jsonb, %s, %s, %s,
+                    %s,
                     %s, %s::jsonb, %s, COALESCE(%s, 'unreviewed'))
-            ON CONFLICT (tenant_id, source_chunk_hash, title) DO NOTHING
+            ON CONFLICT (tenant_id, item_content_hash) DO NOTHING
             RETURNING id
             """,
             (
@@ -82,6 +116,8 @@ def insert_knowledge_item(
                 json.dumps(metadata),
                 source_channel,
                 source_chunk_hash,
+                item_content_hash,
+                source_id,
                 faithfulness_score,
                 breakdown_json,
                 faithfulness_notes,
