@@ -128,6 +128,147 @@ def insert_knowledge_item(
         return str(row[0]) if row else None
 
 
+# ---------- knowledge_sources (Phase 1c) ----------
+
+ALLOWED_SOURCE_TYPES = frozenset({
+    "book",
+    "podcast_episode",
+    "youtube_video",
+    "article",
+    "blog_post",
+    "course_module",
+    "training_recording",
+    "clinical_case",
+    "slack_thread",
+    "research_paper",
+    "protocol_template",
+    "other",
+})
+
+
+def get_or_create_source(
+    tenant_id: str,
+    source_type: str,
+    title: str,
+    *,
+    leader_id: str | None = None,
+    url: str | None = None,
+    file_path: str | None = None,
+    raw_text_hash: str | None = None,
+    metadata: dict[str, Any] | None = None,
+) -> str:
+    """Get-or-create a knowledge_sources row, return its UUID.
+
+    Idempotent on (tenant_id, raw_text_hash) when raw_text_hash is
+    provided (the table's existing UNIQUE constraint from migration
+    0016). When raw_text_hash is None, falls back to lookup by
+    (tenant_id, source_type, title) before inserting; warns if that
+    lookup matches multiple rows (the schema doesn't enforce uniqueness
+    on the (type, title) pair, so it's possible but should be rare).
+
+    source_type must be one of ALLOWED_SOURCE_TYPES (mirrors the CHECK
+    constraint in migration 0016 lines 41-45). Raises ValueError on
+    invalid type.
+
+    Sets ingestion_status='ingesting' on create; callers should call
+    mark_source_extracted() after their ingest loop completes.
+    """
+    if source_type not in ALLOWED_SOURCE_TYPES:
+        raise ValueError(
+            f"invalid source_type {source_type!r}; "
+            f"must be one of {sorted(ALLOWED_SOURCE_TYPES)}"
+        )
+
+    metadata_json = json.dumps(metadata or {})
+
+    with tenant_conn(tenant_id) as conn, conn.cursor() as cur:
+        # Path A — caller supplied a content hash; use the schema's
+        # UNIQUE (tenant_id, raw_text_hash) for atomic upsert.
+        if raw_text_hash:
+            cur.execute(
+                """
+                INSERT INTO knowledge_sources
+                    (tenant_id, leader_id, source_type, title, url,
+                     file_path, raw_text_hash, ingestion_status, metadata)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, 'ingesting', %s::jsonb)
+                ON CONFLICT (tenant_id, raw_text_hash) DO NOTHING
+                RETURNING id
+                """,
+                (
+                    tenant_id, leader_id, source_type, title, url,
+                    file_path, raw_text_hash, metadata_json,
+                ),
+            )
+            row = cur.fetchone()
+            if row:
+                return str(row[0])
+            # Hit the conflict — fetch the existing row's id.
+            cur.execute(
+                "SELECT id FROM knowledge_sources "
+                "WHERE tenant_id = %s AND raw_text_hash = %s",
+                (tenant_id, raw_text_hash),
+            )
+            existing = cur.fetchone()
+            if existing:
+                return str(existing[0])
+            # Shouldn't happen — the conflict means a row exists.
+            raise RuntimeError(
+                f"get_or_create_source: ON CONFLICT fired but no row found "
+                f"for tenant={tenant_id} raw_text_hash={raw_text_hash[:16]}…"
+            )
+
+        # Path B — no content hash. Look up by (type, title) before
+        # inserting. Schema has no UNIQUE on that pair, so a re-run with
+        # the same args creates a second row — log a warning when the
+        # lookup matches multiple existing rows so the inconsistency
+        # surfaces.
+        cur.execute(
+            "SELECT id FROM knowledge_sources "
+            "WHERE tenant_id = %s AND source_type = %s AND title = %s",
+            (tenant_id, source_type, title),
+        )
+        rows = cur.fetchall()
+        if len(rows) > 1:
+            log.warning(
+                "get_or_create_source: %d existing rows match "
+                "(tenant=%s, source_type=%s, title=%r); returning first",
+                len(rows), tenant_id, source_type, title[:80],
+            )
+        if rows:
+            return str(rows[0][0])
+        cur.execute(
+            """
+            INSERT INTO knowledge_sources
+                (tenant_id, leader_id, source_type, title, url,
+                 file_path, ingestion_status, metadata)
+            VALUES (%s, %s, %s, %s, %s, %s, 'ingesting', %s::jsonb)
+            RETURNING id
+            """,
+            (
+                tenant_id, leader_id, source_type, title, url,
+                file_path, metadata_json,
+            ),
+        )
+        return str(cur.fetchone()[0])
+
+
+def mark_source_extracted(
+    tenant_id: str, source_id: str, entry_count: int,
+) -> None:
+    """Mark a knowledge_sources row as extracted and record the entry count."""
+    with tenant_conn(tenant_id) as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            UPDATE knowledge_sources
+               SET ingestion_status = 'extracted',
+                   ingested_at = now(),
+                   entry_count = %s
+             WHERE id = %s AND tenant_id = %s
+            """,
+            (entry_count, source_id, tenant_id),
+        )
+
+
 def search_knowledge(
     tenant_id: str,
     query_embedding: list[float],
