@@ -43,4 +43,27 @@ coverage/
 # Extracted Dr. Laura mentorship knowledge (third-party IP; regenerated
 # via scripts/ingest_knowledge.py). Do not commit the extracted content.
 database/seed/knowledge/*.jsonl
+
+# Raw Dr. Laura source material staged for ingestion — same IP concern.
+# Cert PDFs are an exception (committed at database/seed/dr-laura-drive/
+# certification-materials/). Other staging dirs are re-populated from
+# Drive per docs/SLACK-EXTRACTION-RECIPE.md and the exhaust plan.
+database/seed/dr-laura-slack/
+database/seed/dr-laura-drive/peptide-workshop/
+database/seed/dr-laura-drive/fellowship-curriculum/
+
+# Office / LibreOffice lock files (auto-created when a doc is open)
+.~lock.*#
+~$*
+
+# Working business artifacts at repo root (brand kit, cost analyses,
+# checklists, etc.) — not codebase. If a doc needs to enter the repo,
+# add it explicitly via `git add -f path/to/doc.docx`.
+/*.docx
+/*.xlsx
+
+# Stray zero-byte files at repo root from typoed shell commands
+/git
+/rm
+
 .vercel
