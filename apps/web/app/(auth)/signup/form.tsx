@@ -13,6 +13,19 @@ export function SignupForm() {
       <Field label="Your name" htmlFor="signup-name">
         <Input id="signup-name" name="name" required />
       </Field>
+      <Field
+        label="Practice or business name"
+        htmlFor="signup-practice-name"
+        hint="Optional. Defaults to '{Your name}'s practice'. You can edit this later in settings."
+      >
+        <Input
+          id="signup-practice-name"
+          name="practiceName"
+          type="text"
+          maxLength={120}
+          autoComplete="organization"
+        />
+      </Field>
       <Field label="Email" htmlFor="signup-email">
         <Input
           id="signup-email"

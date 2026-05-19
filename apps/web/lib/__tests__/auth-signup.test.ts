@@ -224,6 +224,51 @@ describe("signup — practiceName fallback", () => {
 });
 
 // ---------------------------------------------------------------------------
+// (b.3) Practice name length validation
+// ---------------------------------------------------------------------------
+
+describe("signup — practiceName length validation", () => {
+  it("rejects practiceName longer than 120 chars without touching DB", async () => {
+    const result = await signup({
+      email: "longname@example.com",
+      password: "longpassword",
+      name: "Long Name",
+      practiceName: "x".repeat(121),
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: "Practice name must be 120 characters or fewer.",
+    });
+
+    // Fails before any DB call — no client checkout, no pool.query
+    expect(clientCalls).toEqual([]);
+    expect(poolCalls).toEqual([]);
+    expect(createSessionMock).not.toHaveBeenCalled();
+    expect(writeAuditMock).not.toHaveBeenCalled();
+  });
+
+  it("accepts practiceName exactly 120 chars", async () => {
+    clientResponses.push(
+      { rows: [{ id: "tenant-uuid-edge" }] },
+      { rows: [{ id: "practitioner-uuid-edge" }] },
+      { rows: [] },
+    );
+
+    const exactly120 = "x".repeat(120);
+    const result = await signup({
+      email: "edge@example.com",
+      password: "edgepassword",
+      name: "Edge Case",
+      practiceName: exactly120,
+    });
+
+    expect(result).toEqual({ ok: true });
+    expect(clientCalls[1]!.params).toEqual([exactly120]);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // (c) Duplicate email — transaction rolls back
 // ---------------------------------------------------------------------------
 

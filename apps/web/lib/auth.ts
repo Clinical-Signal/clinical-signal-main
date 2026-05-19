@@ -32,6 +32,9 @@ export async function apiAuth(): Promise<SessionUser | null> {
 
 export type AuthResult = { ok: true } | { ok: false; error: string };
 
+/** Server-side mirror of the signup form's maxLength={120}. */
+const PRACTICE_NAME_MAX = 120;
+
 interface PractitionerRow {
   id: string;
   tenant_id: string;
@@ -115,6 +118,17 @@ export async function signup(input: SignupInput): Promise<AuthResult> {
     return { ok: false, error: "Enter a valid email address." };
   }
 
+  // Mirrors the form's maxLength={120}. Server-side check because the
+  // browser attribute is advisory — a hand-crafted POST can ignore it.
+  // Runs before hashing or any DB call so over-length input fails fast.
+  const trimmedPracticeName = input.practiceName?.trim();
+  if (trimmedPracticeName && trimmedPracticeName.length > PRACTICE_NAME_MAX) {
+    return {
+      ok: false,
+      error: `Practice name must be ${PRACTICE_NAME_MAX} characters or fewer.`,
+    };
+  }
+
   const policy = await validatePasswordPolicy(input.password);
   if (!policy.ok) return { ok: false, error: policy.reason };
 
@@ -157,7 +171,7 @@ export async function signup(input: SignupInput): Promise<AuthResult> {
   // ------------------------------------------------------------------
   // Main path — one tenant + one practitioner in a single transaction.
   // ------------------------------------------------------------------
-  const practiceName = input.practiceName?.trim() || `${name}'s practice`;
+  const practiceName = trimmedPracticeName || `${name}'s practice`;
 
   const client = await pool.connect();
   let tenantId: string;
