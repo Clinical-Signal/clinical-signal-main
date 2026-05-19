@@ -81,8 +81,32 @@ export interface SignupInput {
   email: string;
   password: string;
   name: string;
+  /**
+   * Optional business / practice name. Defaults server-side to
+   * `${name}'s practice` when not supplied — the signup form may
+   * skip the field and the fallback keeps the row coherent.
+   */
+  practiceName?: string;
 }
 
+/**
+ * Sign up a new practitioner.
+ *
+ * Main path (production + default dev): provisions a fresh tenant
+ * AND practitioner in one atomic transaction, then sets the tenant's
+ * signing_authority_practitioner_id to the new practitioner. The new
+ * tenant lands with `lifecycle_status='pending_baa'` — Issue #2 of
+ * the onboarding plan flips that to `'active'` when the BAA is
+ * accepted. Session + audit are post-COMMIT because createSession
+ * and writeAudit each open their own client (they don't take ours).
+ *
+ * Dev escape hatch: when `ATTACH_TO_DEFAULT_TENANT=true` AND
+ * `NODE_ENV=development` AND `DEFAULT_TENANT_ID` is set, the new
+ * practitioner attaches to the existing default tenant without
+ * provisioning a new one. Used only for seeded dev fixtures. In
+ * production this branch never triggers; `DEFAULT_TENANT_ID` is no
+ * longer required for real signup.
+ */
 export async function signup(input: SignupInput): Promise<AuthResult> {
   const email = input.email.trim().toLowerCase();
   const name = input.name.trim();
@@ -94,26 +118,107 @@ export async function signup(input: SignupInput): Promise<AuthResult> {
   const policy = await validatePasswordPolicy(input.password);
   if (!policy.ok) return { ok: false, error: policy.reason };
 
-  const tenantId = process.env.DEFAULT_TENANT_ID;
-  if (!tenantId) return { ok: false, error: "Server misconfigured: DEFAULT_TENANT_ID unset." };
-
   const hash = await hashPassword(input.password);
 
+  const attachToDefault =
+    process.env.ATTACH_TO_DEFAULT_TENANT === "true" &&
+    process.env.NODE_ENV === "development" &&
+    !!process.env.DEFAULT_TENANT_ID;
+
+  // ------------------------------------------------------------------
+  // Dev escape hatch — attach to DEFAULT_TENANT_ID without provisioning.
+  // ------------------------------------------------------------------
+  if (attachToDefault) {
+    const tenantId = process.env.DEFAULT_TENANT_ID!;
+    try {
+      const { rows } = await pool.query<{ id: string }>(
+        `INSERT INTO practitioners (tenant_id, email_lower, email, password_hash, name, role)
+         VALUES ($1, $2, $3, $4, $5, 'owner')
+         RETURNING id`,
+        [tenantId, email, input.email.trim(), hash, name],
+      );
+      const practitionerId = rows[0]!.id;
+      await createSession(practitionerId);
+      await writeAudit({
+        action: "signup",
+        tenantId,
+        practitionerId,
+        metadata: { event: "attached_to_default_tenant" },
+      });
+      return { ok: true };
+    } catch (err: unknown) {
+      if (isDuplicateEmailError(err)) {
+        return { ok: false, error: "An account with that email already exists." };
+      }
+      throw err;
+    }
+  }
+
+  // ------------------------------------------------------------------
+  // Main path — one tenant + one practitioner in a single transaction.
+  // ------------------------------------------------------------------
+  const practiceName = input.practiceName?.trim() || `${name}'s practice`;
+
+  const client = await pool.connect();
+  let tenantId: string;
+  let practitionerId: string;
   try {
-    const { rows } = await pool.query<{ id: string }>(
+    await client.query("BEGIN");
+
+    const tenantResult = await client.query<{ id: string }>(
+      `INSERT INTO tenants (name, legal_name, lifecycle_status)
+       VALUES ($1, $1, 'pending_baa')
+       RETURNING id`,
+      [practiceName],
+    );
+    tenantId = tenantResult.rows[0]!.id;
+
+    const practitionerResult = await client.query<{ id: string }>(
       `INSERT INTO practitioners (tenant_id, email_lower, email, password_hash, name, role)
        VALUES ($1, $2, $3, $4, $5, 'owner')
        RETURNING id`,
       [tenantId, email, input.email.trim(), hash, name],
     );
-    const practitionerId = rows[0]!.id;
-    await createSession(practitionerId);
-    await writeAudit({ action: "signup", tenantId, practitionerId });
-    return { ok: true };
+    practitionerId = practitionerResult.rows[0]!.id;
+
+    await client.query(
+      `UPDATE tenants SET signing_authority_practitioner_id = $1 WHERE id = $2`,
+      [practitionerId, tenantId],
+    );
+
+    await client.query("COMMIT");
   } catch (err: unknown) {
-    if (err && typeof err === "object" && "code" in err && (err as { code: string }).code === "23505") {
+    try {
+      await client.query("ROLLBACK");
+    } catch {
+      /* nothing useful to do if the rollback itself fails */
+    }
+    if (isDuplicateEmailError(err)) {
       return { ok: false, error: "An account with that email already exists." };
     }
     throw err;
+  } finally {
+    client.release();
   }
+
+  // Post-COMMIT: createSession writes the sessions row AND sets the
+  // browser cookie (separate client + Next request scope). writeAudit
+  // also uses its own client. Both run after the transaction commits.
+  await createSession(practitionerId);
+  await writeAudit({
+    action: "signup",
+    tenantId,
+    practitionerId,
+    metadata: { event: "practice_provisioned" },
+  });
+  return { ok: true };
+}
+
+function isDuplicateEmailError(err: unknown): boolean {
+  return (
+    !!err &&
+    typeof err === "object" &&
+    "code" in err &&
+    (err as { code: string }).code === "23505"
+  );
 }
