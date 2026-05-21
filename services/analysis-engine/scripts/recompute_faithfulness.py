@@ -180,14 +180,23 @@ def main() -> int:
               "reject": 0, "review": 0, "clean": 0}
     start = time.time()
 
+    # Local import to keep the import block at module-load time small —
+    # this script is also imported by post_ingest_finalize for its
+    # type-only references when running inside the engine, so we avoid
+    # pulling in the full _core surface there.
+    from app._core import TenantContext, set_tenant_guc  # noqa: PLC0415
+
     conn = psycopg.connect(db_url, autocommit=False)
     try:
         for tenant_id in fetch_tenants(conn):
-            with conn.cursor() as cur:
-                cur.execute(
-                    "SELECT set_config('app.current_tenant_id', %s, false)",
-                    (tenant_id,),
-                )
+            ctx = TenantContext(
+                tenant_id=tenant_id,
+                practitioner_id=None,
+                role="system",
+                job_id="recompute_faithfulness",
+                lifecycle_status="active",
+            )
+            set_tenant_guc(conn, ctx)
             conn.commit()
 
             rows = fetch_unscored(conn)

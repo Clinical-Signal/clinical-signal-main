@@ -5,6 +5,7 @@ from pathlib import Path
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Response
 from pydantic import BaseModel, Field
 
+from app._core import TenantContext
 from app.exporter.db import (
     get_patient_name,
     get_protocol_for_export,
@@ -30,6 +31,33 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 log = logging.getLogger("engine")
 
 app = FastAPI(title="Clinical Signal Analysis Engine", version="0.2.0")
+
+
+def _ctx_from_request(
+    tenant_id: str,
+    *,
+    practitioner_id: str | None = None,
+    job_id: str = "engine_request",
+) -> TenantContext:
+    """Build a TenantContext from request fields.
+
+    PR4 transitional shim: the engine still receives `tenant_id` (and
+    optionally `practitioner_id`) in the request body and trusts the
+    network boundary, same as before. PR5 replaces this construction
+    path with a JWT-verified one (Authorization: Bearer <token>) and
+    drops `tenant_id` from the request models entirely.
+
+    Until then we set role='system' and lifecycle_status='active'
+    placeholders. Lifecycle gating activates in PR5 once the JWT
+    carries the verified status.
+    """
+    return TenantContext(
+        tenant_id=tenant_id,
+        practitioner_id=practitioner_id,
+        role="system",
+        job_id=job_id,
+        lifecycle_status="active",
+    )
 
 
 class HealthResponse(BaseModel):
@@ -67,24 +95,25 @@ async def extract(req: ExtractRequest, tasks: BackgroundTasks) -> ExtractRespons
 
 def _run_pipeline(record_id: str, tenant_id: str, file_path: str) -> None:
     phi_key = os.environ.get("PHI_ENCRYPTION_KEY")
+    ctx = _ctx_from_request(tenant_id, job_id=f"extract:{record_id}")
     try:
         if not phi_key:
             raise RuntimeError("PHI_ENCRYPTION_KEY is not set")
-        mark_processing(tenant_id, record_id)
+        mark_processing(ctx, record_id)
         pdf = extract_pdf_text(file_path)
         if not pdf.text:
             raise RuntimeError("no text could be extracted from the PDF")
         structured, meta = extract_structured_labs(pdf.text)
         meta["pdf_pages"] = pdf.page_count
         meta["ocr_pages"] = pdf.ocr_pages
-        mark_complete(tenant_id, record_id, pdf.text, structured, meta, phi_key)
+        mark_complete(ctx, record_id, pdf.text, structured, meta, phi_key)
         log.info("extracted record=%s pages=%d ocr=%d", record_id, pdf.page_count, pdf.ocr_pages)
     except Exception as err:
         # Never log raw extracted text — it may contain PHI. Only log the
         # error class / message.
         log.exception("extraction failed record=%s", record_id)
         try:
-            mark_failed(tenant_id, record_id, f"{type(err).__name__}: {err}")
+            mark_failed(ctx, record_id, f"{type(err).__name__}: {err}")
         except Exception:
             log.exception("could not mark record failed record=%s", record_id)
 
@@ -109,13 +138,19 @@ async def analyze(req: AnalyzeRequest) -> AnalyzeResponse:
     if not phi_key:
         raise HTTPException(status_code=500, detail="PHI_ENCRYPTION_KEY is not set")
 
+    ctx = _ctx_from_request(
+        req.tenant_id,
+        practitioner_id=req.practitioner_id,
+        job_id=f"analyze:{req.patient_id}",
+    )
+
     try:
-        timeline = gather_patient_timeline(req.tenant_id, req.patient_id)
+        timeline = gather_patient_timeline(ctx, req.patient_id)
     except LookupError as err:
         raise HTTPException(status_code=404, detail=str(err))
 
     analysis_id = insert_analysis_running(
-        req.tenant_id,
+        ctx,
         req.patient_id,
         req.practitioner_id,
         req.analysis_type,
@@ -124,7 +159,7 @@ async def analyze(req: AnalyzeRequest) -> AnalyzeResponse:
     try:
         text = format_timeline_for_prompt(timeline)
         findings, meta, raw = run_clinical_analysis(text)
-        complete_analysis(req.tenant_id, analysis_id, findings, meta, raw, phi_key)
+        complete_analysis(ctx, analysis_id, findings, meta, raw, phi_key)
         log.info(
             "analysis complete id=%s records=%d tokens_out=%s",
             analysis_id,
@@ -135,7 +170,7 @@ async def analyze(req: AnalyzeRequest) -> AnalyzeResponse:
     except Exception as err:
         log.exception("analysis failed id=%s", analysis_id)
         try:
-            fail_analysis(req.tenant_id, analysis_id, f"{type(err).__name__}: {err}")
+            fail_analysis(ctx, analysis_id, f"{type(err).__name__}: {err}")
         except Exception:
             log.exception("could not mark analysis failed id=%s", analysis_id)
         raise HTTPException(status_code=500, detail=f"{type(err).__name__}: {err}")
@@ -166,12 +201,12 @@ def _kb_query_from_findings(findings: dict) -> str:
     return "\n".join(p for p in parts if p).strip()[:4000]
 
 
-def _build_kb_context(tenant_id: str, findings: dict, k: int) -> list[dict]:
+def _build_kb_context(ctx: TenantContext, findings: dict, k: int) -> list[dict]:
     query = _kb_query_from_findings(findings)
     if not query:
         return []
     qvec = embed_one(query)
-    return search_knowledge(tenant_id=tenant_id, query_embedding=qvec, k=k)
+    return search_knowledge(ctx, query_embedding=qvec, k=k)
 
 
 class GenerateProtocolRequest(BaseModel):
@@ -194,7 +229,9 @@ class GenerateProtocolResponse(BaseModel):
 async def generate_protocol(req: GenerateProtocolRequest) -> GenerateProtocolResponse:
     """Synchronous. Loads analysis findings, calls protocol_generation_v1,
     writes a draft protocol with both clinical_content and client_content."""
-    analysis = get_analysis(req.tenant_id, req.analysis_id)
+    ctx = _ctx_from_request(req.tenant_id, job_id=f"generate_protocol:{req.analysis_id}")
+
+    analysis = get_analysis(ctx, req.analysis_id)
     if not analysis:
         raise HTTPException(status_code=404, detail="analysis not found")
     if analysis["status"] != "complete":
@@ -209,9 +246,7 @@ async def generate_protocol(req: GenerateProtocolRequest) -> GenerateProtocolRes
     kb_context: list[dict] = []
     if use_kb and req.knowledge_k > 0:
         try:
-            kb_context = _build_kb_context(
-                req.tenant_id, analysis["findings"], req.knowledge_k
-            )
+            kb_context = _build_kb_context(ctx, analysis["findings"], req.knowledge_k)
             log.info(
                 "kb_context analysis=%s items=%d",
                 req.analysis_id,
@@ -254,7 +289,7 @@ async def generate_protocol(req: GenerateProtocolRequest) -> GenerateProtocolRes
         ]
 
     protocol_id = insert_protocol(
-        req.tenant_id,
+        ctx,
         analysis["patient_id"],
         analysis["practitioner_id"],
         req.analysis_id,
@@ -286,9 +321,10 @@ class KnowledgeSearchRequest(BaseModel):
 async def knowledge_search(req: KnowledgeSearchRequest) -> dict:
     if not req.query.strip():
         raise HTTPException(status_code=400, detail="query is required")
+    ctx = _ctx_from_request(req.tenant_id, job_id="knowledge_search")
     qvec = embed_one(req.query)
     results = search_knowledge(
-        tenant_id=req.tenant_id,
+        ctx,
         query_embedding=qvec,
         k=req.k,
         categories=req.categories,
@@ -322,11 +358,13 @@ async def export_protocol(req: ExportProtocolRequest) -> Response:
     if not phi_key:
         raise HTTPException(status_code=500, detail="PHI_ENCRYPTION_KEY is not set")
 
-    proto = get_protocol_for_export(req.tenant_id, req.protocol_id)
+    ctx = _ctx_from_request(req.tenant_id, job_id=f"export_protocol:{req.protocol_id}")
+
+    proto = get_protocol_for_export(ctx, req.protocol_id)
     if not proto:
         raise HTTPException(status_code=404, detail="protocol not found")
 
-    patient_name = get_patient_name(req.tenant_id, proto["patient_id"], phi_key)
+    patient_name = get_patient_name(ctx, proto["patient_id"], phi_key)
 
     if req.audience == "clinical":
         pdf_bytes = render_clinical_pdf(
@@ -357,7 +395,7 @@ async def export_protocol(req: ExportProtocolRequest) -> Response:
 
     try:
         insert_protocol_export_record(
-            tenant_id=req.tenant_id,
+            ctx,
             patient_id=proto["patient_id"],
             file_key=rel_key,
             audience=req.audience,
@@ -388,8 +426,9 @@ async def export_protocol(req: ExportProtocolRequest) -> Response:
 async def knowledge_graph(req: KnowledgeGraphRequest) -> dict:
     if not req.concept.strip():
         raise HTTPException(status_code=400, detail="concept is required")
+    ctx = _ctx_from_request(req.tenant_id, job_id="knowledge_graph")
     return traverse_graph(
-        tenant_id=req.tenant_id,
+        ctx,
         start_name=req.concept.strip(),
         depth=req.depth,
     )

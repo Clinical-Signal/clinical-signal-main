@@ -1,14 +1,20 @@
-"""DB helpers for the protocol exporter."""
+"""DB helpers for the protocol exporter.
+
+PR4: signatures take TenantContext instead of (tenant_id: str).
+"""
 from __future__ import annotations
 
 import json
 
+from app._core import TenantContext
 from app.pipeline.db import tenant_conn
 
 
-def get_protocol_for_export(tenant_id: str, protocol_id: str) -> dict | None:
+def get_protocol_for_export(
+    ctx: TenantContext, protocol_id: str
+) -> dict | None:
     """Returns title, content blobs, version, status, patient_id, created_at."""
-    with tenant_conn(tenant_id) as conn, conn.cursor() as cur:
+    with tenant_conn(ctx) as conn, conn.cursor() as cur:
         cur.execute(
             """
             SELECT id, patient_id, title, status, version,
@@ -33,8 +39,10 @@ def get_protocol_for_export(tenant_id: str, protocol_id: str) -> dict | None:
         }
 
 
-def get_patient_name(tenant_id: str, patient_id: str, phi_key: str) -> str | None:
-    with tenant_conn(tenant_id) as conn, conn.cursor() as cur:
+def get_patient_name(
+    ctx: TenantContext, patient_id: str, phi_key: str
+) -> str | None:
+    with tenant_conn(ctx) as conn, conn.cursor() as cur:
         cur.execute(
             "SELECT pgp_sym_decrypt(name_encrypted, %s)::text FROM patients WHERE id = %s",
             (phi_key, patient_id),
@@ -44,7 +52,7 @@ def get_patient_name(tenant_id: str, patient_id: str, phi_key: str) -> str | Non
 
 
 def insert_protocol_export_record(
-    tenant_id: str,
+    ctx: TenantContext,
     patient_id: str,
     file_key: str,
     audience: str,
@@ -52,7 +60,7 @@ def insert_protocol_export_record(
     protocol_version: int,
 ) -> str:
     """Writes a records row of type protocol_export pointing at the saved PDF."""
-    with tenant_conn(tenant_id) as conn, conn.cursor() as cur:
+    with tenant_conn(ctx) as conn, conn.cursor() as cur:
         cur.execute(
             """
             INSERT INTO records
@@ -62,7 +70,7 @@ def insert_protocol_export_record(
             RETURNING id
             """,
             (
-                tenant_id,
+                ctx.tenant_id,
                 patient_id,
                 file_key,
                 json.dumps(

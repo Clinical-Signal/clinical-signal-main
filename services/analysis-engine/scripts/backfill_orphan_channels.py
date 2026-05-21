@@ -64,14 +64,28 @@ def _channel_from_filename(jsonl_name: str) -> str:
     return base
 
 
+def _ctx(tenant_id: str, job_id: str) -> "TenantContext":
+    """Build a TenantContext for this script's batch ops. Lazy-imported
+    inline so the module loads even if app._core's import chain is
+    broken (which would surface here as an ImportError instead of an
+    obscure runtime failure deeper in psycopg)."""
+    from app._core import TenantContext  # noqa: PLC0415
+
+    return TenantContext(
+        tenant_id=tenant_id,
+        practitioner_id=None,
+        role="system",
+        job_id=job_id,
+        lifecycle_status="active",
+    )
+
+
 def _orphan_hashes(tenant_id: str) -> set[str]:
     """Pull the set of item_content_hash values for rows with NULL channel."""
+    from app._core import set_tenant_guc  # noqa: PLC0415
+
     with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                "SELECT set_config('app.current_tenant_id', %s, false)",
-                (tenant_id,),
-            )
+        set_tenant_guc(conn, _ctx(tenant_id, "backfill_orphan_channels:read"))
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -109,12 +123,10 @@ def _update_rows(
     """Set source_channel on rows matching the given hashes (only when NULL)."""
     if not hashes:
         return 0
+    from app._core import set_tenant_guc  # noqa: PLC0415
+
     with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                "SELECT set_config('app.current_tenant_id', %s, false)",
-                (tenant_id,),
-            )
+        set_tenant_guc(conn, _ctx(tenant_id, "backfill_orphan_channels:update"))
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -132,12 +144,10 @@ def _update_rows(
 
 
 def _final_audit(tenant_id: str) -> tuple[int, int]:
+    from app._core import set_tenant_guc  # noqa: PLC0415
+
     with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                "SELECT set_config('app.current_tenant_id', %s, false)",
-                (tenant_id,),
-            )
+        set_tenant_guc(conn, _ctx(tenant_id, "backfill_orphan_channels:audit"))
         with conn.cursor() as cur:
             cur.execute(
                 """

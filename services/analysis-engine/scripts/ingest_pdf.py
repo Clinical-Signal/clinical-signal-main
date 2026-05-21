@@ -353,12 +353,17 @@ def _resolve_leader_id(tenant_id: str, leader_slug: str) -> str | None:
     db_url = os.environ.get("DATABASE_URL")
     if not db_url:
         return None
+    from app._core import TenantContext, set_tenant_guc  # noqa: PLC0415
+
+    ctx = TenantContext(
+        tenant_id=tenant_id,
+        practitioner_id=None,
+        role="system",
+        job_id="ingest_pdf:resolve_leader_id",
+        lifecycle_status="active",
+    )
     with psycopg.connect(db_url) as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                "SELECT set_config('app.current_tenant_id', %s, false)",
-                (tenant_id,),
-            )
+        set_tenant_guc(conn, ctx)
         with conn.cursor() as cur:
             cur.execute(
                 "SELECT id FROM knowledge_leaders "
@@ -445,6 +450,8 @@ def main() -> int:
     # row via the schema's UNIQUE (tenant_id, raw_text_hash) constraint.
     source_id: str | None = None
     if args.tenant and not args.dry_run:
+        from app._core import TenantContext  # noqa: PLC0415
+
         full_text = "\n\n".join(t for _, t in pages)
         raw_text_hash = hashlib.sha256(full_text.encode("utf-8")).hexdigest()
         leader_id = _resolve_leader_id(args.tenant, args.leader_slug)
@@ -454,8 +461,15 @@ def main() -> int:
                 f"{args.leader_slug!r} — source will have leader_id NULL",
                 file=sys.stderr, flush=True,
             )
+        ingest_ctx = TenantContext(
+            tenant_id=args.tenant,
+            practitioner_id=None,
+            role="system",
+            job_id=f"ingest_pdf:{pdf_path.name}",
+            lifecycle_status="active",
+        )
         source_id = get_or_create_source(
-            args.tenant,
+            ingest_ctx,
             args.source_type,
             title=pdf_path.stem,
             leader_id=leader_id,

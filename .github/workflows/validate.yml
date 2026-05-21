@@ -60,6 +60,13 @@ jobs:
           python -m compileall -q services/analysis-engine/app
           python -m compileall -q services/analysis-engine/scripts
 
+      # PR4 grep gate: refuse to ship if anything outside
+      # services/analysis-engine/app/_core/db.py contains the literal
+      # set_config('app.current_tenant_id', ...) string. Mirrors the
+      # TS-side check at apps/web/scripts/check-system-access.mjs (PR3).
+      - name: Tenant GUC discipline (no direct set_config outside _core)
+        run: python services/analysis-engine/scripts/check_tenant_guc.py
+
   migrations:
     name: migrations (filename hygiene)
     runs-on: ubuntu-latest
