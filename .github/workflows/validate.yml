@@ -1,0 +1,88 @@
+name: validate
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Cancel in-flight runs on the same ref when a new push lands.
+concurrency:
+  group: validate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    name: web (typecheck + vitest)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: 'apps/web/package-lock.json'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      # Note: `npm run test:unit` currently globs e2e/ tests too (a known issue
+      # tracked separately). Scoping vitest to lib/__tests__/ avoids Playwright
+      # collisions until the package.json script is fixed.
+      - name: Unit tests (vitest)
+        run: npx vitest run lib/__tests__/
+
+  engine:
+    name: engine (python compile)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: services/analysis-engine/requirements.txt
+
+      - name: Install engine dependencies
+        run: pip install -r services/analysis-engine/requirements.txt
+
+      # Compile-only check until a real pytest suite lands. Catches syntax
+      # errors and import-time failures without needing a Postgres instance.
+      - name: Compile analysis-engine modules
+        run: |
+          python -m compileall -q services/analysis-engine/app
+          python -m compileall -q services/analysis-engine/scripts
+
+  migrations:
+    name: migrations (filename hygiene)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # The migration runner refuses to start on duplicate version prefixes.
+      # Checking here makes that failure visible at PR time instead of at
+      # `docker compose up` / deploy time.
+      - name: No duplicate migration version prefixes
+        run: |
+          dups=$(ls database/migrations/ | grep -E '^[0-9]{4}_' | cut -c1-4 | sort | uniq -d)
+          if [ -n "$dups" ]; then
+            echo "::error::Duplicate migration version prefixes found:"
+            echo "$dups"
+            exit 1
+          fi
+
+      - name: All migrations follow NNNN_name.sql pattern
+        run: |
+          bad=$(ls database/migrations/ | grep -v -E '^([0-9]{4}_[a-z0-9_]+\.sql|\.gitkeep)$' || true)
+          if [ -n "$bad" ]; then
+            echo "::error::Non-conforming migration filenames:"
+            echo "$bad"
+            exit 1
+          fi
