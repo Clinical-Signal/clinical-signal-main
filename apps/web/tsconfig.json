@@ -14,8 +14,22 @@
     "jsx": "preserve",
     "incremental": true,
     "plugins": [{ "name": "next" }],
-    "paths": { "@/*": ["./*"] }
+    "paths": {
+      "@/*": ["./*"],
+      "@cs/core": ["../../packages/core/src/index.ts"],
+      "@cs/core/*": ["../../packages/core/src/*"],
+      "@cs/db": ["../../packages/db/src/index.ts"],
+      "@cs/db/*": ["../../packages/db/src/*"],
+      "pg": ["./node_modules/@types/pg/index.d.ts"]
+    }
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    "../../packages/core/src/**/*.ts",
+    "../../packages/db/src/**/*.ts"
+  ],
   "exclude": ["node_modules", "lib/__tests__"]
 }

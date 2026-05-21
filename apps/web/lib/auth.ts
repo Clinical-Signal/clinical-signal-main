@@ -1,5 +1,13 @@
+// Authentication entry points: login / logout / signup.
+//
+// Every query in this module touches `practitioners` or `tenants` *before*
+// a tenant is known (login looks up email -> tenant; signup *creates* the
+// tenant), so all DB access goes through `withSystem` with a tagged reason
+// rather than withTenantContext. The CI grep gate allows withSystem here
+// for exactly this reason.
+
 import { redirect } from "next/navigation";
-import { pool } from "./db";
+import { withSystem } from "@cs/db";
 import { hashPassword, validatePasswordPolicy, verifyPassword } from "./password";
 import { writeAudit } from "./audit";
 import {
@@ -43,11 +51,13 @@ interface PractitionerRow {
 
 export async function login(email: string, password: string): Promise<AuthResult> {
   const normalized = email.trim().toLowerCase();
-  const { rows } = await pool.query<PractitionerRow>(
-    "SELECT id, tenant_id, password_hash FROM practitioners WHERE email_lower = $1",
-    [normalized],
-  );
-  const row = rows[0];
+  const row = await withSystem({ reason: "auth_login_email_lookup" }, async (c) => {
+    const { rows } = await c.query<PractitionerRow>(
+      "SELECT id, tenant_id, password_hash FROM practitioners WHERE email_lower = $1",
+      [normalized],
+    );
+    return rows[0] ?? null;
+  });
 
   // Constant-ish time: always run verify to reduce user-enumeration timing signal.
   const hash = row?.password_hash ?? "$2b$12$invalidinvalidinvalidinvalidinvalidinvalidinvalidinvalida";
@@ -64,7 +74,9 @@ export async function login(email: string, password: string): Promise<AuthResult
   }
 
   await createSession(row.id);
-  await pool.query("UPDATE practitioners SET last_login_at = now() WHERE id = $1", [row.id]);
+  await withSystem({ reason: "auth_login_last_login_stamp" }, async (c) => {
+    await c.query("UPDATE practitioners SET last_login_at = now() WHERE id = $1", [row.id]);
+  });
   await writeAudit({
     action: "login_success",
     tenantId: row.tenant_id,
@@ -145,13 +157,18 @@ export async function signup(input: SignupInput): Promise<AuthResult> {
   if (attachToDefault) {
     const tenantId = process.env.DEFAULT_TENANT_ID!;
     try {
-      const { rows } = await pool.query<{ id: string }>(
-        `INSERT INTO practitioners (tenant_id, email_lower, email, password_hash, name, role)
-         VALUES ($1, $2, $3, $4, $5, 'owner')
-         RETURNING id`,
-        [tenantId, email, input.email.trim(), hash, name],
+      const practitionerId = await withSystem(
+        { reason: "auth_signup_attach_default_tenant" },
+        async (c) => {
+          const { rows } = await c.query<{ id: string }>(
+            `INSERT INTO practitioners (tenant_id, email_lower, email, password_hash, name, role)
+             VALUES ($1, $2, $3, $4, $5, 'owner')
+             RETURNING id`,
+            [tenantId, email, input.email.trim(), hash, name],
+          );
+          return rows[0]!.id;
+        },
       );
-      const practitionerId = rows[0]!.id;
       await createSession(practitionerId);
       await writeAudit({
         action: "signup",
@@ -173,46 +190,54 @@ export async function signup(input: SignupInput): Promise<AuthResult> {
   // ------------------------------------------------------------------
   const practiceName = trimmedPracticeName || `${name}'s practice`;
 
-  const client = await pool.connect();
   let tenantId: string;
   let practitionerId: string;
   try {
-    await client.query("BEGIN");
+    const result = await withSystem(
+      { reason: "auth_signup_provision_tenant_and_practitioner" },
+      async (client) => {
+        await client.query("BEGIN");
+        try {
+          const tenantResult = await client.query<{ id: string }>(
+            `INSERT INTO tenants (name, legal_name, lifecycle_status)
+             VALUES ($1, $1, 'pending_baa')
+             RETURNING id`,
+            [practiceName],
+          );
+          const newTenantId = tenantResult.rows[0]!.id;
 
-    const tenantResult = await client.query<{ id: string }>(
-      `INSERT INTO tenants (name, legal_name, lifecycle_status)
-       VALUES ($1, $1, 'pending_baa')
-       RETURNING id`,
-      [practiceName],
+          const practitionerResult = await client.query<{ id: string }>(
+            `INSERT INTO practitioners (tenant_id, email_lower, email, password_hash, name, role)
+             VALUES ($1, $2, $3, $4, $5, 'owner')
+             RETURNING id`,
+            [newTenantId, email, input.email.trim(), hash, name],
+          );
+          const newPractitionerId = practitionerResult.rows[0]!.id;
+
+          await client.query(
+            `UPDATE tenants SET signing_authority_practitioner_id = $1 WHERE id = $2`,
+            [newPractitionerId, newTenantId],
+          );
+
+          await client.query("COMMIT");
+          return { tenantId: newTenantId, practitionerId: newPractitionerId };
+        } catch (err) {
+          try {
+            await client.query("ROLLBACK");
+          } catch {
+            /* nothing useful to do if the rollback itself fails */
+          }
+          throw err;
+        }
+      },
     );
-    tenantId = tenantResult.rows[0]!.id;
-
-    const practitionerResult = await client.query<{ id: string }>(
-      `INSERT INTO practitioners (tenant_id, email_lower, email, password_hash, name, role)
-       VALUES ($1, $2, $3, $4, $5, 'owner')
-       RETURNING id`,
-      [tenantId, email, input.email.trim(), hash, name],
-    );
-    practitionerId = practitionerResult.rows[0]!.id;
-
-    await client.query(
-      `UPDATE tenants SET signing_authority_practitioner_id = $1 WHERE id = $2`,
-      [practitionerId, tenantId],
-    );
-
-    await client.query("COMMIT");
+    tenantId = result.tenantId;
+    practitionerId = result.practitionerId;
   } catch (err: unknown) {
-    try {
-      await client.query("ROLLBACK");
-    } catch {
-      /* nothing useful to do if the rollback itself fails */
-    }
     if (isDuplicateEmailError(err)) {
       return { ok: false, error: "An account with that email already exists." };
     }
     throw err;
-  } finally {
-    client.release();
   }
 
   // Post-COMMIT: createSession writes the sessions row AND sets the

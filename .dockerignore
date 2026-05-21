@@ -4,10 +4,12 @@ node_modules/
 .env.local
 .git/
 *.md
-database/
 infrastructure/
 scripts/
 services/
-packages/
 test-results/
 e2e/
+# packages/ and database/ are intentionally NOT excluded — the prod
+# Dockerfile copies database/migrations and packages/ into the image,
+# and the dev Dockerfile.web (with repo-root context) copies packages/
+# alongside apps/web/ for tsconfig path resolution.

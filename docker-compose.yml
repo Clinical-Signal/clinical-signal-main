@@ -24,8 +24,10 @@ services:
   # (including baseline mode for adopting an existing schema).
   migrate:
     build:
-      context: ./apps/web
-      dockerfile: ../../infrastructure/docker/Dockerfile.web
+      # Same build context as `web` (repo root) so the migrate one-shot
+      # uses the same image layer cache as the web service.
+      context: .
+      dockerfile: ./infrastructure/docker/Dockerfile.web
     environment:
       # Migrate connects as the database superuser (POSTGRES_USER) because
       # migration 0002 needs CREATEROLE to provision `app_user`. The
@@ -76,8 +78,13 @@ services:
 
   web:
     build:
-      context: ./apps/web
-      dockerfile: ../../infrastructure/docker/Dockerfile.web
+      # Build context is the repo root so the dev image can include
+      # `packages/` alongside `apps/web/`. Internal TS packages (@cs/core,
+      # @cs/db) are resolved by apps/web/tsconfig.json paths pointing at
+      # ../../packages/{core,db}/src — those paths must exist at build
+      # AND run time.
+      context: .
+      dockerfile: ./infrastructure/docker/Dockerfile.web
     environment:
       NODE_ENV: development
       # Web connects as app_user (NOSUPERUSER) so RLS policies actually apply.
@@ -111,6 +118,10 @@ services:
       - ./apps/web/app:/app/app:ro
       - ./apps/web/components:/app/components:ro
       - ./apps/web/lib:/app/lib:ro
+      # Live-reload mount so edits in packages/{core,db}/src/ flow into
+      # the running web container without a rebuild. Path matches the
+      # tsconfig alias resolution (../../packages from /app).
+      - ./packages:/packages:ro
       - uploads:/uploads
 
 volumes:

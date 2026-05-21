@@ -1,17 +1,20 @@
 /**
  * Unit tests for the rewritten signup() in lib/auth.ts.
  *
- * Covers Issue #0's transactional provisioning behavior:
+ * Covers the transactional provisioning behavior introduced in
+ * Issue #0 and updated in Phase 1 / PR3 to flow through `withSystem`
+ * from @cs/db (instead of pool.connect / pool.query directly):
  *   a) Happy path — one tenant + one practitioner + signing-authority FK
  *      + session, all in one transaction; lifecycle_status defaults to
- *      'pending_baa'.
+ *      'pending_baa'. Routes through `auth_signup_provision_tenant_and_practitioner`.
  *   b) Practice name fallback to "${name}'s practice" when practiceName
  *      is undefined or whitespace.
  *   c) Duplicate email — transaction rolls back, friendly error,
  *      no tenant row leaks.
  *   d) Dev escape hatch — ATTACH_TO_DEFAULT_TENANT=true plus
  *      NODE_ENV=development plus DEFAULT_TENANT_ID set → attach to the
- *      default tenant without provisioning a new one.
+ *      default tenant via `auth_signup_attach_default_tenant` (single
+ *      INSERT, no transaction).
  *
  * Run with: npx vitest run lib/__tests__/auth-signup.test.ts
  */
@@ -22,60 +25,64 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // Mocks. vi.mock is hoisted, so these run before lib/auth.ts imports them.
 // ---------------------------------------------------------------------------
 
-// Fake pool with two surfaces:
-//   - pool.connect() → returns a client with query/release that records calls
-//     and pulls scripted responses from `clientResponses`.
-//   - pool.query(sql, params) → for the dev-escape-hatch path which uses the
-//     pool directly without a transactional client. Scripted via
-//     `poolResponses`.
-//
-// Each test resets the queues + recorded calls in beforeEach.
+// One unified call queue for everything signup() does, since after PR3
+// every DB statement flows through withSystem({reason}, fn(client)) ->
+// client.query — there's no separate pool.query path anymore. Each
+// recorded call is tagged with the `reason` so tests can assert which
+// withSystem call site fired.
 
 interface QueryResult {
   rows: Array<Record<string, unknown>>;
 }
 type ScriptedResponse = QueryResult | Error;
 
-const clientResponses: ScriptedResponse[] = [];
-const poolResponses: ScriptedResponse[] = [];
-const clientCalls: Array<{ sql: string; params: unknown[] | undefined }> = [];
-const poolCalls: Array<{ sql: string; params: unknown[] | undefined }> = [];
+interface RecordedCall {
+  reason: string;
+  sql: string;
+  params: unknown[] | undefined;
+}
+
+const responses: ScriptedResponse[] = [];
+const calls: RecordedCall[] = [];
 let clientReleased = false;
 
-function pullResponse(queue: ScriptedResponse[]): QueryResult {
-  if (queue.length === 0) {
+function pullResponse(): QueryResult {
+  if (responses.length === 0) {
     throw new Error("test setup error: response queue exhausted");
   }
-  const next = queue.shift()!;
+  const next = responses.shift()!;
   if (next instanceof Error) throw next;
   return next;
 }
 
-vi.mock("../db", () => {
+// Stand-in for @cs/db.withSystem. Borrows a fake client whose `query`
+// records the SQL+params (tagged with the reason) and pulls scripted
+// responses off the shared queue. BEGIN/COMMIT/ROLLBACK are
+// transactional housekeeping — no scripted response needed.
+vi.mock("@cs/db", () => {
   return {
-    pool: {
-      async connect() {
-        clientReleased = false;
-        return {
-          async query(sql: string, params?: unknown[]) {
-            clientCalls.push({ sql, params });
-            // BEGIN / COMMIT / ROLLBACK are housekeeping — no scripted
-            // response needed; return an empty rows array.
-            const trimmed = sql.trim().toUpperCase();
-            if (trimmed === "BEGIN" || trimmed === "COMMIT" || trimmed === "ROLLBACK") {
-              return { rows: [] };
-            }
-            return pullResponse(clientResponses);
-          },
-          release() {
-            clientReleased = true;
-          },
-        };
-      },
-      async query(sql: string, params?: unknown[]) {
-        poolCalls.push({ sql, params });
-        return pullResponse(poolResponses);
-      },
+    withSystem: async <T,>(
+      opts: { reason: string },
+      fn: (client: {
+        query: (sql: string, params?: unknown[]) => Promise<QueryResult>;
+      }) => Promise<T>,
+    ): Promise<T> => {
+      clientReleased = false;
+      const client = {
+        async query(sql: string, params?: unknown[]): Promise<QueryResult> {
+          calls.push({ reason: opts.reason, sql, params });
+          const trimmed = sql.trim().toUpperCase();
+          if (trimmed === "BEGIN" || trimmed === "COMMIT" || trimmed === "ROLLBACK") {
+            return { rows: [] };
+          }
+          return pullResponse();
+        },
+      };
+      try {
+        return await fn(client);
+      } finally {
+        clientReleased = true;
+      }
     },
   };
 });
@@ -102,15 +109,21 @@ vi.mock("../password", () => ({
 // Imported AFTER the mocks above so the module resolves them through vi.mock.
 import { signup } from "../auth";
 
+// Convenience: SQL verbs in order, ignoring whitespace + casing.
+function sqlVerbs(): string[] {
+  return calls.map((c) => c.sql.trim().split(/\s+/)[0]!.toUpperCase());
+}
+
+const PROVISION_REASON = "auth_signup_provision_tenant_and_practitioner";
+const ATTACH_REASON = "auth_signup_attach_default_tenant";
+
 // ---------------------------------------------------------------------------
 // Setup
 // ---------------------------------------------------------------------------
 
 beforeEach(() => {
-  clientResponses.length = 0;
-  poolResponses.length = 0;
-  clientCalls.length = 0;
-  poolCalls.length = 0;
+  responses.length = 0;
+  calls.length = 0;
   clientReleased = false;
   createSessionMock.mockClear();
   writeAuditMock.mockClear();
@@ -127,7 +140,7 @@ beforeEach(() => {
 
 describe("signup — happy path (provisions new tenant)", () => {
   it("inserts tenant + practitioner, sets signing_authority, creates session, audits", async () => {
-    clientResponses.push(
+    responses.push(
       { rows: [{ id: "tenant-uuid-1" }] },        // INSERT INTO tenants RETURNING id
       { rows: [{ id: "practitioner-uuid-1" }] },  // INSERT INTO practitioners RETURNING id
       { rows: [] },                               // UPDATE tenants
@@ -142,17 +155,17 @@ describe("signup — happy path (provisions new tenant)", () => {
 
     expect(result).toEqual({ ok: true });
     // BEGIN, INSERT tenants, INSERT practitioners, UPDATE tenants, COMMIT
-    expect(clientCalls.map(c => c.sql.trim().split(/\s+/)[0])).toEqual([
-      "BEGIN", "INSERT", "INSERT", "UPDATE", "COMMIT",
-    ]);
+    expect(sqlVerbs()).toEqual(["BEGIN", "INSERT", "INSERT", "UPDATE", "COMMIT"]);
+    // All five SQL statements went through the same withSystem reason
+    for (const c of calls) expect(c.reason).toBe(PROVISION_REASON);
 
-    const tenantInsert = clientCalls[1]!;
+    const tenantInsert = calls[1]!;
     expect(tenantInsert.sql).toContain("INSERT INTO tenants");
     expect(tenantInsert.sql).toContain("'pending_baa'");
     // tenants row gets practice name in BOTH name and legal_name slots
     expect(tenantInsert.params).toEqual(["Alice's Functional Health"]);
 
-    const practitionerInsert = clientCalls[2]!;
+    const practitionerInsert = calls[2]!;
     expect(practitionerInsert.sql).toContain("INSERT INTO practitioners");
     expect(practitionerInsert.sql).toContain("'owner'");
     expect(practitionerInsert.params).toEqual([
@@ -163,7 +176,7 @@ describe("signup — happy path (provisions new tenant)", () => {
       "Alice Doe",
     ]);
 
-    const updateCall = clientCalls[3]!;
+    const updateCall = calls[3]!;
     expect(updateCall.sql).toContain("UPDATE tenants SET signing_authority_practitioner_id");
     expect(updateCall.params).toEqual(["practitioner-uuid-1", "tenant-uuid-1"]);
 
@@ -188,7 +201,7 @@ describe("signup — happy path (provisions new tenant)", () => {
 
 describe("signup — practiceName fallback", () => {
   it("falls back to \"${name}'s practice\" when practiceName omitted", async () => {
-    clientResponses.push(
+    responses.push(
       { rows: [{ id: "tenant-uuid-2" }] },
       { rows: [{ id: "practitioner-uuid-2" }] },
       { rows: [] },
@@ -201,11 +214,11 @@ describe("signup — practiceName fallback", () => {
     });
 
     expect(result).toEqual({ ok: true });
-    expect(clientCalls[1]!.params).toEqual(["Bob Smith's practice"]);
+    expect(calls[1]!.params).toEqual(["Bob Smith's practice"]);
   });
 
   it("falls back when practiceName is whitespace-only", async () => {
-    clientResponses.push(
+    responses.push(
       { rows: [{ id: "tenant-uuid-3" }] },
       { rows: [{ id: "practitioner-uuid-3" }] },
       { rows: [] },
@@ -219,7 +232,7 @@ describe("signup — practiceName fallback", () => {
     });
 
     expect(result).toEqual({ ok: true });
-    expect(clientCalls[1]!.params).toEqual(["Carol Vega's practice"]);
+    expect(calls[1]!.params).toEqual(["Carol Vega's practice"]);
   });
 });
 
@@ -241,15 +254,14 @@ describe("signup — practiceName length validation", () => {
       error: "Practice name must be 120 characters or fewer.",
     });
 
-    // Fails before any DB call — no client checkout, no pool.query
-    expect(clientCalls).toEqual([]);
-    expect(poolCalls).toEqual([]);
+    // Fails before any DB call — no withSystem invocation
+    expect(calls).toEqual([]);
     expect(createSessionMock).not.toHaveBeenCalled();
     expect(writeAuditMock).not.toHaveBeenCalled();
   });
 
   it("accepts practiceName exactly 120 chars", async () => {
-    clientResponses.push(
+    responses.push(
       { rows: [{ id: "tenant-uuid-edge" }] },
       { rows: [{ id: "practitioner-uuid-edge" }] },
       { rows: [] },
@@ -264,7 +276,7 @@ describe("signup — practiceName length validation", () => {
     });
 
     expect(result).toEqual({ ok: true });
-    expect(clientCalls[1]!.params).toEqual([exactly120]);
+    expect(calls[1]!.params).toEqual([exactly120]);
   });
 });
 
@@ -276,7 +288,7 @@ describe("signup — duplicate email rolls back", () => {
   it("returns friendly error, ROLLs BACK, releases client, no session/audit", async () => {
     const dupError = Object.assign(new Error("duplicate key"), { code: "23505" });
 
-    clientResponses.push(
+    responses.push(
       { rows: [{ id: "tenant-uuid-dup" }] },  // tenant insert succeeds
       dupError,                               // practitioner insert throws 23505
     );
@@ -293,9 +305,8 @@ describe("signup — duplicate email rolls back", () => {
     });
 
     // BEGIN, INSERT tenants (ok), INSERT practitioners (throws), ROLLBACK
-    expect(clientCalls.map(c => c.sql.trim().split(/\s+/)[0])).toEqual([
-      "BEGIN", "INSERT", "INSERT", "ROLLBACK",
-    ]);
+    expect(sqlVerbs()).toEqual(["BEGIN", "INSERT", "INSERT", "ROLLBACK"]);
+    for (const c of calls) expect(c.reason).toBe(PROVISION_REASON);
 
     expect(createSessionMock).not.toHaveBeenCalled();
     expect(writeAuditMock).not.toHaveBeenCalled();
@@ -313,7 +324,7 @@ describe("signup — dev escape hatch (ATTACH_TO_DEFAULT_TENANT)", () => {
     process.env.NODE_ENV = "development";
     process.env.DEFAULT_TENANT_ID = "00000000-0000-0000-0000-000000000001";
 
-    poolResponses.push({ rows: [{ id: "practitioner-uuid-dev" }] });
+    responses.push({ rows: [{ id: "practitioner-uuid-dev" }] });
 
     const result = await signup({
       email: "dev@example.com",
@@ -322,11 +333,11 @@ describe("signup — dev escape hatch (ATTACH_TO_DEFAULT_TENANT)", () => {
     });
 
     expect(result).toEqual({ ok: true });
-    // No transactional client used — straight pool.query
-    expect(clientCalls).toEqual([]);
-    expect(poolCalls).toHaveLength(1);
-    expect(poolCalls[0]!.sql).toContain("INSERT INTO practitioners");
-    expect(poolCalls[0]!.params).toEqual([
+    // Single non-transactional INSERT under the attach reason
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.reason).toBe(ATTACH_REASON);
+    expect(calls[0]!.sql).toContain("INSERT INTO practitioners");
+    expect(calls[0]!.params).toEqual([
       "00000000-0000-0000-0000-000000000001",
       "dev@example.com",
       "dev@example.com",
@@ -348,7 +359,7 @@ describe("signup — dev escape hatch (ATTACH_TO_DEFAULT_TENANT)", () => {
     process.env.DEFAULT_TENANT_ID = "00000000-0000-0000-0000-000000000001";
     // NODE_ENV stays 'test' from beforeEach — escape hatch should NOT fire.
 
-    clientResponses.push(
+    responses.push(
       { rows: [{ id: "tenant-uuid-prod" }] },
       { rows: [{ id: "practitioner-uuid-prod" }] },
       { rows: [] },
@@ -361,14 +372,16 @@ describe("signup — dev escape hatch (ATTACH_TO_DEFAULT_TENANT)", () => {
     });
 
     expect(result).toEqual({ ok: true });
-    expect(clientCalls.length).toBeGreaterThan(0);  // transactional path taken
-    expect(poolCalls).toEqual([]);                  // dev path NOT taken
+    // Provisioning path took over; no attach-default-tenant call.
+    const reasons = new Set(calls.map((c) => c.reason));
+    expect(reasons.has(PROVISION_REASON)).toBe(true);
+    expect(reasons.has(ATTACH_REASON)).toBe(false);
   });
 
   it("does NOT require DEFAULT_TENANT_ID on the main path", async () => {
     // No DEFAULT_TENANT_ID, no ATTACH_TO_DEFAULT_TENANT — main path must
     // still work and not return "Server misconfigured: DEFAULT_TENANT_ID unset."
-    clientResponses.push(
+    responses.push(
       { rows: [{ id: "tenant-uuid-nodef" }] },
       { rows: [{ id: "practitioner-uuid-nodef" }] },
       { rows: [] },
