@@ -1,4 +1,7 @@
--- 0023_schema_migrations_table.sql
+-- 0024_schema_migrations_table.sql
+--
+-- Renumbered from 0023 because PR #215 (Batch Phase 1 — pre-batch
+-- hardening) landed `0023_tighten_knowledge_dedup.sql` first.
 --
 -- Phase 1 / PR1: introduces the `schema_migrations` table that the migration
 -- runner (apps/web/scripts/migrate.mjs) uses to track which migration files
