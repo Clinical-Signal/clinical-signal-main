@@ -17,6 +17,31 @@ services:
       timeout: 5s
       retries: 10
 
+  # One-shot migration runner. Runs after Postgres is healthy, applies any
+  # unapplied SQL migrations, then exits. Web and analysis-engine block on
+  # service_completed_successfully so they only start against a fully-
+  # migrated schema. See apps/web/scripts/migrate.mjs for the algorithm
+  # (including baseline mode for adopting an existing schema).
+  migrate:
+    build:
+      context: ./apps/web
+      dockerfile: ../../infrastructure/docker/Dockerfile.web
+    environment:
+      # Migrate connects as the database superuser (POSTGRES_USER) because
+      # migration 0002 needs CREATEROLE to provision `app_user`. The
+      # runtime services (web, analysis-engine) connect as `app_user`
+      # below so RLS applies to their queries.
+      DATABASE_URL: postgresql://${POSTGRES_USER:-clinical_signal}:${POSTGRES_PASSWORD:-change_me_dev_only}@postgres:5432/${POSTGRES_DB:-clinical_signal}
+      MIGRATIONS_DIR: /app/database-migrations
+    command: ["node", "/app/scripts/migrate.mjs"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./apps/web/scripts:/app/scripts:ro
+      - ./database/migrations:/app/database-migrations:ro
+    restart: "no"
+
   analysis-engine:
     build:
       context: ./services/analysis-engine
@@ -35,6 +60,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     volumes:
       - ./services/analysis-engine/app:/app/app:ro
       - ./services/analysis-engine/prompts:/app/prompts:ro
@@ -76,6 +103,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       analysis-engine:
         condition: service_started
     volumes:
