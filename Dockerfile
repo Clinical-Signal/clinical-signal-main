@@ -1,7 +1,9 @@
-# Aptible root Dockerfile — builds the Next.js app from apps/web/ and
-# bundles the migration runner script + database/migrations/ so Aptible's
-# before_release hook (.aptible.yml) can apply schema changes before
-# traffic is routed to a new release.
+# Root production Dockerfile. Builds the Next.js app from apps/web/ and
+# bundles the migration runner script + database/migrations/ so a
+# deployment-time hook can apply schema changes before traffic is routed
+# to a new release. Originally written for Aptible's `before_release`;
+# now used by docker-compose locally and intended for AWS (ECS task
+# definition with a one-shot migrate container before app rollout).
 FROM node:20-alpine AS base
 
 # ---- Install & Build ----
@@ -34,8 +36,8 @@ COPY --from=builder /app/public ./public
 # resolvable from /app/node_modules at runtime.
 COPY --from=builder /app/scripts ./scripts
 
-# Migration SQL files. The .aptible.yml before_release hook runs
-# `node /app/scripts/migrate.mjs` which reads from MIGRATIONS_DIR.
+# Migration SQL files. The deployment pre-release hook runs
+# `node /app/scripts/migrate.mjs`, which reads from MIGRATIONS_DIR.
 COPY database/migrations ./database/migrations
 
 USER nextjs
