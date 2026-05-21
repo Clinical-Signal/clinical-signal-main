@@ -1,3 +1,4 @@
+import { signEngineJwt, type TenantContext } from "@cs/core";
 import { withTenant } from "./db";
 
 const ENGINE_URL = process.env.ANALYSIS_ENGINE_URL ?? "http://analysis-engine:8000";
@@ -24,36 +25,47 @@ export interface ProtocolDetail extends ProtocolSummary {
 }
 
 export async function runAnalyze(args: {
-  tenantId: string;
+  ctx: TenantContext;
   patientId: string;
-  practitionerId: string;
 }): Promise<{ analysisId: string }> {
-  const res = await callEngine("/analyze", {
-    tenant_id: args.tenantId,
+  // practitioner_id flows from the JWT (ctx.practitionerId) and the
+  // engine refuses /analyze if pid is missing — caller must pass a
+  // practitioner-scoped TenantContext, not a system one.
+  const res = await callEngine(args.ctx, "/analyze", `analyze:${args.patientId}`, {
     patient_id: args.patientId,
-    practitioner_id: args.practitionerId,
   });
   return { analysisId: res.analysis_id as string };
 }
 
 export async function runGenerateProtocol(args: {
-  tenantId: string;
+  ctx: TenantContext;
   analysisId: string;
 }): Promise<{ protocolId: string }> {
-  const res = await callEngine("/generate-protocol", {
-    tenant_id: args.tenantId,
-    analysis_id: args.analysisId,
-  });
+  const res = await callEngine(
+    args.ctx,
+    "/generate-protocol",
+    `generate_protocol:${args.analysisId}`,
+    { analysis_id: args.analysisId },
+  );
   return { protocolId: res.protocol_id as string };
 }
 
-async function callEngine(path: string, body: unknown): Promise<Record<string, unknown>> {
+async function callEngine(
+  ctx: TenantContext,
+  path: string,
+  jobId: string,
+  body: unknown,
+): Promise<Record<string, unknown>> {
   const ctrl = new AbortController();
   const timeout = setTimeout(() => ctrl.abort(), ENGINE_TIMEOUT_MS);
   try {
+    const jwt = signEngineJwt(ctx, jobId);
     const res = await fetch(`${ENGINE_URL}${path}`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${jwt}`,
+      },
       body: JSON.stringify(body),
       signal: ctrl.signal,
     });
@@ -283,7 +295,7 @@ export async function listProtocolVersions(
 
 /** Fetches PDF bytes from the engine. */
 export async function fetchProtocolPdf(args: {
-  tenantId: string;
+  ctx: TenantContext;
   protocolId: string;
   audience: "clinical" | "client";
   practiceName?: string;
@@ -291,11 +303,14 @@ export async function fetchProtocolPdf(args: {
   const ctrl = new AbortController();
   const timeout = setTimeout(() => ctrl.abort(), ENGINE_TIMEOUT_MS);
   try {
+    const jwt = signEngineJwt(args.ctx, `export_protocol:${args.protocolId}`);
     const res = await fetch(`${ENGINE_URL}/export-protocol`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${jwt}`,
+      },
       body: JSON.stringify({
-        tenant_id: args.tenantId,
         protocol_id: args.protocolId,
         audience: args.audience,
         practice_name: args.practiceName ?? "Clinical Signal",

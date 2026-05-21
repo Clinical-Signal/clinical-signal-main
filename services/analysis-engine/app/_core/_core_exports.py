@@ -5,6 +5,10 @@ caller knowing the internal split.
 
 Don't import this file directly — go through `app._core` (the package).
 """
+from .auth import (
+    EngineAuthMisconfigured,
+    require_engine_jwt,
+)
 from .db import set_tenant_guc, system_conn, tenant_conn
 from .errors import (
     SystemAccessError,
@@ -22,4 +26,6 @@ __all__ = [
     "tenant_conn",
     "system_conn",
     "set_tenant_guc",
+    "require_engine_jwt",
+    "EngineAuthMisconfigured",
 ]

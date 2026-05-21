@@ -50,11 +50,12 @@ jobs:
           cache: 'pip'
           cache-dependency-path: services/analysis-engine/requirements.txt
 
-      - name: Install engine dependencies
-        run: pip install -r services/analysis-engine/requirements.txt
+      - name: Install engine dependencies (with test extras)
+        run: pip install -r services/analysis-engine/requirements-dev.txt
 
-      # Compile-only check until a real pytest suite lands. Catches syntax
-      # errors and import-time failures without needing a Postgres instance.
+      # Catches syntax errors and import-time failures fast — runs
+      # before pytest so a broken module produces a clear compile
+      # message instead of a confusing collection error.
       - name: Compile analysis-engine modules
         run: |
           python -m compileall -q services/analysis-engine/app
@@ -66,6 +67,17 @@ jobs:
       # TS-side check at apps/web/scripts/check-system-access.mjs (PR3).
       - name: Tenant GUC discipline (no direct set_config outside _core)
         run: python services/analysis-engine/scripts/check_tenant_guc.py
+
+      # PR5 grep gate: every engine HTTP route must be authenticated
+      # (Depends(require_engine_jwt)) and no Pydantic request model
+      # may expose tenant_id / practitioner_id. Together those rules
+      # enforce that the engine's trust boundary is the JWT, not the
+      # network.
+      - name: Engine auth surface discipline
+        run: python services/analysis-engine/scripts/check_engine_auth.py
+
+      - name: Engine pytest suite
+        run: python -m pytest services/analysis-engine/tests -q
 
   migrations:
     name: migrations (filename hygiene)

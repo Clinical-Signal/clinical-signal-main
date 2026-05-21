@@ -1,0 +1,6 @@
+# Test-only dependencies for the analysis engine. Kept separate from
+# requirements.txt so the production image stays slim — pytest et al.
+# are install-time only on CI and dev workstations.
+-r requirements.txt
+pytest==8.3.3
+httpx==0.27.2

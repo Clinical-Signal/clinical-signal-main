@@ -24,7 +24,7 @@ export async function GET(
 
   try {
     const { bytes, filename } = await fetchProtocolPdf({
-      tenantId: user.tenantId,
+      ctx: user,
       protocolId: ctx.params.protocolId,
       audience,
     });
