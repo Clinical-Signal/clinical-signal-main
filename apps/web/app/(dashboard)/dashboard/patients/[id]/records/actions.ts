@@ -22,7 +22,7 @@ export async function uploadLabAction(
 
   try {
     const { recordId } = await acceptLabUpload({
-      tenantId: user.tenantId,
+      ctx: user,
       patientId,
       file,
     });

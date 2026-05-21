@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { signEngineJwt, type TenantContext } from "@cs/core";
 import { phiKey, withTenant } from "./db";
 
 // On Vercel (serverless, read-only fs) we skip file persistence and
@@ -134,11 +135,12 @@ export interface UploadResult {
 }
 
 export async function acceptLabUpload(args: {
-  tenantId: string;
+  ctx: TenantContext;
   patientId: string;
   file: File;
 }): Promise<UploadResult> {
-  const { tenantId, patientId, file } = args;
+  const { ctx, patientId, file } = args;
+  const tenantId = ctx.tenantId;
   if (file.type !== "application/pdf") throw new Error("That file isn't a PDF.");
   if (file.size <= 0) throw new Error("File is empty.");
   if (file.size > MAX_UPLOAD_BYTES) {
@@ -176,13 +178,18 @@ export async function acceptLabUpload(args: {
 
   if (!IS_VERCEL) {
     // Fire-and-forget extraction request to the analysis engine.
+    // PR5: tenant_id is no longer in the body — it travels in the
+    // signed JWT that the engine verifies via require_engine_jwt.
     const enginePath = path.join(ENGINE_UPLOADS_DIR, relKey);
+    const jwt = signEngineJwt(ctx, `extract:${id}`);
     fetch(`${ENGINE_URL}/extract`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${jwt}`,
+      },
       body: JSON.stringify({
         record_id: id,
-        tenant_id: tenantId,
         patient_id: patientId,
         file_path: enginePath,
       }),

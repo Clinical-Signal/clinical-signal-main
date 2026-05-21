@@ -55,6 +55,12 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-4-5}
       USE_KNOWLEDGE_BASE: ${USE_KNOWLEDGE_BASE:-1}
+      # PR5 — engine JWT auth. Web signs HS256 JWTs with this secret;
+      # the engine verifies them in require_engine_jwt. Web and engine
+      # MUST share the exact same value. Rotate by deploying a new
+      # secret to both services within a 5-minute window (the JWT TTL),
+      # or stage a brief overlap by adding a list-of-secrets verifier.
+      ENGINE_JWT_SECRET: ${ENGINE_JWT_SECRET:-dev_only_change_me_engine_jwt_secret_min_32}
       # Cache the sentence-transformers model across container rebuilds.
       SENTENCE_TRANSFORMERS_HOME: /models
     ports:
@@ -105,6 +111,10 @@ services:
       # Path the engine sees for the same uploads volume. Lets the web service
       # hand the engine an absolute path it can open without re-uploading.
       ENGINE_UPLOADS_DIR: /uploads
+      # PR5 — engine JWT auth. MUST match the value the analysis-engine
+      # service sees. Web signs; engine verifies. See the analysis-engine
+      # block above for rotation guidance.
+      ENGINE_JWT_SECRET: ${ENGINE_JWT_SECRET:-dev_only_change_me_engine_jwt_secret_min_32}
     ports:
       - "3000:3000"
     depends_on:

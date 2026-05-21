@@ -15,3 +15,15 @@ export {
   TenantContextMissingError,
   SystemAccessDeniedError,
 } from "./errors";
+
+export {
+  signEngineJwt,
+  verifyEngineJwt,
+  EngineJwtError,
+  DEFAULT_ENGINE_JWT_TTL_SECONDS,
+} from "./tenancy/jwt";
+export type {
+  EngineJwtClaims,
+  SignEngineJwtOptions,
+  VerifyEngineJwtOptions,
+} from "./tenancy/jwt";

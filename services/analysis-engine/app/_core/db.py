@@ -116,22 +116,25 @@ def system_conn(reason: str) -> Iterator[psycopg.Connection]:
     gate fails the build if set_config('app.current_tenant_id' appears
     outside this module.
 
-    Defensively clears the tenant GUC on the borrowed connection to
-    eliminate any chance of residue from a previous psycopg pool
-    integration that might be added later.
+    Why we don't set the GUC explicitly here:
+        psycopg.connect always returns a fresh connection (we don't
+        pool), so there's no residue to clear. Setting it to ''
+        actively breaks RLS evaluation on PHI-bearing tables — those
+        policies cast the GUC to UUID via
+        ``current_setting('app.current_tenant_id', true)::uuid`` and
+        ``''::uuid`` raises InvalidTextRepresentation. With the GUC
+        simply unset, ``current_setting(..., true)`` returns NULL and
+        RLS denies every row to app_user, which is the correct
+        behavior for a no-RLS escape hatch reading non-RLS tables.
+        If we later add connection pooling, do residue-clearing via
+        ``set_config('app.current_tenant_id', NULL, false)`` — which
+        actually resets the GUC — not the empty string.
     """
     if not reason or not reason.strip():
         raise SystemAccessError("system_conn requires a non-empty reason")
 
     conn = psycopg.connect(_dsn(), autocommit=False)
     try:
-        with conn.cursor() as cur:
-            # Belt + suspenders: ensure no GUC residue. set_config with
-            # is_local=false persists for the connection's lifetime;
-            # writing '' explicitly resets it.
-            cur.execute(
-                "SELECT set_config('app.current_tenant_id', '', false)",
-            )
         yield conn
         conn.commit()
     except Exception:

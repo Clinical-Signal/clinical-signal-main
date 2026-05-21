@@ -27,6 +27,8 @@ from ._core_exports import (
     tenant_conn,
     system_conn,
     set_tenant_guc,
+    require_engine_jwt,
+    EngineAuthMisconfigured,
 )
 
 __all__ = [
@@ -38,4 +40,6 @@ __all__ = [
     "tenant_conn",
     "system_conn",
     "set_tenant_guc",
+    "require_engine_jwt",
+    "EngineAuthMisconfigured",
 ]
