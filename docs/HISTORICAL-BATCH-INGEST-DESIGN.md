@@ -66,7 +66,7 @@ The eventual watcher (P0.6) needs a service account. Setting it up now means one
 
 Before any new content ingests, make the changes the four decisions require. These don't change what's already loaded; they change what future ingestions write and how re-runs behave.
 
-**1a. Dedup tightening.** Change the unique constraint / ON CONFLICT key in `app/knowledge/db.py:insert_knowledge_item` from `(tenant_id, source_chunk_hash, title)` to `(tenant_id, source_chunk_hash)`. New migration `0022_tighten_knowledge_dedup.sql`. Verify against existing 1,144 rows that no within-hash conflicting titles exist (one-off SQL check before applying).
+**1a. Dedup tightening.** Change the unique constraint / ON CONFLICT key in `app/knowledge/db.py:insert_knowledge_item` from `(tenant_id, source_chunk_hash, title)` to `(tenant_id, source_chunk_hash)`. New migration `0023_tighten_knowledge_dedup.sql` (originally drafted as 0022; renumbered when 0022 was claimed by `0022_practice_first_class.sql` via PR #218). Verify against existing 1,144 rows that no within-hash conflicting titles exist (one-off SQL check before applying).
 
 **1b. `knowledge_sources` write path.** Add `get_or_create_source(conn, tenant_id, source_type, identifier, metadata)` to `app/knowledge/db.py`. Wire it into `load_knowledge.py`, `ingest_knowledge.py`, `ingest_pdf.py`. Set `source_id` FK on every new entry. Backfill `source_id` on the existing 1,144 rows by deriving from `source_channel` + `_source` JSONB (one source row per channel for Slack; sources for future PDFs / canvases will be created at ingest time).
 

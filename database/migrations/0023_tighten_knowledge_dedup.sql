@@ -1,4 +1,4 @@
--- 0022_tighten_knowledge_dedup.sql
+-- 0023_tighten_knowledge_dedup.sql
 --
 -- Tightens dedup on clinical_knowledge ahead of the historical batch
 -- ingest. The old UNIQUE (tenant_id, source_chunk_hash, title) from
