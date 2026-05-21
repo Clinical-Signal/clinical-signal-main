@@ -4,6 +4,9 @@
 .env.*.local
 !.env.example
 
+# Secrets — service account keys, signing certs, anything credential-shaped
+infrastructure/secrets/
+
 # Node
 node_modules/
 .next/

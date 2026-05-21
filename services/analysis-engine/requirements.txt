@@ -10,3 +10,7 @@ psycopg[binary]==3.2.3
 sentence-transformers==3.0.1
 pgvector==0.3.6
 reportlab==4.2.5
+# Google Drive API — used by scripts/verify_drive_access.py and the
+# upcoming Phase 5 Drive watcher. Pinned to the current stable lines.
+google-api-python-client==2.149.0
+google-auth==2.35.0

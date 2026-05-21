@@ -1,10 +1,14 @@
 """DB helpers for clinical_knowledge + concepts/relationships tables."""
 from __future__ import annotations
 
+import hashlib
 import json
+import logging
 from typing import Any
 
 from app.pipeline.db import tenant_conn
+
+log = logging.getLogger(__name__)
 
 
 # ---------- knowledge ----------
@@ -31,6 +35,14 @@ def _vector_literal(vec: list[float]) -> str:
     return "[" + ",".join(f"{v:.8f}" for v in vec) + "]"
 
 
+def _compute_item_content_hash(content: str) -> str:
+    """Per-item content hash used as the dedup key for clinical_knowledge.
+
+    Mirrors migration 0022's backfill: encode(sha256(content::bytea), 'hex').
+    """
+    return hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+
 def insert_knowledge_item(
     tenant_id: str,
     category: str,
@@ -41,13 +53,26 @@ def insert_knowledge_item(
     source_channel: str | None,
     source_chunk_hash: str | None,
     *,
+    source_id: str | None = None,
     faithfulness_score: float | None = None,
     faithfulness_breakdown: dict[str, Any] | None = None,
     faithfulness_notes: str | None = None,
     review_status: str | None = None,
 ) -> str | None:
-    """Inserts a row; returns id. Returns None if the (tenant, chunk_hash, title)
-    triple already exists (idempotent ingestion).
+    """Inserts a row; returns id. Returns None if the (tenant, item_content_hash)
+    pair already exists (idempotent ingestion per migration 0022).
+
+    Dedup semantics: item_content_hash = sha256(content) is computed inside
+    this function. Same content → same hash → ON CONFLICT DO NOTHING
+    short-circuits. Multiple distinct items extracted from the same source
+    chunk (each with its own content) all land as separate rows.
+    source_chunk_hash is preserved as provenance metadata but no longer
+    drives uniqueness.
+
+    source_id is the knowledge_sources UUID for richer provenance and
+    citation support (Phase 1 of the historical batch ingest). Callers
+    after Phase 1 should always supply it; a warning is logged when None
+    so we can spot orphan callers and backfill.
 
     The faithfulness_* and review_status keyword args are written through
     when present (C.1.4 ingest pipeline). Older callers that don't pass
@@ -55,9 +80,16 @@ def insert_knowledge_item(
     keeps backward compat with pre-C.1.4 JSONL.
     """
     cat = category if category in VALID_CATEGORIES else "other"
+    item_content_hash = _compute_item_content_hash(content)
     breakdown_json = (
         json.dumps(faithfulness_breakdown) if faithfulness_breakdown is not None else None
     )
+    if source_id is None:
+        log.warning(
+            "insert_knowledge_item called without source_id "
+            "(tenant=%s, title=%r) — will land as orphan",
+            tenant_id, title[:80],
+        )
     with tenant_conn(tenant_id) as conn, conn.cursor() as cur:
         # Use COALESCE on review_status so omitting it falls back to the
         # column default ('unreviewed') rather than overwriting with NULL.
@@ -65,12 +97,14 @@ def insert_knowledge_item(
             """
             INSERT INTO clinical_knowledge
                 (tenant_id, category, title, content, embedding, metadata,
-                 source_channel, source_chunk_hash,
+                 source_channel, source_chunk_hash, item_content_hash,
+                 source_id,
                  faithfulness_score, faithfulness_breakdown,
                  faithfulness_notes, review_status)
-            VALUES (%s, %s, %s, %s, %s::vector, %s::jsonb, %s, %s,
+            VALUES (%s, %s, %s, %s, %s::vector, %s::jsonb, %s, %s, %s,
+                    %s,
                     %s, %s::jsonb, %s, COALESCE(%s, 'unreviewed'))
-            ON CONFLICT (tenant_id, source_chunk_hash, title) DO NOTHING
+            ON CONFLICT (tenant_id, item_content_hash) DO NOTHING
             RETURNING id
             """,
             (
@@ -82,6 +116,8 @@ def insert_knowledge_item(
                 json.dumps(metadata),
                 source_channel,
                 source_chunk_hash,
+                item_content_hash,
+                source_id,
                 faithfulness_score,
                 breakdown_json,
                 faithfulness_notes,
@@ -90,6 +126,147 @@ def insert_knowledge_item(
         )
         row = cur.fetchone()
         return str(row[0]) if row else None
+
+
+# ---------- knowledge_sources (Phase 1c) ----------
+
+ALLOWED_SOURCE_TYPES = frozenset({
+    "book",
+    "podcast_episode",
+    "youtube_video",
+    "article",
+    "blog_post",
+    "course_module",
+    "training_recording",
+    "clinical_case",
+    "slack_thread",
+    "research_paper",
+    "protocol_template",
+    "other",
+})
+
+
+def get_or_create_source(
+    tenant_id: str,
+    source_type: str,
+    title: str,
+    *,
+    leader_id: str | None = None,
+    url: str | None = None,
+    file_path: str | None = None,
+    raw_text_hash: str | None = None,
+    metadata: dict[str, Any] | None = None,
+) -> str:
+    """Get-or-create a knowledge_sources row, return its UUID.
+
+    Idempotent on (tenant_id, raw_text_hash) when raw_text_hash is
+    provided (the table's existing UNIQUE constraint from migration
+    0016). When raw_text_hash is None, falls back to lookup by
+    (tenant_id, source_type, title) before inserting; warns if that
+    lookup matches multiple rows (the schema doesn't enforce uniqueness
+    on the (type, title) pair, so it's possible but should be rare).
+
+    source_type must be one of ALLOWED_SOURCE_TYPES (mirrors the CHECK
+    constraint in migration 0016 lines 41-45). Raises ValueError on
+    invalid type.
+
+    Sets ingestion_status='ingesting' on create; callers should call
+    mark_source_extracted() after their ingest loop completes.
+    """
+    if source_type not in ALLOWED_SOURCE_TYPES:
+        raise ValueError(
+            f"invalid source_type {source_type!r}; "
+            f"must be one of {sorted(ALLOWED_SOURCE_TYPES)}"
+        )
+
+    metadata_json = json.dumps(metadata or {})
+
+    with tenant_conn(tenant_id) as conn, conn.cursor() as cur:
+        # Path A — caller supplied a content hash; use the schema's
+        # UNIQUE (tenant_id, raw_text_hash) for atomic upsert.
+        if raw_text_hash:
+            cur.execute(
+                """
+                INSERT INTO knowledge_sources
+                    (tenant_id, leader_id, source_type, title, url,
+                     file_path, raw_text_hash, ingestion_status, metadata)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, 'ingesting', %s::jsonb)
+                ON CONFLICT (tenant_id, raw_text_hash) DO NOTHING
+                RETURNING id
+                """,
+                (
+                    tenant_id, leader_id, source_type, title, url,
+                    file_path, raw_text_hash, metadata_json,
+                ),
+            )
+            row = cur.fetchone()
+            if row:
+                return str(row[0])
+            # Hit the conflict — fetch the existing row's id.
+            cur.execute(
+                "SELECT id FROM knowledge_sources "
+                "WHERE tenant_id = %s AND raw_text_hash = %s",
+                (tenant_id, raw_text_hash),
+            )
+            existing = cur.fetchone()
+            if existing:
+                return str(existing[0])
+            # Shouldn't happen — the conflict means a row exists.
+            raise RuntimeError(
+                f"get_or_create_source: ON CONFLICT fired but no row found "
+                f"for tenant={tenant_id} raw_text_hash={raw_text_hash[:16]}…"
+            )
+
+        # Path B — no content hash. Look up by (type, title) before
+        # inserting. Schema has no UNIQUE on that pair, so a re-run with
+        # the same args creates a second row — log a warning when the
+        # lookup matches multiple existing rows so the inconsistency
+        # surfaces.
+        cur.execute(
+            "SELECT id FROM knowledge_sources "
+            "WHERE tenant_id = %s AND source_type = %s AND title = %s",
+            (tenant_id, source_type, title),
+        )
+        rows = cur.fetchall()
+        if len(rows) > 1:
+            log.warning(
+                "get_or_create_source: %d existing rows match "
+                "(tenant=%s, source_type=%s, title=%r); returning first",
+                len(rows), tenant_id, source_type, title[:80],
+            )
+        if rows:
+            return str(rows[0][0])
+        cur.execute(
+            """
+            INSERT INTO knowledge_sources
+                (tenant_id, leader_id, source_type, title, url,
+                 file_path, ingestion_status, metadata)
+            VALUES (%s, %s, %s, %s, %s, %s, 'ingesting', %s::jsonb)
+            RETURNING id
+            """,
+            (
+                tenant_id, leader_id, source_type, title, url,
+                file_path, metadata_json,
+            ),
+        )
+        return str(cur.fetchone()[0])
+
+
+def mark_source_extracted(
+    tenant_id: str, source_id: str, entry_count: int,
+) -> None:
+    """Mark a knowledge_sources row as extracted and record the entry count."""
+    with tenant_conn(tenant_id) as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            UPDATE knowledge_sources
+               SET ingestion_status = 'extracted',
+                   ingested_at = now(),
+                   entry_count = %s
+             WHERE id = %s AND tenant_id = %s
+            """,
+            (entry_count, source_id, tenant_id),
+        )
 
 
 def search_knowledge(
