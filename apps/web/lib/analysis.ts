@@ -12,8 +12,9 @@ import {
 
 const MODEL = "claude-sonnet-4-5-20250929";
 
-// Tunable token limits. Override via env vars without redeploying code.
-// Hardcoded to avoid Railway env var caching bugs. Sonnet 4.5 supports 64k output.
+// Tunable token limits. Hardcoded so they're versioned in code rather than
+// drifting silently across environments via env vars. Sonnet 4.5 supports
+// 64k output.
 const MAX_ANALYSIS_TOKENS = 16000;
 const MAX_PROTOCOL_TOKENS = 64000;
 const KB_CONTEXT_LIMIT = 12;

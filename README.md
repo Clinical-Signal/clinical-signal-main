@@ -2,7 +2,7 @@
 
 AI-driven clinical protocol generation for functional health practitioners. See `CLAUDE.md` for project overview, `ARCHITECTURE.md` for the technical design, and `MVP-BUILD-SPEC.md` for the workflow-to-architecture mapping.
 
-> **Deployment status (May 2026):** Aptible has been deprecated. AWS migration is in progress (target: Bedrock for LLM, RDS for Postgres, S3 + KMS for PHI storage, ECS Fargate behind ALB). **Until AWS bring-up is complete, all development and testing happens locally** via the docker-compose stack below. No hosted environment is currently running.
+> **Deployment status (May 2026):** Aptible and Railway have both been retired (Aptible per #222; Railway in this commit — its deploy had been red since PR3 because its build context didn't know about `packages/`). AWS migration is in progress (target: Bedrock for LLM, RDS for Postgres, S3 + KMS for PHI storage, ECS Fargate behind ALB). **Until AWS bring-up is complete, all development and testing happens locally** via the docker-compose stack below. No hosted environment is currently running.
 
 ## Local Development
 
