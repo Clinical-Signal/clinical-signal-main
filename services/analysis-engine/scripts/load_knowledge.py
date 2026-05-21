@@ -20,6 +20,7 @@ import os  # noqa: E402
 
 import psycopg  # noqa: E402
 
+from app._core import TenantContext, set_tenant_guc  # noqa: E402
 from app.knowledge.db import (  # noqa: E402
     get_or_create_source,
     insert_knowledge_item,
@@ -29,7 +30,19 @@ from app.knowledge.db import (  # noqa: E402
 from app.knowledge.embeddings import embed  # noqa: E402
 
 
-def _finalize_for_tenant(tenant_id: str) -> dict | None:
+def _ctx_for_script(tenant_id: str, job_id: str) -> TenantContext:
+    """Scripts run as system jobs — no practitioner identity. PR5's JWT
+    flow doesn't apply here (these are operator-run batch tools)."""
+    return TenantContext(
+        tenant_id=tenant_id,
+        practitioner_id=None,
+        role="system",
+        job_id=job_id,
+        lifecycle_status="active",
+    )
+
+
+def _finalize_for_tenant(ctx: TenantContext) -> dict | None:
     """Open a tenant-scoped connection and run the C.2-prep finalize step.
 
     Replaces the standalone C.1.5 enqueue hook with the unified
@@ -47,7 +60,8 @@ def _finalize_for_tenant(tenant_id: str) -> dict | None:
         return None
     try:
         with psycopg.connect(db_url, autocommit=False) as conn:
-            return post_ingest_finalize(conn, tenant_id)
+            set_tenant_guc(conn, ctx)
+            return post_ingest_finalize(conn, ctx)
     except Exception as err:
         print(
             f"[load] WARN: post-load finalize failed: "
@@ -76,7 +90,7 @@ def _embed_text(item: dict) -> str:
 
 
 def _resolve_per_file_source(
-    tenant_id: str,
+    ctx: TenantContext,
     items: list[dict],
     jsonl_path: Path,
     leader_id: str | None,
@@ -101,7 +115,7 @@ def _resolve_per_file_source(
     channel = first_src.get("channel") or jsonl_path.stem
 
     return get_or_create_source(
-        tenant_id,
+        ctx,
         source_type,
         title=channel,
         leader_id=leader_id,
@@ -111,7 +125,7 @@ def _resolve_per_file_source(
     )
 
 
-def _resolve_leader_id(tenant_id: str, leader_slug: str | None) -> str | None:
+def _resolve_leader_id(ctx: TenantContext, leader_slug: str | None) -> str | None:
     """Look up a leader UUID by slug. Returns None if slug is None or
     not found (we log and continue rather than block — leader_id is
     nullable on knowledge_sources)."""
@@ -121,16 +135,12 @@ def _resolve_leader_id(tenant_id: str, leader_slug: str | None) -> str | None:
     if not db_url:
         return None
     with psycopg.connect(db_url) as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                "SELECT set_config('app.current_tenant_id', %s, false)",
-                (tenant_id,),
-            )
+        set_tenant_guc(conn, ctx)
         with conn.cursor() as cur:
             cur.execute(
                 "SELECT id FROM knowledge_leaders "
                 "WHERE tenant_id = %s AND slug = %s",
-                (tenant_id, leader_slug),
+                (ctx.tenant_id, leader_slug),
             )
             row = cur.fetchone()
             if not row:
@@ -182,12 +192,14 @@ def main() -> int:
     if not items:
         return 0
 
+    ctx = _ctx_for_script(args.tenant, job_id=f"load_knowledge:{path.name}")
+
     # Per-file knowledge_sources row (skipped when every entry already
     # has its own source_id from upstream — e.g. ingest_pdf.py which
     # creates one course_module source per PDF).
-    leader_id = _resolve_leader_id(args.tenant, args.leader_slug)
+    leader_id = _resolve_leader_id(ctx, args.leader_slug)
     per_file_source_id = _resolve_per_file_source(
-        args.tenant, items, path, leader_id, args.source_type,
+        ctx, items, path, leader_id, args.source_type,
     )
     if per_file_source_id:
         print(
@@ -232,7 +244,7 @@ def main() -> int:
             "extraction": item.get("_extraction") or {},
         }
         rid = insert_knowledge_item(
-            tenant_id=args.tenant,
+            ctx,
             category=item.get("category") or "other",
             title=(item.get("title") or "")[:200] or "(untitled)",
             content=item.get("content") or "",
@@ -257,7 +269,7 @@ def main() -> int:
     # that actually used it (excludes PDF entries that referenced their
     # own source_id).
     if per_file_source_id is not None:
-        mark_source_extracted(args.tenant, per_file_source_id, per_file_used)
+        mark_source_extracted(ctx, per_file_source_id, per_file_used)
 
     print(f"[load] done inserted={inserted} skipped_duplicates={skipped}")
 
@@ -265,7 +277,7 @@ def main() -> int:
     # enqueue review queue items. Each step is idempotent and non-fatal;
     # ordering inside the helper is enforced (recompute must come after
     # autotag because the corroboration self-join is domain-gated).
-    result = _finalize_for_tenant(args.tenant)
+    result = _finalize_for_tenant(ctx)
     if result is not None:
         a = result["autotag"]
         c = result["confidence"]

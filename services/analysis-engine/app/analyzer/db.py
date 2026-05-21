@@ -1,20 +1,25 @@
-"""DB writes for analyses + protocols. All writes go through a tenant-scoped
-connection so RLS applies."""
+"""DB writes for analyses + protocols. Every write goes through a
+tenant-scoped connection so RLS applies.
+
+PR4: signatures take TenantContext instead of (tenant_id: str). The
+ctx is built once at the request boundary and threaded through.
+"""
 from __future__ import annotations
 
 import json
 
+from app._core import TenantContext
 from app.pipeline.db import tenant_conn
 
 
 def insert_analysis_running(
-    tenant_id: str,
+    ctx: TenantContext,
     patient_id: str,
     practitioner_id: str,
     analysis_type: str,
     input_record_ids: list[str],
 ) -> str:
-    with tenant_conn(tenant_id) as conn, conn.cursor() as cur:
+    with tenant_conn(ctx) as conn, conn.cursor() as cur:
         cur.execute(
             """
             INSERT INTO analyses (
@@ -23,20 +28,26 @@ def insert_analysis_running(
             ) VALUES (%s, %s, %s, %s, %s, 'running')
             RETURNING id
             """,
-            (tenant_id, patient_id, practitioner_id, analysis_type, input_record_ids),
+            (
+                ctx.tenant_id,
+                patient_id,
+                practitioner_id,
+                analysis_type,
+                input_record_ids,
+            ),
         )
         return str(cur.fetchone()[0])
 
 
 def complete_analysis(
-    tenant_id: str,
+    ctx: TenantContext,
     analysis_id: str,
     findings: dict,
     meta: dict,
     raw_response: str,
     phi_key: str,
 ) -> None:
-    with tenant_conn(tenant_id) as conn, conn.cursor() as cur:
+    with tenant_conn(ctx) as conn, conn.cursor() as cur:
         cur.execute(
             """
             UPDATE analyses
@@ -61,8 +72,8 @@ def complete_analysis(
         )
 
 
-def fail_analysis(tenant_id: str, analysis_id: str, error: str) -> None:
-    with tenant_conn(tenant_id) as conn, conn.cursor() as cur:
+def fail_analysis(ctx: TenantContext, analysis_id: str, error: str) -> None:
+    with tenant_conn(ctx) as conn, conn.cursor() as cur:
         cur.execute(
             """
             UPDATE analyses
@@ -75,9 +86,9 @@ def fail_analysis(tenant_id: str, analysis_id: str, error: str) -> None:
         )
 
 
-def get_analysis(tenant_id: str, analysis_id: str) -> dict | None:
+def get_analysis(ctx: TenantContext, analysis_id: str) -> dict | None:
     """Reads findings + patient_id + practitioner_id for protocol generation."""
-    with tenant_conn(tenant_id) as conn, conn.cursor() as cur:
+    with tenant_conn(ctx) as conn, conn.cursor() as cur:
         cur.execute(
             """
             SELECT patient_id, practitioner_id, findings, status
@@ -98,7 +109,7 @@ def get_analysis(tenant_id: str, analysis_id: str) -> dict | None:
 
 
 def insert_protocol(
-    tenant_id: str,
+    ctx: TenantContext,
     patient_id: str,
     practitioner_id: str,
     analysis_id: str,
@@ -106,7 +117,7 @@ def insert_protocol(
     clinical_content: dict,
     client_content: dict,
 ) -> str:
-    with tenant_conn(tenant_id) as conn, conn.cursor() as cur:
+    with tenant_conn(ctx) as conn, conn.cursor() as cur:
         cur.execute(
             """
             INSERT INTO protocols (
@@ -116,7 +127,7 @@ def insert_protocol(
             RETURNING id
             """,
             (
-                tenant_id,
+                ctx.tenant_id,
                 patient_id,
                 practitioner_id,
                 analysis_id,

@@ -236,11 +236,16 @@ def autotag_tenant(
     if system_prompt is None:
         system_prompt = _load_system_prompt()
 
-    with conn.cursor() as cur:
-        cur.execute(
-            "SELECT set_config('app.current_tenant_id', %s, false)",
-            (tenant_id,),
-        )
+    from app._core import TenantContext, set_tenant_guc  # noqa: PLC0415
+
+    ctx = TenantContext(
+        tenant_id=tenant_id,
+        practitioner_id=None,
+        role="system",
+        job_id="autotag_domains",
+        lifecycle_status="active",
+    )
+    set_tenant_guc(conn, ctx)
     conn.commit()
 
     rows = fetch_untagged(conn)

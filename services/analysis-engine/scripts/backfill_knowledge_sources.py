@@ -37,13 +37,24 @@ from app.knowledge.db import get_or_create_source, mark_source_extracted  # noqa
 DR_LAURA_SLUG = "dr-laura"
 
 
+def _ctx(tenant_id: str, job_id: str) -> "TenantContext":
+    """Build a TenantContext for this script's batch ops."""
+    from app._core import TenantContext  # noqa: PLC0415
+
+    return TenantContext(
+        tenant_id=tenant_id,
+        practitioner_id=None,
+        role="system",
+        job_id=job_id,
+        lifecycle_status="active",
+    )
+
+
 def _resolve_leader_id(tenant_id: str, slug: str) -> str | None:
+    from app._core import set_tenant_guc  # noqa: PLC0415
+
     with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                "SELECT set_config('app.current_tenant_id', %s, false)",
-                (tenant_id,),
-            )
+        set_tenant_guc(conn, _ctx(tenant_id, "backfill_knowledge_sources:leader"))
         with conn.cursor() as cur:
             cur.execute(
                 "SELECT id FROM knowledge_leaders "
@@ -56,12 +67,10 @@ def _resolve_leader_id(tenant_id: str, slug: str) -> str | None:
 
 def _channels_to_backfill(tenant_id: str) -> list[tuple[str, int]]:
     """Return [(source_channel, row_count), …] for rows still missing source_id."""
+    from app._core import set_tenant_guc  # noqa: PLC0415
+
     with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                "SELECT set_config('app.current_tenant_id', %s, false)",
-                (tenant_id,),
-            )
+        set_tenant_guc(conn, _ctx(tenant_id, "backfill_knowledge_sources:channels"))
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -81,12 +90,10 @@ def _channels_to_backfill(tenant_id: str) -> list[tuple[str, int]]:
 def _update_rows(tenant_id: str, channel: str, source_id: str) -> int:
     """UPDATE clinical_knowledge SET source_id where channel matches and
     source_id is still NULL. Returns the row count touched."""
+    from app._core import set_tenant_guc  # noqa: PLC0415
+
     with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                "SELECT set_config('app.current_tenant_id', %s, false)",
-                (tenant_id,),
-            )
+        set_tenant_guc(conn, _ctx(tenant_id, "backfill_knowledge_sources:update"))
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -105,12 +112,10 @@ def _update_rows(tenant_id: str, channel: str, source_id: str) -> int:
 
 def _final_audit(tenant_id: str) -> tuple[int, int]:
     """(rows_still_null_with_channel, rows_null_without_channel)."""
+    from app._core import set_tenant_guc  # noqa: PLC0415
+
     with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                "SELECT set_config('app.current_tenant_id', %s, false)",
-                (tenant_id,),
-            )
+        set_tenant_guc(conn, _ctx(tenant_id, "backfill_knowledge_sources:audit"))
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -175,7 +180,7 @@ def main() -> int:
             continue
 
         source_id = get_or_create_source(
-            args.tenant,
+            _ctx(args.tenant, f"backfill_knowledge_sources:create:{channel}"),
             "slack_thread",
             title=channel,
             leader_id=leader_id,
@@ -187,7 +192,11 @@ def main() -> int:
         )
         sources_created_or_found += 1
         updated = _update_rows(args.tenant, channel, source_id)
-        mark_source_extracted(args.tenant, source_id, updated)
+        mark_source_extracted(
+            _ctx(args.tenant, f"backfill_knowledge_sources:mark:{channel}"),
+            source_id,
+            updated,
+        )
         total_updated += updated
         summary.append((channel, source_id[:8], updated))
         print(f"[backfill] {channel:35s} src={source_id[:8]} updated={updated}")

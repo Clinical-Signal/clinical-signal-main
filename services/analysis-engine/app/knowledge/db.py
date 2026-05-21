@@ -1,4 +1,12 @@
-"""DB helpers for clinical_knowledge + concepts/relationships tables."""
+"""DB helpers for clinical_knowledge + concepts/relationships tables.
+
+PR4: every public function that opens its own RLS-scoped connection
+takes a TenantContext. Helper functions that receive an already-open
+`conn` (e.g., enqueue_review_items, post_ingest_finalize) also take
+TenantContext for API uniformity, even though they don't open the
+connection themselves — the caller has already set
+app.current_tenant_id on `conn` before calling.
+"""
 from __future__ import annotations
 
 import hashlib
@@ -6,6 +14,7 @@ import json
 import logging
 from typing import Any
 
+from app._core import TenantContext
 from app.pipeline.db import tenant_conn
 
 log = logging.getLogger(__name__)
@@ -44,7 +53,7 @@ def _compute_item_content_hash(content: str) -> str:
 
 
 def insert_knowledge_item(
-    tenant_id: str,
+    ctx: TenantContext,
     category: str,
     title: str,
     content: str,
@@ -88,9 +97,9 @@ def insert_knowledge_item(
         log.warning(
             "insert_knowledge_item called without source_id "
             "(tenant=%s, title=%r) — will land as orphan",
-            tenant_id, title[:80],
+            ctx.tenant_id, title[:80],
         )
-    with tenant_conn(tenant_id) as conn, conn.cursor() as cur:
+    with tenant_conn(ctx) as conn, conn.cursor() as cur:
         # Use COALESCE on review_status so omitting it falls back to the
         # column default ('unreviewed') rather than overwriting with NULL.
         cur.execute(
@@ -108,7 +117,7 @@ def insert_knowledge_item(
             RETURNING id
             """,
             (
-                tenant_id,
+                ctx.tenant_id,
                 cat,
                 title,
                 content,
@@ -147,7 +156,7 @@ ALLOWED_SOURCE_TYPES = frozenset({
 
 
 def get_or_create_source(
-    tenant_id: str,
+    ctx: TenantContext,
     source_type: str,
     title: str,
     *,
@@ -181,7 +190,7 @@ def get_or_create_source(
 
     metadata_json = json.dumps(metadata or {})
 
-    with tenant_conn(tenant_id) as conn, conn.cursor() as cur:
+    with tenant_conn(ctx) as conn, conn.cursor() as cur:
         # Path A — caller supplied a content hash; use the schema's
         # UNIQUE (tenant_id, raw_text_hash) for atomic upsert.
         if raw_text_hash:
@@ -195,7 +204,7 @@ def get_or_create_source(
                 RETURNING id
                 """,
                 (
-                    tenant_id, leader_id, source_type, title, url,
+                    ctx.tenant_id, leader_id, source_type, title, url,
                     file_path, raw_text_hash, metadata_json,
                 ),
             )
@@ -206,7 +215,7 @@ def get_or_create_source(
             cur.execute(
                 "SELECT id FROM knowledge_sources "
                 "WHERE tenant_id = %s AND raw_text_hash = %s",
-                (tenant_id, raw_text_hash),
+                (ctx.tenant_id, raw_text_hash),
             )
             existing = cur.fetchone()
             if existing:
@@ -214,7 +223,7 @@ def get_or_create_source(
             # Shouldn't happen — the conflict means a row exists.
             raise RuntimeError(
                 f"get_or_create_source: ON CONFLICT fired but no row found "
-                f"for tenant={tenant_id} raw_text_hash={raw_text_hash[:16]}…"
+                f"for tenant={ctx.tenant_id} raw_text_hash={raw_text_hash[:16]}…"
             )
 
         # Path B — no content hash. Look up by (type, title) before
@@ -225,14 +234,14 @@ def get_or_create_source(
         cur.execute(
             "SELECT id FROM knowledge_sources "
             "WHERE tenant_id = %s AND source_type = %s AND title = %s",
-            (tenant_id, source_type, title),
+            (ctx.tenant_id, source_type, title),
         )
         rows = cur.fetchall()
         if len(rows) > 1:
             log.warning(
                 "get_or_create_source: %d existing rows match "
                 "(tenant=%s, source_type=%s, title=%r); returning first",
-                len(rows), tenant_id, source_type, title[:80],
+                len(rows), ctx.tenant_id, source_type, title[:80],
             )
         if rows:
             return str(rows[0][0])
@@ -245,7 +254,7 @@ def get_or_create_source(
             RETURNING id
             """,
             (
-                tenant_id, leader_id, source_type, title, url,
+                ctx.tenant_id, leader_id, source_type, title, url,
                 file_path, metadata_json,
             ),
         )
@@ -253,10 +262,10 @@ def get_or_create_source(
 
 
 def mark_source_extracted(
-    tenant_id: str, source_id: str, entry_count: int,
+    ctx: TenantContext, source_id: str, entry_count: int,
 ) -> None:
     """Mark a knowledge_sources row as extracted and record the entry count."""
-    with tenant_conn(tenant_id) as conn, conn.cursor() as cur:
+    with tenant_conn(ctx) as conn, conn.cursor() as cur:
         cur.execute(
             """
             UPDATE knowledge_sources
@@ -265,12 +274,12 @@ def mark_source_extracted(
                    entry_count = %s
              WHERE id = %s AND tenant_id = %s
             """,
-            (entry_count, source_id, tenant_id),
+            (entry_count, source_id, ctx.tenant_id),
         )
 
 
 def search_knowledge(
-    tenant_id: str,
+    ctx: TenantContext,
     query_embedding: list[float],
     k: int = 5,
     categories: list[str] | None = None,
@@ -297,7 +306,7 @@ def search_knowledge(
              LIMIT %s
         """
         params = [qvec, qvec, k]
-    with tenant_conn(tenant_id) as conn, conn.cursor() as cur:
+    with tenant_conn(ctx) as conn, conn.cursor() as cur:
         cur.execute(sql, params)
         rows = cur.fetchall()
     return [
@@ -329,7 +338,7 @@ VALID_CONCEPT_TYPES = {
 
 
 def upsert_concept(
-    tenant_id: str,
+    ctx: TenantContext,
     concept_type: str,
     name: str,
     description: str | None,
@@ -339,7 +348,7 @@ def upsert_concept(
     """Returns the id of the (possibly pre-existing) concept."""
     ctype = concept_type if concept_type in VALID_CONCEPT_TYPES else "other"
     emb_param = _vector_literal(embedding) if embedding else None
-    with tenant_conn(tenant_id) as conn, conn.cursor() as cur:
+    with tenant_conn(ctx) as conn, conn.cursor() as cur:
         cur.execute(
             """
             INSERT INTO clinical_concepts
@@ -352,7 +361,7 @@ def upsert_concept(
             RETURNING id
             """,
             (
-                tenant_id,
+                ctx.tenant_id,
                 ctype,
                 name.strip(),
                 description,
@@ -364,9 +373,9 @@ def upsert_concept(
 
 
 def find_concept(
-    tenant_id: str, name: str, concept_type: str | None = None
+    ctx: TenantContext, name: str, concept_type: str | None = None
 ) -> dict | None:
-    with tenant_conn(tenant_id) as conn, conn.cursor() as cur:
+    with tenant_conn(ctx) as conn, conn.cursor() as cur:
         if concept_type:
             cur.execute(
                 """
@@ -416,7 +425,7 @@ VALID_RELATIONSHIPS = {
 
 
 def insert_relationship(
-    tenant_id: str,
+    ctx: TenantContext,
     source_id: str,
     target_id: str,
     relationship_type: str,
@@ -428,7 +437,7 @@ def insert_relationship(
         return None
     if relationship_type not in VALID_RELATIONSHIPS:
         return None
-    with tenant_conn(tenant_id) as conn, conn.cursor() as cur:
+    with tenant_conn(ctx) as conn, conn.cursor() as cur:
         cur.execute(
             """
             INSERT INTO clinical_relationships
@@ -443,7 +452,7 @@ def insert_relationship(
             RETURNING id
             """,
             (
-                tenant_id,
+                ctx.tenant_id,
                 source_id,
                 target_id,
                 relationship_type,
@@ -455,10 +464,10 @@ def insert_relationship(
         return str(cur.fetchone()[0])
 
 
-def traverse_graph(tenant_id: str, start_name: str, depth: int = 2) -> dict:
+def traverse_graph(ctx: TenantContext, start_name: str, depth: int = 2) -> dict:
     """BFS up to `depth` hops. Returns {nodes: [...], edges: [...]}."""
     depth = max(1, min(3, depth))
-    start = find_concept(tenant_id, start_name)
+    start = find_concept(ctx, start_name)
     if not start:
         return {"nodes": [], "edges": [], "query": start_name, "found": False}
 
@@ -467,7 +476,7 @@ def traverse_graph(tenant_id: str, start_name: str, depth: int = 2) -> dict:
     edges: list[dict] = []
 
     frontier = [start["id"]]
-    with tenant_conn(tenant_id) as conn, conn.cursor() as cur:
+    with tenant_conn(ctx) as conn, conn.cursor() as cur:
         for _hop in range(depth):
             if not frontier:
                 break
@@ -523,8 +532,10 @@ def traverse_graph(tenant_id: str, start_name: str, depth: int = 2) -> dict:
     }
 
 
-def list_concepts(tenant_id: str, concept_type: str | None = None, limit: int = 200) -> list[dict]:
-    with tenant_conn(tenant_id) as conn, conn.cursor() as cur:
+def list_concepts(
+    ctx: TenantContext, concept_type: str | None = None, limit: int = 200
+) -> list[dict]:
+    with tenant_conn(ctx) as conn, conn.cursor() as cur:
         if concept_type:
             cur.execute(
                 """
@@ -571,7 +582,7 @@ LOW_CONFIDENCE_THRESHOLD = 0.51
 
 def enqueue_review_items(
     conn,
-    tenant_id: str,
+    ctx: TenantContext,
     threshold: float = LOW_CONFIDENCE_THRESHOLD,
 ) -> dict[str, int]:
     """Populate knowledge_review_queue from clinical_knowledge.
@@ -630,7 +641,7 @@ def enqueue_review_items(
               )
             RETURNING id
             """,
-            (tenant_id, threshold, tenant_id, threshold),
+            (ctx.tenant_id, threshold, ctx.tenant_id, threshold),
         )
         counts["low_confidence"] = cur.rowcount
 
@@ -664,7 +675,7 @@ def enqueue_review_items(
               )
             RETURNING id
             """,
-            (tenant_id, tenant_id),
+            (ctx.tenant_id, ctx.tenant_id),
         )
         counts["low_faithfulness"] = cur.rowcount
 
@@ -676,7 +687,7 @@ def enqueue_review_items(
 
 def post_ingest_finalize(
     conn,
-    tenant_id: str,
+    ctx: TenantContext,
     *,
     threshold: float | None = None,
 ) -> dict:
@@ -706,7 +717,7 @@ def post_ingest_finalize(
 
     Args:
       conn: open psycopg connection. Each step sets RLS context as needed.
-      tenant_id: tenant UUID as string.
+      ctx: typed TenantContext for the tenant being finalized.
       threshold: low_confidence threshold for step 3; defaults to
         LOW_CONFIDENCE_THRESHOLD.
 
@@ -720,11 +731,20 @@ def post_ingest_finalize(
     from scripts.autotag_domains import autotag_tenant
     from scripts.recompute_confidence import recompute_confidence_tenant
 
-    print(f"[finalize] tenant {tenant_id}: starting (autotag → confidence → enqueue)", flush=True)
+    print(
+        f"[finalize] tenant {ctx.tenant_id}: starting "
+        f"(autotag → confidence → enqueue)",
+        flush=True,
+    )
 
-    # Step 1 — autotag any rows where domains = '{}'.
+    # Step 1 — autotag any rows where domains = '{}'. autotag_tenant +
+    # recompute_confidence_tenant still take tenant_id as a string at
+    # the script API (they receive an already-open conn and only need
+    # the tenant id for SQL params). The PR4 script sweep migrates
+    # them to a ctx-based signature in this PR's later commits, but
+    # the call here is forward-compatible — we pass ctx.tenant_id.
     autotag_result = autotag_tenant(
-        conn, tenant_id, log_prefix="[finalize/autotag]",
+        conn, ctx.tenant_id, log_prefix="[finalize/autotag]",
     )
 
     # Step 2 — tenant-wide confidence recompute. Order matters: must come
@@ -732,22 +752,22 @@ def post_ingest_finalize(
     # `r1.domains && r2.domains` and would skip newly-loaded rows whose
     # domain tags haven't been written yet.
     confidence_result = recompute_confidence_tenant(
-        conn, tenant_id, log_prefix="[finalize/confidence]",
+        conn, ctx.tenant_id, log_prefix="[finalize/confidence]",
     )
 
     # Step 3 — enqueue review items. Reads the freshly-written
     # confidence_score and review_status from steps 1+2.
     enqueue_result = enqueue_review_items(
-        conn, tenant_id, threshold or LOW_CONFIDENCE_THRESHOLD,
+        conn, ctx, threshold or LOW_CONFIDENCE_THRESHOLD,
     )
     print(
-        f"[finalize/enqueue] tenant {tenant_id}: "
+        f"[finalize/enqueue] tenant {ctx.tenant_id}: "
         f"low_confidence={enqueue_result['low_confidence']} "
         f"low_faithfulness={enqueue_result['low_faithfulness']}",
         flush=True,
     )
 
-    print(f"[finalize] tenant {tenant_id}: done", flush=True)
+    print(f"[finalize] tenant {ctx.tenant_id}: done", flush=True)
     return {
         "autotag": autotag_result,
         "confidence": confidence_result,

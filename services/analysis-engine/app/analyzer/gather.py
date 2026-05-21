@@ -2,12 +2,13 @@
 timeline that can be fed to the clinical-analysis prompt.
 
 Runs inside a tenant-scoped connection so RLS enforces isolation.
+PR4: takes TenantContext instead of tenant_id string.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
 
+from app._core import TenantContext
 from app.pipeline.db import tenant_conn
 
 
@@ -19,19 +20,23 @@ class PatientTimeline:
     record_ids: list[str] = field(default_factory=list)
 
 
-def gather_patient_timeline(tenant_id: str, patient_id: str) -> PatientTimeline:
+def gather_patient_timeline(
+    ctx: TenantContext, patient_id: str
+) -> PatientTimeline:
     """Pulls intake_data + all structured records ordered by record_date.
 
     Raises LookupError if the patient does not exist (or RLS hides it).
     """
-    with tenant_conn(tenant_id) as conn, conn.cursor() as cur:
+    with tenant_conn(ctx) as conn, conn.cursor() as cur:
         cur.execute(
             "SELECT intake_data FROM patients WHERE id = %s",
             (patient_id,),
         )
         row = cur.fetchone()
         if row is None:
-            raise LookupError(f"patient {patient_id} not found in tenant {tenant_id}")
+            raise LookupError(
+                f"patient {patient_id} not found in tenant {ctx.tenant_id}"
+            )
         intake = row[0] or {}
 
         cur.execute(
@@ -89,8 +94,6 @@ def format_timeline_for_prompt(t: PatientTimeline) -> str:
         for r in t.records:
             header = f"### {r['record_type']} — {r['record_date'] or 'undated'} (id {r['record_id']})"
             sections.append(header)
-            # Drop internal pipeline metadata; the clinical model doesn't
-            # need to know about token counts.
             sdata = dict(r["structured_data"] or {})
             sdata.pop("_extraction", None)
             sections.append(json.dumps(sdata, indent=2, default=str))

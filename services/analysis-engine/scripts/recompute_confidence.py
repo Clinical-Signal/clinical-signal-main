@@ -276,11 +276,18 @@ def recompute_confidence_tenant(
     if now is None:
         now = datetime.now(timezone.utc)
 
-    with conn.cursor() as cur:
-        cur.execute(
-            "SELECT set_config('app.current_tenant_id', %s, false)",
-            (tenant_id,),
-        )
+    # Local import: this module is loaded by post_ingest_finalize via a
+    # lazy import path so we keep the _core import scoped to the call.
+    from app._core import TenantContext, set_tenant_guc  # noqa: PLC0415
+
+    ctx = TenantContext(
+        tenant_id=tenant_id,
+        practitioner_id=None,
+        role="system",
+        job_id="recompute_confidence",
+        lifecycle_status="active",
+    )
+    set_tenant_guc(conn, ctx)
     conn.commit()
 
     print(

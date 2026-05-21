@@ -65,6 +65,8 @@ def main() -> int:
     grand = {"low_confidence": 0, "low_faithfulness": 0}
     start = time.time()
 
+    from app._core import TenantContext, set_tenant_guc  # noqa: PLC0415
+
     conn = psycopg.connect(db_url, autocommit=False)
     try:
         tenants = fetch_tenants(conn)
@@ -75,14 +77,17 @@ def main() -> int:
         )
 
         for tenant_id in tenants:
-            with conn.cursor() as cur:
-                cur.execute(
-                    "SELECT set_config('app.current_tenant_id', %s, false)",
-                    (tenant_id,),
-                )
+            ctx = TenantContext(
+                tenant_id=tenant_id,
+                practitioner_id=None,
+                role="system",
+                job_id="enqueue_review",
+                lifecycle_status="active",
+            )
+            set_tenant_guc(conn, ctx)
             conn.commit()
 
-            counts = enqueue_review_items(conn, tenant_id, args.threshold)
+            counts = enqueue_review_items(conn, ctx, args.threshold)
             print(
                 f"[enqueue] tenant {tenant_id}: "
                 f"low_confidence={counts['low_confidence']} "
