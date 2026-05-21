@@ -11,6 +11,13 @@ FROM base AS builder
 WORKDIR /app
 COPY apps/web/package.json apps/web/package-lock.json* ./
 RUN npm ci
+# Internal TS packages live at the repo root and are resolved by
+# apps/web/tsconfig.json paths (`../../packages/...`). Copy them to the
+# parent of WORKDIR so the "../.." traversal lands inside the build
+# context. They have no node_modules of their own — the bundler inlines
+# their TS at `next build` time, so pg etc. resolve via apps/web's
+# /app/node_modules.
+COPY packages/ /packages/
 COPY apps/web/ .
 RUN npm run build
 

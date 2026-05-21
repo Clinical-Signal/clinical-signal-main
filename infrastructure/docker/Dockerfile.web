@@ -2,10 +2,21 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-COPY package.json package-lock.json* ./
+# The build context is the repo root (see docker-compose.yml). Internal
+# TS packages (@cs/core, @cs/db) live at /packages and are resolved by
+# apps/web/tsconfig.json paths (../../packages/{core,db}/src). They must
+# be present at npm-install/typecheck/runtime, hence the COPY below.
+
+COPY apps/web/package.json apps/web/package-lock.json* ./
 RUN npm install
 
-COPY . .
+# Place packages/ at the parent of WORKDIR so `../..` from /app/* lands
+# inside `/packages/...` matching the tsconfig path alias. In dev these
+# files are also mounted as a volume (read-only) so edits hot-reload
+# without a rebuild.
+COPY packages /packages
+
+COPY apps/web/ ./
 
 EXPOSE 3000
 

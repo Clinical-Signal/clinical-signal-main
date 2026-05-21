@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { apiAuth } from "@/lib/auth";
 import { apiError, ERROR_CODES } from "@/lib/api-error";
-import { pool } from "@/lib/db";
+import { withSystem } from "@cs/db";
 import type { AuditAction } from "@/lib/audit";
 
 export interface AuditLogEntry {
@@ -34,6 +34,11 @@ interface AuditLogResponse {
  *   patientId  – filter by resource_id where resource_type = 'patient'
  *   startDate  – ISO date string, inclusive
  *   endDate    – ISO date string, inclusive
+ *
+ * audit_log has no RLS by design (see 0002_core_schema.sql), so we read
+ * via withSystem and scope to the caller's tenantId in SQL. Cross-tenant
+ * isolation here is enforced by the explicit `a.tenant_id = $1` clause
+ * built from the authenticated session — DO NOT remove that clause.
  */
 export async function GET(req: NextRequest) {
   try {
@@ -51,7 +56,6 @@ export async function GET(req: NextRequest) {
     const startDate = params.get("startDate");
     const endDate = params.get("endDate");
 
-    // Build WHERE clauses — always scoped to the practitioner's tenant
     const conditions: string[] = ["a.tenant_id = $1"];
     const values: unknown[] = [user.tenantId];
     let idx = 2;
@@ -75,7 +79,6 @@ export async function GET(req: NextRequest) {
     }
 
     if (endDate) {
-      // End of day
       conditions.push(`a.created_at < ($${idx}::date + interval '1 day')`);
       values.push(endDate);
       idx++;
@@ -83,42 +86,45 @@ export async function GET(req: NextRequest) {
 
     const where = conditions.join(" AND ");
 
-    // Count total matching rows
-    const countResult = await pool.query<{ count: string }>(
-      `SELECT count(*)::text AS count FROM audit_log a WHERE ${where}`,
-      values,
-    );
-    const total = parseInt(countResult.rows[0]?.count ?? "0", 10);
+    const response = await withSystem(
+      { reason: "audit_log_viewer_read" },
+      async (c) => {
+        const countResult = await c.query<{ count: string }>(
+          `SELECT count(*)::text AS count FROM audit_log a WHERE ${where}`,
+          values,
+        );
+        const total = parseInt(countResult.rows[0]?.count ?? "0", 10);
 
-    // Fetch page with practitioner name join
-    // Left-join patients to resolve resource_id → patient name when resource_type is relevant
-    const offset = (page - 1) * pageSize;
-    const entriesResult = await pool.query<AuditLogEntry>(
-      `SELECT
-         a.id::text,
-         a.action,
-         a.resource_type,
-         a.resource_id,
-         a.ip_address,
-         a.user_agent,
-         a.metadata,
-         a.created_at,
-         p.name AS practitioner_name,
-         NULL::text AS patient_name
-       FROM audit_log a
-       LEFT JOIN practitioners p ON p.id = a.practitioner_id
-       WHERE ${where}
-       ORDER BY a.created_at DESC
-       LIMIT $${idx} OFFSET $${idx + 1}`,
-      [...values, pageSize, offset],
-    );
+        const offset = (page - 1) * pageSize;
+        const entriesResult = await c.query<AuditLogEntry>(
+          `SELECT
+             a.id::text,
+             a.action,
+             a.resource_type,
+             a.resource_id,
+             a.ip_address,
+             a.user_agent,
+             a.metadata,
+             a.created_at,
+             p.name AS practitioner_name,
+             NULL::text AS patient_name
+           FROM audit_log a
+           LEFT JOIN practitioners p ON p.id = a.practitioner_id
+           WHERE ${where}
+           ORDER BY a.created_at DESC
+           LIMIT $${idx} OFFSET $${idx + 1}`,
+          [...values, pageSize, offset],
+        );
 
-    const response: AuditLogResponse = {
-      entries: entriesResult.rows,
-      total,
-      page,
-      pageSize,
-    };
+        const out: AuditLogResponse = {
+          entries: entriesResult.rows,
+          total,
+          page,
+          pageSize,
+        };
+        return out;
+      },
+    );
 
     return NextResponse.json(response);
   } catch (err) {

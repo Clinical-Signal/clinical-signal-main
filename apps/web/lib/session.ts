@@ -14,10 +14,17 @@
 // row's expires_at without touching the cookie (Next 14 disallows cookie writes
 // during Server Component rendering). The DB expires_at is the source of truth
 // for idle timeout; the cookie is just a bearer of the opaque token.
+//
+// Tenant context: getSessionUser returns a SessionUser that *is* a
+// TenantContext (plus email + name for UI). All reads against the
+// auth-spanning tables (sessions, practitioners, tenants) go through
+// `withSystem` because they cross the tenant boundary by design — we
+// don't know the tenant id until after we've looked the token up.
 
 import { randomBytes, createHash } from "node:crypto";
 import { cookies, headers } from "next/headers";
-import { pool } from "./db";
+import { withSystem } from "@cs/db";
+import type { TenantContext, TenantLifecycleStatus, PractitionerRole } from "@cs/core";
 
 import { SESSION_COOKIE_NAME as COOKIE_NAME } from "./session-constants";
 const TOKEN_BYTES = 32;
@@ -36,13 +43,9 @@ function newExpiry(): Date {
   return new Date(Date.now() + idleMinutes() * 60_000);
 }
 
-export interface SessionUser {
-  sessionId: string;
-  practitionerId: string;
-  tenantId: string;
+export interface SessionUser extends TenantContext {
   email: string;
   name: string;
-  role: "owner" | "practitioner" | "viewer";
 }
 
 export async function createSession(practitionerId: string): Promise<string> {
@@ -55,12 +58,14 @@ export async function createSession(practitionerId: string): Promise<string> {
     null;
   const ua = h.get("user-agent") ?? null;
 
-  await pool.query(
-    `INSERT INTO sessions (token_hash, practitioner_id, tenant_id, expires_at, ip_address, user_agent)
-     SELECT $1, p.id, p.tenant_id, $2, $3, $4
-       FROM practitioners p WHERE p.id = $5`,
-    [tokenHash, newExpiry(), ip, ua, practitionerId],
-  );
+  await withSystem({ reason: "session_create" }, async (c) => {
+    await c.query(
+      `INSERT INTO sessions (token_hash, practitioner_id, tenant_id, expires_at, ip_address, user_agent)
+       SELECT $1, p.id, p.tenant_id, $2, $3, $4
+         FROM practitioners p WHERE p.id = $5`,
+      [tokenHash, newExpiry(), ip, ua, practitionerId],
+    );
+  });
 
   cookies().set(COOKIE_NAME, raw, {
     httpOnly: true,
@@ -77,44 +82,62 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   if (!raw) return null;
   const tokenHash = hashToken(raw);
 
-  const { rows } = await pool.query<{
-    session_id: string;
-    practitioner_id: string;
-    tenant_id: string;
-    email: string;
-    name: string;
-    role: "owner" | "practitioner" | "viewer";
-    expires_at: Date;
-  }>(
-    `SELECT s.id AS session_id, s.practitioner_id, s.tenant_id,
-            p.email, p.name, p.role, s.expires_at
-       FROM sessions s
-       JOIN practitioners p ON p.id = s.practitioner_id
-      WHERE s.token_hash = $1`,
-    [tokenHash],
+  // Single round-trip JOIN across sessions / practitioners / tenants so
+  // we get lifecycle_status alongside identity. Crossing tenants by
+  // design (token-based lookup), hence withSystem.
+  const row = await withSystem(
+    { reason: "session_lookup" },
+    async (c) => {
+      const { rows } = await c.query<{
+        session_id: string;
+        practitioner_id: string;
+        tenant_id: string;
+        email: string;
+        name: string;
+        role: PractitionerRole;
+        lifecycle_status: TenantLifecycleStatus;
+        expires_at: Date;
+      }>(
+        `SELECT s.id AS session_id, s.practitioner_id, s.tenant_id,
+                p.email, p.name, p.role,
+                t.lifecycle_status,
+                s.expires_at
+           FROM sessions s
+           JOIN practitioners p ON p.id = s.practitioner_id
+           JOIN tenants t       ON t.id = s.tenant_id
+          WHERE s.token_hash = $1`,
+        [tokenHash],
+      );
+      return rows[0] ?? null;
+    },
   );
-  const row = rows[0];
   if (!row) return null;
+
   if (row.expires_at.getTime() <= Date.now()) {
-    await pool.query("DELETE FROM sessions WHERE id = $1", [row.session_id]);
+    await withSystem({ reason: "session_expire_purge" }, async (c) => {
+      await c.query("DELETE FROM sessions WHERE id = $1", [row.session_id]);
+    });
     return null;
   }
 
   // Slide the DB idle window on activity. Cookie is untouched — Next disallows
   // cookie mutation during Server Component rendering, and the cookie's 24h
   // max-age is an absolute cap, not the idle timer.
-  await pool.query(
-    "UPDATE sessions SET last_seen_at = now(), expires_at = $2 WHERE id = $1",
-    [row.session_id, newExpiry()],
-  );
+  await withSystem({ reason: "session_slide_expiry" }, async (c) => {
+    await c.query(
+      "UPDATE sessions SET last_seen_at = now(), expires_at = $2 WHERE id = $1",
+      [row.session_id, newExpiry()],
+    );
+  });
 
   return {
     sessionId: row.session_id,
     practitionerId: row.practitioner_id,
     tenantId: row.tenant_id,
+    role: row.role,
+    lifecycleStatus: row.lifecycle_status,
     email: row.email,
     name: row.name,
-    role: row.role,
   };
 }
 
@@ -123,11 +146,13 @@ export async function destroyCurrentSession(): Promise<string | null> {
   clearSessionCookie();
   if (!raw) return null;
   const tokenHash = hashToken(raw);
-  const { rows } = await pool.query<{ practitioner_id: string }>(
-    "DELETE FROM sessions WHERE token_hash = $1 RETURNING practitioner_id",
-    [tokenHash],
-  );
-  return rows[0]?.practitioner_id ?? null;
+  return withSystem({ reason: "session_destroy" }, async (c) => {
+    const { rows } = await c.query<{ practitioner_id: string }>(
+      "DELETE FROM sessions WHERE token_hash = $1 RETURNING practitioner_id",
+      [tokenHash],
+    );
+    return rows[0]?.practitioner_id ?? null;
+  });
 }
 
 export function clearSessionCookie() {

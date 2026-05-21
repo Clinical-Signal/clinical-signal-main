@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test:e2e": "playwright test",
     "test:unit": "vitest run",
-    "db:migrate": "node scripts/migrate.mjs"
+    "db:migrate": "node scripts/migrate.mjs",
+    "check:system-access": "node scripts/check-system-access.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.90.0",
