@@ -216,7 +216,8 @@ export async function callModel(opts: CallModelOptions): Promise<CallModelResult
 export interface StreamModelOptions extends CallModelOptions {
   /**
    * Called for every text delta. Used by the analysis pipeline to ping the
-   * Vercel/Railway request keep-alive while a long generation is in flight.
+   * Vercel (or container host) request keep-alive while a long generation
+   * is in flight.
    */
   onProgress?: () => void;
   /**

@@ -13,7 +13,9 @@ const APPS_WEB_NODE_MODULES = path.join(__dirname, "node_modules");
 const nextConfig = {
   reactStrictMode: true,
   // Standalone output produces a self-contained build that runs with
-  // `node .next/standalone/server.js`. Required for Railway / non-Vercel hosts.
+  // `node .next/standalone/server.js`. Required for container / non-Vercel
+  // hosts (e.g., the docker-compose stack locally, the planned AWS ECS
+  // task definition).
   output: "standalone",
   experimental: {
     // Server Actions default to a 1MB body limit; lab PDFs can reach the

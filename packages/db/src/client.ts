@@ -56,8 +56,9 @@ function buildPoolConfig(connectionString: string): PoolConfig {
 
   // SSL config: reject unauthorized certs by default (MITM protection).
   // If the managed DB uses a custom CA, set DATABASE_CA_CERT env var
-  // with the PEM-encoded certificate. Railway/Aptible provide this in
-  // their dashboard.
+  // with the PEM-encoded certificate. Managed Postgres providers
+  // (e.g., AWS RDS via the RDS root CA bundle) expose this in their
+  // dashboard or as a download.
   let ssl: { rejectUnauthorized: boolean; ca?: string } | undefined;
   if (needsSsl) {
     const ca = process.env.DATABASE_CA_CERT;
