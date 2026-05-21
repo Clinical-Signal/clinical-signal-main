@@ -181,7 +181,17 @@ BEGIN
 END
 $r$;
 
-GRANT CONNECT ON DATABASE db TO app_user;
+-- The original line "GRANT CONNECT ON DATABASE db TO app_user" hardcoded
+-- the Aptible-default database name "db". On Aptible that worked; on a
+-- local/Docker Postgres where the database is named differently
+-- (POSTGRES_DB defaults to "clinical_signal"), it errored with
+-- "database \"db\" does not exist". Use current_database() so the GRANT
+-- targets whatever database the migration runner is connected to.
+DO $g$
+BEGIN
+  EXECUTE format('GRANT CONNECT ON DATABASE %I TO app_user', current_database());
+END
+$g$;
 GRANT USAGE ON SCHEMA public TO app_user;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO app_user;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO app_user;
