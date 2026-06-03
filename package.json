@@ -1,0 +1,26 @@
+{
+  "name": "clinical-signal",
+  "private": true,
+  "packageManager": "pnpm@9.12.0",
+  "engines": {
+    "node": ">=20.11.0 <21.0.0",
+    "pnpm": "9.12.x"
+  },
+  "scripts": {
+    "lint": "eslint --max-warnings 0 .",
+    "typecheck": "pnpm --filter @clinical-signal/web typecheck",
+    "typecheck:intake": "tsc -p tsconfig.intake.json --noEmit",
+    "verify:phase1": "pnpm run typecheck:intake && pnpm run loc-check",
+    "test": "pnpm --filter @clinical-signal/web test:unit",
+    "loc-check": "node scripts/loc-check.mjs"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "7.18.0",
+    "@typescript-eslint/parser": "7.18.0",
+    "eslint": "8.57.1",
+    "eslint-plugin-c-tokens": "workspace:*",
+    "typescript": "5.4.5",
+    "vitest": "1.6.0",
+    "@types/node": "20.14.10"
+  }
+}

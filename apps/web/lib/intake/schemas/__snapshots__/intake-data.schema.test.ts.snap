@@ -1,0 +1,429 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`intake-data.schema > matches AiConfirmationSlot.shape snapshot 1`] = `
+{
+  "at": {
+    "optional": "ZodString",
+  },
+  "by": {
+    "optional": "ZodString",
+  },
+  "confirmed": "ZodBoolean",
+  "value": "ZodUnknown",
+}
+`;
+
+exports[`intake-data.schema > matches IntakeDataSchema.shape snapshot 1`] = `
+{
+  "_ai_confirmations": {
+    "record": "unknown",
+  },
+  "_analysis_degraded": "ZodBoolean",
+  "_provenance": {
+    "record": "unknown",
+  },
+  "about_you": {
+    "date_of_birth": "ZodString",
+    "emergency_contact_name": {
+      "default": "ZodString",
+    },
+    "emergency_contact_phone": {
+      "default": "ZodString",
+    },
+    "emergency_contact_relationship": {
+      "default": "ZodString",
+    },
+    "full_name": "ZodString",
+    "gender_identity": {
+      "default": "ZodString",
+    },
+    "height_inches": {
+      "default": "ZodNullable",
+    },
+    "sex_at_birth": {
+      "default": {
+        "enum": [
+          "male",
+          "female",
+          "intersex",
+          "",
+        ],
+      },
+    },
+    "state": {
+      "default": "ZodString",
+    },
+    "weight_lbs": {
+      "default": "ZodNullable",
+    },
+  },
+  "anything_else": {
+    "additional_info": {
+      "default": "ZodString",
+    },
+    "referral_source": {
+      "default": "ZodString",
+    },
+  },
+  "history": {
+    "diagnoses": {
+      "default": {
+        "array": {
+          "condition": {
+            "default": "ZodString",
+          },
+          "status": {
+            "default": {
+              "enum": [
+                "active",
+                "managed",
+                "resolved",
+                "",
+              ],
+            },
+          },
+          "treatment": {
+            "default": "ZodString",
+          },
+          "year": {
+            "default": "ZodString",
+          },
+        },
+      },
+    },
+    "family_history": {
+      "default": "ZodString",
+    },
+    "surgeries": {
+      "default": "ZodString",
+    },
+  },
+  "hormones": {
+    "birth_control": {
+      "default": "ZodString",
+    },
+    "blood_sugar_issues": {
+      "default": "ZodString",
+    },
+    "cycle_length_days": {
+      "default": "ZodNullable",
+    },
+    "cycle_regular": {
+      "default": {
+        "enum": [
+          "regular",
+          "irregular",
+          "no_period",
+          "na",
+          "",
+        ],
+      },
+    },
+    "cycle_tracking": {
+      "default": "ZodString",
+    },
+    "hrt_history": {
+      "default": "ZodString",
+    },
+    "last_period_date": {
+      "default": "ZodString",
+    },
+    "menopause_status": {
+      "default": {
+        "enum": [
+          "pre",
+          "peri",
+          "post",
+          "na",
+          "",
+        ],
+      },
+    },
+    "metabolism_concerns": {
+      "default": "ZodString",
+    },
+    "pcos_endo_fibroids": {
+      "default": {
+        "array": "ZodString",
+      },
+    },
+    "period_length_days": {
+      "default": "ZodNullable",
+    },
+    "pms_symptoms": {
+      "default": {
+        "array": "ZodString",
+      },
+    },
+    "previous_hormone_testing": {
+      "default": "ZodString",
+    },
+    "thyroid_diagnosis": {
+      "default": "ZodString",
+    },
+    "thyroid_symptoms": {
+      "default": {
+        "array": "ZodString",
+      },
+    },
+  },
+  "lifestyle": {
+    "exercise": {
+      "frequency_per_week": {
+        "default": "ZodNullable",
+      },
+      "intensity": {
+        "default": {
+          "enum": [
+            "low",
+            "moderate",
+            "high",
+            "",
+          ],
+        },
+      },
+      "type": {
+        "default": "ZodString",
+      },
+    },
+    "nutrition": {
+      "diet_type": {
+        "default": {
+          "enum": [
+            "standard",
+            "paleo",
+            "keto",
+            "carnivore",
+            "vegan",
+            "vegetarian",
+            "mediterranean",
+            "none",
+            "other",
+            "",
+          ],
+        },
+      },
+      "food_relationship": {
+        "default": "ZodString",
+      },
+      "restrictions": {
+        "default": "ZodString",
+      },
+      "sensitivities": {
+        "default": "ZodString",
+      },
+      "water_oz_per_day": {
+        "default": "ZodNullable",
+      },
+    },
+    "sleep": {
+      "average_hours": {
+        "default": "ZodNullable",
+      },
+      "issues": {
+        "default": "ZodString",
+      },
+      "quality": {
+        "default": {
+          "enum": [
+            "poor",
+            "fair",
+            "good",
+            "excellent",
+            "",
+          ],
+        },
+      },
+      "wake_feeling_rested": {
+        "default": {
+          "enum": [
+            "never",
+            "sometimes",
+            "usually",
+            "always",
+            "",
+          ],
+        },
+      },
+    },
+    "stress": {
+      "level": {
+        "default": "ZodNullable",
+      },
+      "management": {
+        "default": "ZodString",
+      },
+      "sources": {
+        "default": "ZodString",
+      },
+    },
+    "wellness_practices": {
+      "cold_exposure": {
+        "default": "ZodNullable",
+      },
+      "cold_exposure_details": {
+        "default": "ZodString",
+      },
+      "journaling": {
+        "default": "ZodNullable",
+      },
+      "meditation_breathwork": {
+        "default": "ZodNullable",
+      },
+      "meditation_details": {
+        "default": "ZodString",
+      },
+      "other": {
+        "default": "ZodString",
+      },
+      "sauna": {
+        "default": "ZodNullable",
+      },
+      "sauna_details": {
+        "default": "ZodString",
+      },
+    },
+  },
+  "medications": {
+    "prescriptions": {
+      "default": {
+        "array": {
+          "dosage": {
+            "default": "ZodString",
+          },
+          "duration": {
+            "default": "ZodString",
+          },
+          "frequency": {
+            "default": "ZodString",
+          },
+          "name": {
+            "default": "ZodString",
+          },
+          "prescriber": {
+            "default": "ZodString",
+          },
+        },
+      },
+    },
+    "recently_stopped": {
+      "default": "ZodString",
+    },
+    "supplements": {
+      "default": {
+        "array": {
+          "dosage": {
+            "default": "ZodString",
+          },
+          "duration": {
+            "default": "ZodString",
+          },
+          "frequency": {
+            "default": "ZodString",
+          },
+          "name": {
+            "default": "ZodString",
+          },
+          "prescriber": {
+            "default": "ZodString",
+          },
+        },
+      },
+    },
+  },
+  "previous_labs": {
+    "has_previous_labs": {
+      "default": "ZodNullable",
+    },
+    "remembered_results": {
+      "default": "ZodString",
+    },
+  },
+  "step_two": {
+    "optional": {
+      "record": "unknown",
+    },
+  },
+  "symptoms": {
+    "msq_scores": {
+      "optional": {
+        "record": "unknown",
+      },
+    },
+    "symptoms": {
+      "default": {
+        "array": "ZodUnknown",
+      },
+    },
+    "top_concerns": {
+      "default": "ZodString",
+    },
+  },
+  "wearables": {
+    "devices": {
+      "default": {
+        "array": "ZodString",
+      },
+    },
+    "usage_duration": {
+      "default": "ZodString",
+    },
+    "willing_to_share": {
+      "default": {
+        "enum": [
+          "yes",
+          "no",
+          "maybe",
+          "",
+        ],
+      },
+    },
+  },
+  "why_here": {
+    "biggest_roadblock": {
+      "default": "ZodString",
+    },
+    "capacity_for_change": {
+      "default": "ZodString",
+    },
+    "cost_of_not_changing": {
+      "default": "ZodString",
+    },
+    "health_impact_on_life": {
+      "default": "ZodString",
+    },
+    "health_rating_why": {
+      "default": "ZodString",
+    },
+    "motivation_blocker": {
+      "default": "ZodString",
+    },
+    "motivation_level": {
+      "default": "ZodNullable",
+    },
+    "overall_health_rating": {
+      "default": "ZodNullable",
+    },
+    "six_month_vision": {
+      "default": "ZodString",
+    },
+    "top_three_goals": {
+      "default": "ZodString",
+    },
+    "what_brings_you": "ZodString",
+    "what_hasnt_worked": {
+      "default": "ZodString",
+    },
+  },
+}
+`;
+
+exports[`intake-data.schema > matches ProvenanceSource.shape snapshot 1`] = `
+{
+  "enum": [
+    "patient",
+    "clinician",
+    "ai",
+  ],
+}
+`;

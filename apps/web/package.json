@@ -11,11 +11,16 @@
     "test:e2e": "playwright test",
     "test:unit": "vitest run",
     "db:migrate": "node scripts/migrate.mjs",
-    "check:system-access": "node scripts/check-system-access.mjs"
+    "db:generate": "drizzle-kit generate",
+    "db:intake-migrate": "node scripts/intake-drizzle-migrate.mjs",
+    "db:studio": "drizzle-kit studio",
+    "check:system-access": "node scripts/check-system-access.mjs",
+    "seed:demo": "tsx --tsconfig tsconfig.scripts.json scripts/seed-demo-patients.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.90.0",
     "bcryptjs": "2.4.3",
+    "drizzle-orm": "0.30.10",
     "mammoth": "^1.12.0",
     "next": "^14.2.35",
     "pg": "8.13.1",
@@ -31,8 +36,11 @@
     "@types/react": "18.3.3",
     "@types/react-dom": "18.3.0",
     "autoprefixer": "10.4.20",
+    "drizzle-kit": "0.21.4",
     "postcss": "8.4.47",
     "tailwindcss": "3.4.13",
-    "typescript": "5.5.4"
+    "tsx": "^4.19.2",
+    "typescript": "5.4.5",
+    "vitest": "1.6.0"
   }
 }

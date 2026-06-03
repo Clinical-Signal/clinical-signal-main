@@ -1,0 +1,38 @@
+---
+description: C-PHI — PHI boundaries; no PHI in logs, notifications, system prompts, or audit payloads
+alwaysApply: true
+---
+
+# C-PHI — Protected Health Information Boundaries
+
+**Non-negotiable.** PHI must not appear in notification payloads, log lines, LLM system prompts, or `audit_log.payload` JSON. PHI may travel **only** in designated channels listed below.
+
+This rule **extends** (does not replace) existing `.cursorrules` §1.1 RSC/PHI boundary rules for `apps/web`.
+
+## Allowed PHI channels
+
+| Channel | PHI allowed? | Notes |
+|---|---|---|
+| LLM **user** message (analyze-intake) | **Yes** | Step-1 answers as user content; system prompt stays PHI-free |
+| LLM **system** prompt / prompt `.md` files | **No** | `services/analysis-engine/prompts/*` must be PHI-free |
+| `audit_log.payload` | **No** | Use entity IDs, action names, gap keys — never field values |
+| Application logs (`console`, structured logger) | **No** | Log IDs, actions, status codes; redact or omit content |
+| Notification payload types | **No** | Structurally must not accept PHI fields (DoD-7) |
+| URL paths / query strings | **No** | Token in path only; never patient name or health data in URLs |
+| Client Components / browser storage | **No** | Existing rule: PHI renders server-side only |
+| Third-party APIs (AssemblyAI, Textract) | **Only if** `baa_verified=true` | Block when BAA not verified (TR-2) |
+
+## API-1 — unauthenticated PHI surface
+
+`GET /api/intake/[token]` is the **only** unauthenticated endpoint returning patient-linked intake state. Token: 128-bit, hashed at rest, TTL, rate-limit, lockout (SEC-18).
+
+## Trusted facts for generation
+
+`lib/prompt/format-timeline-for-prompt.ts` excludes unconfirmed `source: ai` fields until clinician-confirmed (DoD-10).
+
+## Failure modes (do not do these)
+
+1. **Embedding example patient narratives in system prompts** — use generic schema instructions instead.
+2. **`console.error(error, requestBody)`** where `requestBody` contains intake answers.
+3. **Storing transcript snippets or symptom text in `audit_log.payload`** for "debuggability".
+4. **Sending PHI to AssemblyAI/Textract** when `baa_verified` is false.

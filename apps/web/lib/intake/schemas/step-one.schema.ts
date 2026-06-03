@@ -1,0 +1,48 @@
+/**
+ * Step-1 intake schemas (legacy-aligned field names).
+ * Implementation lives in `./step-one/` slices; this file re-exports for stable imports.
+ */
+export {
+  AboutYouSchema,
+  AnythingElseSchema,
+  HistorySchema,
+  HormonesSchema,
+  LifestyleSchema,
+  MedicationsSchema,
+  MedicationRowSchema,
+  PreviousLabsSchema,
+  StepOneSchema,
+  SymptomsSchema,
+  WearablesSchema,
+  WhyHereSchema,
+  createEmptyAboutYou,
+  createEmptyAnythingElse,
+  createEmptyHistory,
+  createEmptyHormones,
+  createEmptyLifestyle,
+  createEmptyMedications,
+  createEmptyMsqScores,
+  createEmptyPreviousLabs,
+  createEmptyStepOne,
+  createEmptySymptoms,
+  createEmptyWearables,
+  createEmptyWhyHere,
+  emptyDiagnosis,
+  emptyMedicationRow,
+  toStepOneTriggerInput,
+  type AboutYou,
+  type AnythingElse,
+  type Diagnosis,
+  type History,
+  type Hormones,
+  type Lifestyle,
+  type Medications,
+  type MedicationRow,
+  type PreviousLabs,
+  type StepOne,
+  type Symptoms,
+  type Wearables,
+  type WhyHere,
+} from "./step-one";
+
+export type { MsqScore } from "./step-one/msq";
