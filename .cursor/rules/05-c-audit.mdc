@@ -7,14 +7,14 @@ alwaysApply: true
 
 **Non-negotiable.** Every **mutation** and every **security-relevant read** on patient/intake data writes an `audit_log` row. When the audited entity is a **patient**, also write a paired **`patient_timeline`** event. Use the shared helper — never ad-hoc inserts.
 
-## Canonical helper (intake module)
+**Phase 0:** Implement `apps/web/lib/audit/write-audit.ts` as the canonical stub (§6 Phase 0.6). Stubs must still follow this pattern — do not skip audit because the handler is a placeholder.
 
-New intake code uses `apps/web/lib/audit/write-audit.ts`:
+## Canonical helper (intake module)
 
 ```ts
 writeAudit({
   tenantId: string;
-  actorId: string | null;
+  actorId: string | null;  // null for patient-token actions; use token id where applicable
   action: string;
   entity: 'patient' | 'intake_document' | 'protocol' | 'token';
   entityId?: string;
@@ -24,7 +24,7 @@ writeAudit({
 
 When `entity === 'patient'`, also insert a paired `patient_timeline` row.
 
-Existing dashboard routes may use established audit patterns in `apps/web/lib/` — **new intake endpoints must use `writeAudit`**.
+Existing dashboard routes may use established audit patterns in `apps/web/lib/` — **all new intake endpoints must use `writeAudit`**.
 
 ## What requires an audit row
 
@@ -42,10 +42,12 @@ Existing dashboard routes may use established audit patterns in `apps/web/lib/` 
 
 ### Security-relevant reads
 
-- `GET /api/intake/[token]` (API-1) — audit every successful access
+- `GET /api/intake/[token]` (API-1) — audit every **successful** access
 - `GET /api/patients/[id]/protocol-readiness` (API-7) — GATE-3
 
-## GATE-3 payload (PHI-free)
+## GATE-3 payload shape (PHI-free)
+
+Use this shape in `payload` for readiness evaluations — never symptom text or field values:
 
 ```ts
 {
@@ -59,7 +61,7 @@ Existing dashboard routes may use established audit patterns in `apps/web/lib/` 
 
 ## Failure modes (do not do these)
 
-1. **Skipping audit on stubs** — stubs must establish the audit pattern from Phase 0.
+1. **Skipping audit on stubs** — Phase 0 stubs must establish the audit pattern from day one.
 2. **Auditing only clinician actions** — patient-token autosaves (API-2) require audit too.
-3. **Fire-and-forget audit `.catch()`** that can silently fail.
+3. **Fire-and-forget audit `.catch()`** that can silently fail — await `writeAudit` or handle errors explicitly.
 4. **Direct `audit_log` inserts** bypassing `write-audit.ts`.

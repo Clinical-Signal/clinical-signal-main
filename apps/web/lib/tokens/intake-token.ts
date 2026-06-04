@@ -1,3 +1,7 @@
+/**
+ * Intake link tokens (SEC-18 / PRD §4.2): mint, verify, revoke, reissue.
+ * Raw tokens are never persisted — only SHA-256 hashes.
+ */
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 
 import type { IntakeTokenStatus } from "@/lib/db/schema/intake-token-status";
@@ -273,11 +277,13 @@ export class InMemoryIntakeTokenStore implements IntakeTokenStore {
   }
 
   async findActiveByPatientId(patientId: string): Promise<IntakeTokenRecord | null> {
+    const now = Date.now();
     for (const record of this.records.values()) {
       if (
         record.patientId === patientId &&
         record.revokedAt === null &&
-        record.status === "pending"
+        record.status === "pending" &&
+        record.expiresAt.getTime() > now
       ) {
         return record;
       }
@@ -342,7 +348,39 @@ export class IntakeTokenService {
     const now = this.now();
     const tokenHash = hashIntakeToken(rawToken);
     const record = await this.store.findByHash(tokenHash);
+    if (
+      record &&
+      record.status === "pending" &&
+      record.revokedAt === null &&
+      record.expiresAt.getTime() <= now.getTime()
+    ) {
+      await this.markExpired(record.id);
+      return { allowed: false, reason: "expired" };
+    }
     return resolveIntakeTokenGateFromRecord(record, tokenHash, now);
+  }
+
+  /** Persists TTL expiry so re-opened links stay blocked (magic-link gatekeeper). */
+  async markExpired(tokenId: string): Promise<IntakeTokenRecord> {
+    const record = await this.store.findById(tokenId);
+    if (!record) {
+      throw new IntakeTokenError("invalid_token", "token not found");
+    }
+
+    if (record.status === "expired") {
+      return record;
+    }
+
+    if (record.status === "completed") {
+      return record;
+    }
+
+    const expired: IntakeTokenRecord = {
+      ...record,
+      status: "expired",
+    };
+    await this.store.update(expired);
+    return expired;
   }
 
   async verify(input: VerifyIntakeTokenInput): Promise<VerifyIntakeTokenResult> {

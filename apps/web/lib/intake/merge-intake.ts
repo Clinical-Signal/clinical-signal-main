@@ -1,3 +1,7 @@
+/**
+ * Shallow JSONB merge with provenance (Phase 2.7).
+ * AI never overwrites patient-authored leaf values — pending in `_ai_confirmations`.
+ */
 import type { AiConfirmationSlot, IntakeData, ProvenanceSource } from "./schemas/intake-data.schema";
 
 const METADATA_KEYS = new Set(["_provenance", "_ai_confirmations"]);

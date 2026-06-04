@@ -72,15 +72,17 @@ function resolvePromptPath(): string {
   );
 }
 
-let cachedSystemPrompt: string | undefined;
+const promptCache = new Map<string, string>();
 
 /** Loads the PHI-free system prompt from the analysis-engine prompts directory. */
 export function loadIntakeClinicalSynthesisPrompt(): string {
-  if (cachedSystemPrompt !== undefined) {
-    return cachedSystemPrompt;
+  const cached = promptCache.get(INTAKE_CLINICAL_SYNTHESIS_PROMPT_FILE);
+  if (cached !== undefined) {
+    return cached;
   }
-  cachedSystemPrompt = readFileSync(resolvePromptPath(), "utf-8");
-  return cachedSystemPrompt;
+  const text = readFileSync(resolvePromptPath(), "utf-8");
+  promptCache.set(INTAKE_CLINICAL_SYNTHESIS_PROMPT_FILE, text);
+  return text;
 }
 
 function extractResponseText(message: AnthropicMessageResult): string {

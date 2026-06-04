@@ -1,5 +1,5 @@
 ---
-description: C-SLICE — vertical slices only; one surface per file; follow the PRD file tree
+description: C-SLICE — vertical slices only; one surface per file; follow the PRD §3 file tree
 alwaysApply: true
 ---
 
@@ -11,7 +11,7 @@ alwaysApply: true
 
 - **One slice per file** for UI surfaces: each Step-1 screen, each Step-2 module, the analyze client, and the readiness widget are **separate files**.
 - **Orchestrators only coordinate** — they import slices, manage navigation/state, and stay ≤200 LOC (see C-LOC). They do not contain screen-level markup or business logic.
-- **Lib slices by domain** — schemas, pure logic, LLM, transcription, auth, audit, and tokens each live under their `lib/` subdirectory; no "utils.ts" junk drawer.
+- **Lib slices by domain** — schemas, pure logic, LLM, transcription, auth, audit, and tokens each live under their `lib/` subdirectory; no `utils.ts` junk drawer.
 - **If a new file is not in the tree below, stop and ask** before creating it. Do not invent parallel folder structures.
 
 ## Existing monorepo layout (do not break)
@@ -49,7 +49,7 @@ apps/web/
 │   │           ├── stress-deep-dive.tsx
 │   │           └── wellness-practice.tsx
 │   ├── (dashboard)/dashboard/patients/[id]/
-│   │   ├── intake/                       # existing + new stubs
+│   │   ├── intake/                       # [STUB Phase 0]
 │   │   └── review/
 │   │       ├── intake-review.tsx         # orchestrator only
 │   │       ├── provenance-badge.tsx
@@ -63,7 +63,7 @@ apps/web/
 │       └── patients/[id]/
 │           ├── intake-token/route.ts
 │           ├── intake-docs/route.ts
-│           ├── prep-brief/route.ts
+│           ├── prep-brief/route.ts       # [STUB Phase 0]
 │           ├── protocol-readiness/route.ts
 │           └── generate-protocol/route.ts
 ├── lib/
@@ -75,11 +75,11 @@ apps/web/
 │   ├── llm/analyze-intake.ts
 │   ├── audit/write-audit.ts
 │   └── tokens/intake-token.ts
-├── workers/transcription/                # at repo root: workers/transcription/
 ├── components/ui/
 └── styles/tokens.css
 
-services/analysis-engine/prompts/         # intake PHI-free prompts (new)
+workers/transcription/                    # repo root (not under apps/web)
+services/analysis-engine/prompts/         # PHI-free intake prompts
 services/whisper/server.py
 ```
 

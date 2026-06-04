@@ -26,7 +26,22 @@ import {
   INTAKE_TOKEN_DEFAULTS,
 } from "@/lib/tokens/intake-token";
 
-import { DEMO_PATIENT_FIXTURES } from "./demo-patient-fixtures";
+import {
+  DEMO_PATIENT_FIXTURES,
+  validateDemoPatientFixtures,
+} from "./demo-patient-fixtures";
+
+export type DemoPatientLink = {
+  name: string;
+  patientId: string;
+  clinicianUrl: string;
+  patientUrl: string;
+};
+
+export type SeedDemoPatientsResult = {
+  tenantId: string;
+  links: DemoPatientLink[];
+};
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DEV_TENANT_ID = "00000000-0000-0000-0000-000000000001";
@@ -192,25 +207,12 @@ async function reissueIntakeToken(input: {
   return { token: rawToken, tokenId };
 }
 
-async function main(): Promise<void> {
-  loadDotEnv();
-
-  if (!process.env.DATABASE_URL) {
-    throw new Error("DATABASE_URL is required (set in apps/web/.env)");
-  }
-  if (!process.env.PHI_ENCRYPTION_KEY) {
-    throw new Error("PHI_ENCRYPTION_KEY is required (set in apps/web/.env)");
-  }
+export async function seedDemoPatients(): Promise<SeedDemoPatientsResult> {
+  validateDemoPatientFixtures();
 
   const { tenantId, practitionerId } = await resolveDevPractitioner();
-  if (tenantId !== DEV_TENANT_ID) {
-    console.warn(
-      `Warning: dev practitioner tenant is ${tenantId}, expected ${DEV_TENANT_ID}.`,
-    );
-  }
-
   const baseUrl = demoBaseUrl();
-  const links: Array<{ name: string; clinicianUrl: string; patientUrl: string }> = [];
+  const links: DemoPatientLink[] = [];
 
   for (const fixture of DEMO_PATIENT_FIXTURES) {
     const intakeData = fixture.buildIntakeData();
@@ -231,20 +233,45 @@ async function main(): Promise<void> {
 
     links.push({
       name: fixture.displayName,
+      patientId,
       clinicianUrl: `${baseUrl}/clinician/intake/${minted.token}`,
       patientUrl: `${baseUrl}/intake/${minted.token}`,
     });
   }
 
+  return { tenantId, links };
+}
+
+function printDemoLinks(result: SeedDemoPatientsResult): void {
+  if (result.tenantId !== DEV_TENANT_ID) {
+    console.warn(
+      `Warning: dev practitioner tenant is ${result.tenantId}, expected ${DEV_TENANT_ID}.`,
+    );
+  }
+
   console.log("\nDemo patients ready (Step 1 complete, active intake tokens).\n");
   console.log("Log in as dev@example.com / devpassword12! then open:\n");
 
-  for (const link of links) {
+  for (const link of result.links) {
     console.log(`${link.name}`);
     console.log(`  Clinician review: ${link.clinicianUrl}`);
     console.log(`  Patient intake:   ${link.patientUrl}`);
     console.log("");
   }
+}
+
+async function main(): Promise<void> {
+  loadDotEnv();
+
+  if (!process.env.DATABASE_URL) {
+    throw new Error("DATABASE_URL is required (set in apps/web/.env)");
+  }
+  if (!process.env.PHI_ENCRYPTION_KEY) {
+    throw new Error("PHI_ENCRYPTION_KEY is required (set in apps/web/.env)");
+  }
+
+  const result = await seedDemoPatients();
+  printDemoLinks(result);
 }
 
 main().catch((error) => {

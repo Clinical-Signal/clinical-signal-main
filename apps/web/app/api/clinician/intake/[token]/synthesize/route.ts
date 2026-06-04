@@ -28,7 +28,26 @@ export async function POST(
       extractClientIp(request),
     );
 
-    const result = await synthesizeNote(review.intakeData);
+    let result;
+    try {
+      result = await synthesizeNote(review.intakeData);
+    } catch (llmError) {
+      console.error(LOG, "synthesis_runtime_error", {
+        patientId: review.patientId,
+        tokenId: review.tokenId,
+      });
+      console.error(LOG, llmError);
+      return NextResponse.json(
+        {
+          error: "SYNTHESIS_FAILED",
+          degraded: true,
+          message:
+            "Clinical synthesis failed due to a service error or timeout. Try again shortly.",
+        },
+        { status: 500 },
+      );
+    }
+
     if (!result) {
       console.error(LOG, "synthesis_degraded", {
         patientId: review.patientId,
@@ -37,6 +56,7 @@ export async function POST(
       return NextResponse.json(
         {
           error: "SYNTHESIS_FAILED",
+          degraded: true,
           message:
             "Clinical synthesis could not be completed. The model response was invalid or unavailable.",
         },
@@ -89,6 +109,7 @@ export async function POST(
       synthesis: result.output,
       modelId: result.modelId,
       promptVersion: result.promptVersion,
+      generatedAt,
     });
   } catch (error) {
     if (error instanceof ClinicianIntakeAccessError) {

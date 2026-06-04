@@ -33,7 +33,7 @@ Write `clinical_summary` as a **Markdown** string with exactly these top-level s
 (use `##` headings in this order):
 
 1. **Chief Complaint** — One concise statement of why the patient sought care, grounded in
-   `step_one.why_here.primary_concern` and flagged symptom areas.
+   `step_one.why_here.what_brings_you`, `top_three_goals`, and flagged symptom areas.
 2. **History of Present Illness (HPI)** — Narrative paragraph(s) integrating Step-1 context
    and relevant Step-2 answers (onset, pattern, modifiers, associated symptoms, prior
    attempts, functional impact). Organize by clinical theme when multiple issues exist.

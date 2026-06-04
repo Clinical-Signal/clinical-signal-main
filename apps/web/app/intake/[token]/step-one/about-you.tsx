@@ -1,74 +1,25 @@
 "use client";
 
+import { useMemo, useState } from "react";
+
 import {
   AboutYouSchema,
   createEmptyAboutYou,
   type AboutYou,
 } from "@/lib/intake/schemas/step-one.schema";
 
+import { AboutYouDemographics } from "./about-you-demographics";
+import { AboutYouEmergency } from "./about-you-emergency";
+import { aboutYouFieldErrors } from "./about-you-field-errors";
 import {
   IntroBanner,
   ScreenHeader,
   inputClass,
   labelClass,
-  sublabelClass,
   useSectionBlurSave,
 } from "./shared";
 
-const US_STATES = [
-  "",
-  "AL",
-  "AK",
-  "AZ",
-  "AR",
-  "CA",
-  "CO",
-  "CT",
-  "DE",
-  "FL",
-  "GA",
-  "HI",
-  "ID",
-  "IL",
-  "IN",
-  "IA",
-  "KS",
-  "KY",
-  "LA",
-  "ME",
-  "MD",
-  "MA",
-  "MI",
-  "MN",
-  "MS",
-  "MO",
-  "MT",
-  "NE",
-  "NV",
-  "NH",
-  "NJ",
-  "NM",
-  "NY",
-  "NC",
-  "ND",
-  "OH",
-  "OK",
-  "OR",
-  "PA",
-  "RI",
-  "SC",
-  "SD",
-  "TN",
-  "TX",
-  "UT",
-  "VT",
-  "VA",
-  "WA",
-  "WV",
-  "WI",
-  "WY",
-  "DC",
-];
+const inputErrorClass = `${inputClass} border-warning`;
 
 type AboutYouScreenProps = {
   token: string;
@@ -85,6 +36,9 @@ export function AboutYouScreen({
   onIntakeDataSynced,
   showIntro = false,
 }: AboutYouScreenProps) {
+  const [touched, setTouched] = useState<Partial<Record<keyof AboutYou, boolean>>>({});
+  const fieldErrors = useMemo(() => aboutYouFieldErrors(value), [value]);
+
   const { saveStatus, saveOnBlur } = useSectionBlurSave({
     token,
     section: "about_you",
@@ -95,136 +49,89 @@ export function AboutYouScreen({
 
   const patch = (partial: Partial<AboutYou>) => onChange({ ...value, ...partial });
 
+  const markTouched = (field: keyof AboutYou) => {
+    setTouched((prev) => ({ ...prev, [field]: true }));
+  };
+
+  const showError = (field: keyof AboutYou) =>
+    touched[field] ? fieldErrors[field] : undefined;
+
+  const fieldInputClass = (field: keyof AboutYou) =>
+    showError(field) ? inputErrorClass : inputClass;
+
   return (
-    <section className="flex flex-col gap-5" onBlur={() => void saveOnBlur()}>
+    <section className="flex min-w-0 flex-col gap-5" onBlur={() => void saveOnBlur()}>
       {showIntro ? <IntroBanner /> : null}
       <ScreenHeader
         title="About you"
-        description="Basic demographics and emergency contact."
+        description="How we should address you and basic demographics."
         saveStatus={saveStatus}
       />
 
       <label className="flex flex-col gap-2">
         <span className={labelClass}>Full name</span>
         <input
-          className={inputClass}
+          className={fieldInputClass("full_name")}
           value={value.full_name}
           autoComplete="name"
+          aria-invalid={Boolean(showError("full_name"))}
+          aria-describedby={showError("full_name") ? "about-you-name-error" : undefined}
+          onBlur={() => markTouched("full_name")}
           onChange={(e) => patch({ full_name: e.target.value })}
         />
+        {showError("full_name") ? (
+          <span id="about-you-name-error" className="text-xs text-warning">
+            {showError("full_name")}
+          </span>
+        ) : null}
       </label>
 
       <label className="flex flex-col gap-2">
         <span className={labelClass}>Date of birth</span>
         <input
-          className={inputClass}
+          className={fieldInputClass("date_of_birth")}
           type="date"
           value={value.date_of_birth}
           autoComplete="bday"
+          aria-invalid={Boolean(showError("date_of_birth"))}
+          aria-describedby={
+            showError("date_of_birth") ? "about-you-dob-error" : undefined
+          }
+          onBlur={() => markTouched("date_of_birth")}
           onChange={(e) => patch({ date_of_birth: e.target.value })}
         />
+        {showError("date_of_birth") ? (
+          <span id="about-you-dob-error" className="text-xs text-warning">
+            {showError("date_of_birth")}
+          </span>
+        ) : null}
       </label>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <label className="flex flex-col gap-2">
-          <span className={labelClass}>Sex assigned at birth</span>
-          <select
-            className={inputClass}
-            value={value.sex_at_birth}
-            onChange={(e) =>
-              patch({ sex_at_birth: e.target.value as AboutYou["sex_at_birth"] })
-            }
-          >
-            <option value="">—</option>
-            <option value="male">Male</option>
-            <option value="female">Female</option>
-            <option value="intersex">Intersex</option>
-          </select>
-        </label>
-        <label className="flex flex-col gap-2">
-          <span className={labelClass}>Gender identity (if different from above)</span>
-          <input
-            className={inputClass}
-            value={value.gender_identity}
-            placeholder="Optional"
-            onChange={(e) => patch({ gender_identity: e.target.value })}
-          />
-        </label>
-      </div>
+      <label className="flex flex-col gap-2">
+        <span className={labelClass}>Sex assigned at birth</span>
+        <select
+          className={inputClass}
+          value={value.sex_at_birth}
+          onChange={(e) =>
+            patch({ sex_at_birth: e.target.value as AboutYou["sex_at_birth"] })
+          }
+        >
+          <option value="">Select…</option>
+          <option value="male">Male</option>
+          <option value="female">Female</option>
+          <option value="intersex">Intersex</option>
+        </select>
+      </label>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <label className="flex flex-col gap-2">
-          <span className={labelClass}>Height (inches)</span>
-          <input
-            className={inputClass}
-            type="number"
-            min={0}
-            value={value.height_inches ?? ""}
-            onChange={(e) =>
-              patch({
-                height_inches: e.target.value ? Number(e.target.value) : null,
-              })
-            }
-          />
-        </label>
-        <label className="flex flex-col gap-2">
-          <span className={labelClass}>Weight (lbs)</span>
-          <input
-            className={inputClass}
-            type="number"
-            min={0}
-            value={value.weight_lbs ?? ""}
-            onChange={(e) =>
-              patch({ weight_lbs: e.target.value ? Number(e.target.value) : null })
-            }
-          />
-        </label>
-        <label className="flex flex-col gap-2">
-          <span className={labelClass}>State</span>
-          <select
-            className={inputClass}
-            value={value.state}
-            onChange={(e) => patch({ state: e.target.value })}
-          >
-            {US_STATES.map((state) => (
-              <option key={state || "empty"} value={state}>
-                {state || "—"}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
+      <AboutYouDemographics
+        value={value}
+        onChange={onChange}
+        fieldInputClass={fieldInputClass}
+        showError={showError}
+        markTouched={markTouched}
+      />
 
-      <div className="rounded-lg border border-line bg-surface-sunken p-4">
-        <h3 className="mb-3 text-sm font-semibold text-ink">Emergency contact</h3>
-        <div className="flex flex-col gap-4">
-          <label className="flex flex-col gap-2">
-            <span className={sublabelClass}>Name</span>
-            <input
-              className={inputClass}
-              value={value.emergency_contact_name}
-              onChange={(e) => patch({ emergency_contact_name: e.target.value })}
-            />
-          </label>
-          <label className="flex flex-col gap-2">
-            <span className={sublabelClass}>Relationship</span>
-            <input
-              className={inputClass}
-              value={value.emergency_contact_relationship}
-              onChange={(e) => patch({ emergency_contact_relationship: e.target.value })}
-            />
-          </label>
-          <label className="flex flex-col gap-2">
-            <span className={sublabelClass}>Phone</span>
-            <input
-              className={inputClass}
-              type="tel"
-              value={value.emergency_contact_phone}
-              onChange={(e) => patch({ emergency_contact_phone: e.target.value })}
-            />
-          </label>
-        </div>
-      </div>
+      <AboutYouEmergency value={value} onChange={onChange} />
     </section>
   );
 }

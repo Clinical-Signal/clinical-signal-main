@@ -1,3 +1,7 @@
+/**
+ * Persisted intake aggregate (PRD §4.1 / Phase 2.3): Step-1 + metadata for provenance,
+ * AI confirmations, and degraded-analysis flag.
+ */
 import { z } from "zod";
 
 import { migrateLegacyStepOne } from "../migrate-legacy-step-one";
@@ -28,6 +32,7 @@ export const AiConfirmationSlot = z.object({
 export type AiConfirmationSlot = z.infer<typeof AiConfirmationSlot>;
 
 export const IntakeDataSchema = StepOneSchema.extend({
+  /** Module answers plus `_question_plan_resolved` and `_synthesis_resolved` (Phase 7). */
   step_two: z.record(z.string(), z.unknown()).optional(),
   /** Patient email for magic-link dispatch (not collected on intake forms). */
   contact_email: z.string().email().optional(),

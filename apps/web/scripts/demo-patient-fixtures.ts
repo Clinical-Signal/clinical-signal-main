@@ -331,6 +331,13 @@ export function buildMetabolicDemoIntakeData(): IntakeData {
   return toIntakeData(stepOne);
 }
 
+/** Validates all demo intake payloads against Zod schemas before any DB writes. */
+export function validateDemoPatientFixtures(): void {
+  for (const fixture of DEMO_PATIENT_FIXTURES) {
+    fixture.buildIntakeData();
+  }
+}
+
 export const DEMO_PATIENT_FIXTURES: DemoPatientFixture[] = [
   {
     displayName: "Jane Doe",

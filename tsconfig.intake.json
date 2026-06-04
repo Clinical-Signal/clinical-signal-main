@@ -1,11 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
-  "extends": "./tsconfig.base.json",
+  "extends": "./apps/web/tsconfig.intake.json",
   "compilerOptions": {
-    "noUncheckedIndexedAccess": true,
-    "exactOptionalPropertyTypes": true,
-    "lib": ["ES2022", "DOM"],
-    "types": ["node"],
     "baseUrl": ".",
     "paths": {
       "@/*": ["apps/web/*"],

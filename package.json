@@ -3,24 +3,26 @@
   "private": true,
   "packageManager": "pnpm@9.12.0",
   "engines": {
-    "node": ">=20.11.0 <21.0.0",
+    "node": "20.11.x",
     "pnpm": "9.12.x"
   },
   "scripts": {
-    "lint": "eslint --max-warnings 0 .",
+    "lint": "eslint --max-warnings 0 apps/web/lib/env.ts apps/web/lib/env.test.ts apps/web/lib/auth apps/web/lib/audit scripts/**/*.cjs scripts/**/*.mjs",
     "typecheck": "pnpm --filter @clinical-signal/web typecheck",
-    "typecheck:intake": "tsc -p tsconfig.intake.json --noEmit",
-    "verify:phase1": "pnpm run typecheck:intake && pnpm run loc-check",
-    "test": "pnpm --filter @clinical-signal/web test:unit",
-    "loc-check": "node scripts/loc-check.mjs"
+    "typecheck:intake": "tsc -p apps/web/tsconfig.intake.json --noEmit",
+    "verify:phase1": "tsc -p tsconfig.db.json --noEmit && pnpm run loc-check",
+    "loc-check": "node scripts/loc-check.mjs",
+    "test": "vitest run --config vitest.config.mjs",
+    "test:env": "vitest run --config vitest.config.mjs lib/env.test.ts"
   },
   "devDependencies": {
+    "@types/node": "20.14.10",
+    "@types/pg": "8.11.10",
     "@typescript-eslint/eslint-plugin": "7.18.0",
     "@typescript-eslint/parser": "7.18.0",
     "eslint": "8.57.1",
     "eslint-plugin-c-tokens": "workspace:*",
     "typescript": "5.4.5",
-    "vitest": "1.6.0",
-    "@types/node": "20.14.10"
+    "vitest": "1.6.0"
   }
 }

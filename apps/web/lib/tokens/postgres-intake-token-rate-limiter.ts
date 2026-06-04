@@ -1,3 +1,6 @@
+/**
+ * Postgres-backed `IntakeTokenRateLimiter` (table: `intake_token_rate_limits`).
+ */
 import { withSystem } from "@cs/db";
 
 import {

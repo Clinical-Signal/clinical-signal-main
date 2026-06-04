@@ -5,6 +5,7 @@ import { createEmptyIntakeData } from "@/lib/intake/schemas/intake-data.schema";
 import { buildClinicalSynthesisPayload } from "./build-clinical-synthesis-payload";
 import {
   INTAKE_CLINICAL_SYNTHESIS_PROMPT_VERSION,
+  loadIntakeClinicalSynthesisPrompt,
   synthesizeNote,
   type AnthropicMessageResult,
   type CreateMessageFn,
@@ -52,6 +53,15 @@ function messageWithText(text: string): AnthropicMessageResult {
 }
 
 describe("synthesizeNote", () => {
+  it("loads the PHI-free clinical synthesis system prompt from disk", () => {
+    const prompt = loadIntakeClinicalSynthesisPrompt();
+    expect(prompt).toContain("medical scribe");
+    expect(prompt).toContain("clinical_summary");
+    expect(prompt).toContain("suggested_next_steps");
+    expect(prompt).toContain("Chief Complaint");
+    expect(prompt).not.toMatch(/\bJane\b|\bJohn\b|patient@/i);
+  });
+
   it("parses valid JSON and returns output with model_id and prompt_version", async () => {
     const createMessage: CreateMessageFn = vi.fn(async () =>
       messageWithText(JSON.stringify(VALID_SYNTHESIS_JSON)),

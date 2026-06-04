@@ -1,288 +1,302 @@
+/**
+ * Readiness Gate — Phase 2 TDD scaffold.
+ * Matrix: docs/architecture/phase-2-test-matrix.md §3 (RG-01–RG-24), inputs §0.2.
+ */
 import { describe, expect, it } from "vitest";
+import type { ReadinessCheck, ReadinessResult } from "./readiness.types";
+import { readiness } from "./readiness";
 
-import {
-  readiness,
-  type ReadinessCheck,
-  type ReadinessResult,
-} from "./readiness";
-
-/** §0.2 check order: R1 R2 R3 H1 H2 M1 AI */
-const CHECK_ORDER = [
+/** §0.2 order: R1 R2 R3 H1 H2 M1 AI */
+const CHECK_ORDER: ReadinessCheck[] = [
   {
     key: "step1_complete",
-    label: "Step-1 intake complete",
-    weight: "Required" as const,
+    label: "Step 1 complete",
+    weight: "Required",
+    met: true,
   },
   {
     key: "triggered_deep_dives_answered",
     label: "Triggered deep dives answered",
-    weight: "Required" as const,
+    weight: "Required",
+    met: true,
   },
   {
     key: "safety_flags_reviewed",
     label: "Safety flags reviewed",
-    weight: "Required" as const,
+    weight: "Required",
+    met: true,
   },
   {
     key: "medications_detailed",
     label: "Medications detailed",
-    weight: "High" as const,
+    weight: "High",
+    met: true,
   },
   {
     key: "labs_present_or_waived",
     label: "Labs present or waived",
-    weight: "High" as const,
+    weight: "High",
+    met: true,
   },
   {
     key: "transcripts_verified",
     label: "Transcripts verified",
-    weight: "Medium" as const,
+    weight: "Medium",
+    met: true,
   },
   {
     key: "ai_confirmed",
-    label: "AI-derived fields confirmed",
-    weight: "Required-for-high" as const,
+    label: "AI fields confirmed",
+    weight: "Required-for-high",
+    met: true,
   },
-] satisfies ReadonlyArray<{
-  key: ReadinessCheck["key"];
-  label: string;
-  weight: ReadinessCheck["weight"];
-}>;
+];
 
-/** Builds a `ReadinessCheck[]` from §0.2 notation (`✓` met / `✗` unmet). */
-function buildChecks(notation: string): ReadinessCheck[] {
-  const symbols = [...notation];
-  if (symbols.length !== CHECK_ORDER.length) {
-    throw new Error(
-      `Expected ${CHECK_ORDER.length} check symbols, got ${symbols.length}`,
-    );
+/** Pattern: seven chars, `✓` met / `✗` unmet (§0.2). */
+function buildChecks(pattern: string): ReadinessCheck[] {
+  const marks = [...pattern];
+  if (marks.length !== CHECK_ORDER.length) {
+    throw new Error(`pattern must be ${CHECK_ORDER.length} chars, got ${pattern}`);
   }
-
-  return CHECK_ORDER.map((spec, index) => {
-    const symbol = symbols[index];
-    if (symbol !== "✓" && symbol !== "✗") {
-      throw new Error(`Invalid symbol "${symbol}" at index ${index}`);
-    }
-
-    return {
-      key: spec.key,
-      label: spec.label,
-      weight: spec.weight,
-      met: symbol === "✓",
-    };
-  });
+  return CHECK_ORDER.map((template, i) => ({
+    ...template,
+    met: marks[i] === "✓",
+  }));
 }
 
-/** D-RG-3: callers must not consume `confidence_ceiling` when generation is blocked. */
+/** D-RG-3: callers must not consume ceiling when generation is blocked. */
 function confidenceCeilingForGeneration(
   result: ReadinessResult,
 ): ReadinessResult["confidence_ceiling"] | undefined {
-  return result.can_generate ? result.confidence_ceiling : undefined;
+  if (!result.can_generate) {
+    return undefined;
+  }
+  return result.confidence_ceiling;
 }
 
-describe("readiness gate (§3 Readiness Gate Matrix)", () => {
-  it("RG-01", () => {
-    const result = readiness(buildChecks("✓✓✓✓✓✓✓"));
+function assertTriple(
+  result: ReadinessResult,
+  expected: {
+    readiness: ReadinessResult["readiness"];
+    confidence_ceiling: ReadinessResult["confidence_ceiling"];
+    can_generate: boolean;
+  },
+): void {
+  expect(result.readiness).toBe(expected.readiness);
+  expect(result.confidence_ceiling).toBe(expected.confidence_ceiling);
+  expect(result.can_generate).toBe(expected.can_generate);
+}
 
-    expect(result.readiness).toBe("ready");
-    expect(result.confidence_ceiling).toBe("high");
-    expect(result.can_generate).toBe(true);
+describe("readiness gate (PRD §5.1)", () => {
+  describe("§3.1 nine logical states", () => {
+    it("RG-01", () => {
+      assertTriple(readiness(buildChecks("✓✓✓✓✓✓✓")), {
+        readiness: "ready",
+        confidence_ceiling: "high",
+        can_generate: true,
+      });
+    });
+
+    it("RG-02", () => {
+      assertTriple(readiness(buildChecks("✓✓✓✓✓✓✗")), {
+        readiness: "partial",
+        confidence_ceiling: "low",
+        can_generate: true,
+      });
+    });
+
+    it("RG-03", () => {
+      assertTriple(readiness(buildChecks("✓✓✓✓✓✗✓")), {
+        readiness: "partial",
+        confidence_ceiling: "moderate",
+        can_generate: true,
+      });
+    });
+
+    it("RG-04", () => {
+      assertTriple(readiness(buildChecks("✓✓✓✓✓✗✗")), {
+        readiness: "partial",
+        confidence_ceiling: "low",
+        can_generate: true,
+      });
+    });
+
+    it("RG-05", () => {
+      assertTriple(readiness(buildChecks("✓✓✓✗✓✓✓")), {
+        readiness: "partial",
+        confidence_ceiling: "low",
+        can_generate: true,
+      });
+    });
+
+    it("RG-06", () => {
+      assertTriple(readiness(buildChecks("✓✓✓✓✗✓✓")), {
+        readiness: "partial",
+        confidence_ceiling: "low",
+        can_generate: true,
+      });
+    });
+
+    it("RG-07", () => {
+      assertTriple(readiness(buildChecks("✓✓✓✗✗✓✓")), {
+        readiness: "partial",
+        confidence_ceiling: "low",
+        can_generate: true,
+      });
+    });
+
+    it("RG-08", () => {
+      assertTriple(readiness(buildChecks("✓✓✓✗✓✗✓")), {
+        readiness: "partial",
+        confidence_ceiling: "low",
+        can_generate: true,
+      });
+    });
+
+    it("RG-09", () => {
+      assertTriple(readiness(buildChecks("✗✓✓✓✓✓✓")), {
+        readiness: "insufficient",
+        confidence_ceiling: "low",
+        can_generate: false,
+      });
+    });
   });
 
-  it("RG-02", () => {
-    const result = readiness(buildChecks("✓✓✓✓✓✓✗"));
+  describe("§3.2 required-check isolation", () => {
+    it("RG-10", () => {
+      const result = readiness(buildChecks("✗✓✓✓✓✓✓"));
+      assertTriple(result, {
+        readiness: "insufficient",
+        confidence_ceiling: "low",
+        can_generate: false,
+      });
+      expect(result.blocking_gaps).toContain("step1_complete");
+    });
 
-    expect(result.readiness).toBe("partial");
-    expect(result.confidence_ceiling).toBe("low");
-    expect(result.can_generate).toBe(true);
+    it("RG-11", () => {
+      assertTriple(readiness(buildChecks("✓✗✓✓✓✓✓")), {
+        readiness: "insufficient",
+        confidence_ceiling: "low",
+        can_generate: false,
+      });
+    });
+
+    it("RG-12", () => {
+      assertTriple(readiness(buildChecks("✓✓✗✓✓✓✓")), {
+        readiness: "insufficient",
+        confidence_ceiling: "low",
+        can_generate: false,
+      });
+    });
+
+    it("RG-13", () => {
+      const result = readiness(buildChecks("✗✗✗✓✓✓✓"));
+      assertTriple(result, {
+        readiness: "insufficient",
+        confidence_ceiling: "low",
+        can_generate: false,
+      });
+      expect(result.blocking_gaps).toHaveLength(3);
+    });
   });
 
-  it("RG-03", () => {
-    const result = readiness(buildChecks("✓✓✓✓✓✗✓"));
+  describe("§3.3 required dominates", () => {
+    it("RG-14", () => {
+      const result = readiness(buildChecks("✗✓✓✗✓✓✓"));
+      expect(result.readiness).toBe("insufficient");
+      expect(result.can_generate).toBe(false);
+      expect(confidenceCeilingForGeneration(result)).toBeUndefined();
+    });
 
-    expect(result.readiness).toBe("partial");
-    expect(result.confidence_ceiling).toBe("moderate");
-    expect(result.can_generate).toBe(true);
+    it("RG-15", () => {
+      const result = readiness(buildChecks("✗✓✓✗✗✗✗"));
+      expect(result.readiness).toBe("insufficient");
+      expect(result.can_generate).toBe(false);
+    });
+
+    it("RG-16", () => {
+      const result = readiness(buildChecks("✓✗✓✓✓✓✗"));
+      expect(result.readiness).toBe("insufficient");
+      expect(result.can_generate).toBe(false);
+    });
   });
 
-  it("RG-04", () => {
-    const result = readiness(buildChecks("✓✓✓✓✓✗✗"));
+  describe("§3.4 gap-list content", () => {
+    it("RG-17", () => {
+      const result = readiness(buildChecks("✓✓✓✗✓✗✓"));
+      expect(result.blocking_gaps).toEqual([]);
+      expect(result.non_blocking_gaps).toEqual([
+        "medications_detailed",
+        "transcripts_verified",
+      ]);
+    });
 
-    expect(result.readiness).toBe("partial");
-    expect(result.confidence_ceiling).toBe("low");
-    expect(result.can_generate).toBe(true);
+    it("RG-18", () => {
+      const result = readiness(buildChecks("✗✓✓✗✓✗✓"));
+      expect(result.blocking_gaps).toEqual(["step1_complete"]);
+      expect(result.non_blocking_gaps).toEqual([
+        "medications_detailed",
+        "transcripts_verified",
+      ]);
+    });
+
+    it("RG-19", () => {
+      const result = readiness(buildChecks("✓✓✓✓✓✓✗"));
+      expect(result.blocking_gaps).toEqual([]);
+      expect(result.non_blocking_gaps).toEqual(["ai_confirmed"]);
+    });
   });
 
-  it("RG-05", () => {
-    const result = readiness(buildChecks("✓✓✓✗✓✓✓"));
+  describe("§3.5 invariants and architectural assertions", () => {
+    it("RG-20", () => {
+      const result = readiness(buildChecks("✗✓✓✓✓✓✓"));
+      expect(result.can_generate).toBe(false);
+      expect(confidenceCeilingForGeneration(result)).toBeUndefined();
+    });
 
-    expect(result.readiness).toBe("partial");
-    expect(result.confidence_ceiling).toBe("low");
-    expect(result.can_generate).toBe(true);
-  });
+    it("RG-21", () => {
+      const withoutAi = buildChecks("✓✓✓✓✓✓✓").filter(
+        (c) => c.key !== "ai_confirmed",
+      );
+      expect(() => readiness(withoutAi)).toThrow();
+    });
 
-  it("RG-06", () => {
-    const result = readiness(buildChecks("✓✓✓✓✗✓✓"));
+    it("RG-22", () => {
+      assertTriple(readiness(buildChecks("✓✓✓✓✓✓✓")), {
+        readiness: "ready",
+        confidence_ceiling: "high",
+        can_generate: true,
+      });
+    });
 
-    expect(result.readiness).toBe("partial");
-    expect(result.confidence_ceiling).toBe("low");
-    expect(result.can_generate).toBe(true);
-  });
+    it("RG-23", () => {
+      expect(() => readiness([])).toThrow();
+    });
 
-  it("RG-07", () => {
-    const result = readiness(buildChecks("✓✓✓✗✗✓✓"));
-
-    expect(result.readiness).toBe("partial");
-    expect(result.confidence_ceiling).toBe("low");
-    expect(result.can_generate).toBe(true);
-  });
-
-  it("RG-08", () => {
-    const result = readiness(buildChecks("✓✓✓✗✓✗✓"));
-
-    expect(result.readiness).toBe("partial");
-    expect(result.confidence_ceiling).toBe("low");
-    expect(result.can_generate).toBe(true);
-  });
-
-  it("RG-09", () => {
-    const result = readiness(buildChecks("✗✓✓✓✓✓✓"));
-
-    expect(result.readiness).toBe("insufficient");
-    expect(result.confidence_ceiling).toBe("low");
-    expect(result.can_generate).toBe(false);
-  });
-
-  it("RG-10", () => {
-    const result = readiness(buildChecks("✗✓✓✓✓✓✓"));
-
-    expect(result.readiness).toBe("insufficient");
-    expect(result.confidence_ceiling).toBe("low");
-    expect(result.can_generate).toBe(false);
-    expect(result.blocking_gaps).toContain("step1_complete");
-  });
-
-  it("RG-11", () => {
-    const result = readiness(buildChecks("✓✗✓✓✓✓✓"));
-
-    expect(result.readiness).toBe("insufficient");
-    expect(result.confidence_ceiling).toBe("low");
-    expect(result.can_generate).toBe(false);
-  });
-
-  it("RG-12", () => {
-    const result = readiness(buildChecks("✓✓✗✓✓✓✓"));
-
-    expect(result.readiness).toBe("insufficient");
-    expect(result.confidence_ceiling).toBe("low");
-    expect(result.can_generate).toBe(false);
-  });
-
-  it("RG-13", () => {
-    const result = readiness(buildChecks("✗✗✗✓✓✓✓"));
-
-    expect(result.readiness).toBe("insufficient");
-    expect(result.confidence_ceiling).toBe("low");
-    expect(result.can_generate).toBe(false);
-    expect(result.blocking_gaps).toHaveLength(3);
-  });
-
-  it("RG-14", () => {
-    const result = readiness(buildChecks("✗✓✓✗✓✓✓"));
-
-    expect(result.readiness).toBe("insufficient");
-  });
-
-  it("RG-15", () => {
-    const result = readiness(buildChecks("✗✓✓✗✗✗✗"));
-
-    expect(result.readiness).toBe("insufficient");
-  });
-
-  it("RG-16", () => {
-    const result = readiness(buildChecks("✓✗✓✓✓✓✗"));
-
-    expect(result.readiness).toBe("insufficient");
-  });
-
-  it("RG-17", () => {
-    const result = readiness(buildChecks("✓✓✓✗✓✗✓"));
-
-    expect(result.blocking_gaps).toEqual([]);
-    expect(result.non_blocking_gaps).toEqual([
-      "medications_detailed",
-      "transcripts_verified",
-    ]);
-  });
-
-  it("RG-18", () => {
-    const result = readiness(buildChecks("✗✓✓✗✓✗✓"));
-
-    expect(result.blocking_gaps).toEqual(["step1_complete"]);
-    expect(result.non_blocking_gaps).toEqual([
-      "medications_detailed",
-      "transcripts_verified",
-    ]);
-  });
-
-  it("RG-19", () => {
-    const result = readiness(buildChecks("✓✓✓✓✓✓✗"));
-
-    expect(result.blocking_gaps).toEqual([]);
-    expect(result.non_blocking_gaps).toEqual(["ai_confirmed"]);
-  });
-
-  it("RG-20", () => {
-    const result = readiness(buildChecks("✗✓✓✓✓✓✓"));
-
-    expect(result.can_generate).toBe(false);
-    expect(result.confidence_ceiling).toBe("low");
-    expect(confidenceCeilingForGeneration(result)).toBeUndefined();
-  });
-
-  it("RG-21", () => {
-    const checks = buildChecks("✓✓✓✓✓✓✓").filter(
-      (check) => check.key !== "ai_confirmed",
-    );
-
-    expect(() => readiness(checks)).toThrow();
-  });
-
-  it("RG-22", () => {
-    const result = readiness(buildChecks("✓✓✓✓✓✓✓"));
-
-    expect(result.readiness).toBe("ready");
-    expect(result.confidence_ceiling).toBe("high");
-    expect(result.can_generate).toBe(true);
-  });
-
-  it("RG-23", () => {
-    expect(() => readiness([])).toThrow();
-  });
-
-  it("RG-24", () => {
-    const checks: ReadinessCheck[] = [
-      ...buildChecks("✓✓✓✓✓✓✓").filter(
-        (check) => check.key !== "ai_confirmed",
-      ),
-      {
-        key: "ai_confirmed",
-        label: "AI-derived fields confirmed (first)",
-        weight: "Required-for-high",
-        met: true,
-      },
-      {
-        key: "ai_confirmed",
-        label: "AI-derived fields confirmed (duplicate)",
-        weight: "Required-for-high",
-        met: false,
-      },
-    ];
-
-    const result = readiness(checks);
-
-    expect(result.readiness).toBe("ready");
-    expect(result.confidence_ceiling).toBe("high");
-    expect(result.can_generate).toBe(true);
+    it("RG-24", () => {
+      const base = buildChecks("✓✓✓✓✓✓✓").filter(
+        (c) => c.key !== "ai_confirmed",
+      );
+      const checks: ReadinessCheck[] = [
+        ...base,
+        {
+          key: "ai_confirmed",
+          label: "AI (first)",
+          weight: "Required-for-high",
+          met: true,
+        },
+        {
+          key: "ai_confirmed",
+          label: "AI (duplicate)",
+          weight: "Required-for-high",
+          met: false,
+        },
+      ];
+      assertTriple(readiness(checks), {
+        readiness: "ready",
+        confidence_ceiling: "high",
+        can_generate: true,
+      });
+    });
   });
 });

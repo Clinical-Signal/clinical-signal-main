@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 /**
- * Apply intake Drizzle SQL migrations (0001 schema + 0002 RLS).
- * Uses psql via docker when local psql is unavailable.
+ * Apply Phase 1 intake SQL migrations.
+ *
+ * Brownfield (default): supplemental + RLS only.
+ * Greenfield: set INTAKE_MIGRATE_GREENFIELD=1 to also run 0000_phase1_intake.sql.
  */
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
@@ -10,7 +12,23 @@ import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const migrationsDir = join(root, "drizzle", "migrations");
-const files = ["0001_intake_schema.sql", "0002_rls.sql"];
+
+const greenfield = process.env.INTAKE_MIGRATE_GREENFIELD === "1";
+const files = greenfield
+  ? [
+      "0000_phase1_intake.sql",
+      "0001_phase1_supplemental.sql",
+      "0002_rls.sql",
+    ]
+  : [
+      "0001_phase1_supplemental.sql",
+      "0002_rls.sql",
+      "0003_intake_token_rate_limits_and_verify.sql",
+      "0004_intake_synthesis_resolved.sql",
+      "0005_intake_token_status.sql",
+      "0006_intake_chat_messages.sql",
+      "0007_intake_chat_branches.sql",
+    ];
 
 const databaseUrl =
   process.env.DATABASE_URL ??

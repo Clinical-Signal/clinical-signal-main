@@ -69,27 +69,30 @@ describe("mergeIntakeData", () => {
     expect(result._provenance["symptoms.msq_scores"]).toBe("patient");
   });
 
-  it("preserves patient values when ai merges over the same field path", () => {
+  it("ai-over-patient provenance invariant preserves patient value and slots pending confirmation", () => {
     const existing = baseIntake({
       _provenance: {
         "why_here.what_brings_you": "patient",
       },
     });
 
+    const aiInference = "AI suggested concern";
+
     const result = mergeIntakeData(
       existing,
       {
         why_here: {
           ...existing.why_here,
-          what_brings_you: "AI suggested concern",
+          what_brings_you: aiInference,
         },
       },
       "ai",
     );
 
     expect(result.why_here.what_brings_you).toBe(existing.why_here.what_brings_you);
+    expect(result._provenance["why_here.what_brings_you"]).toBe("patient");
     expect(result._ai_confirmations["why_here.what_brings_you"]).toEqual({
-      value: "AI suggested concern",
+      value: aiInference,
       confirmed: false,
     });
   });

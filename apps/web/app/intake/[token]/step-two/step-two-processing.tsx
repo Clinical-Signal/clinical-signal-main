@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import { QuestionPlanResolved } from "@/lib/intake/schemas/question-plan.schema";
+
 type ProcessingState = "loading" | "error";
 
 type StepTwoProcessingProps = {
@@ -28,7 +30,7 @@ export function StepTwoProcessing({ token }: StepTwoProcessingProps) {
         );
       } catch (error) {
         if (!cancelled) {
-          console.error("[step-two-processing] analyze fetch failed", error);
+          console.error("[step-two-processing] analyze_fetch_failed", error);
           setState("error");
         }
         return;
@@ -40,7 +42,7 @@ export function StepTwoProcessing({ token }: StepTwoProcessingProps) {
 
       if (response.status >= 500) {
         console.error(
-          "[step-two-processing] analyze server error",
+          "[step-two-processing] analyze_server_error",
           response.status,
         );
         setState("error");
@@ -49,34 +51,38 @@ export function StepTwoProcessing({ token }: StepTwoProcessingProps) {
 
       if (!response.ok) {
         console.error(
-          "[step-two-processing] analyze client error",
+          "[step-two-processing] analyze_client_error",
           response.status,
         );
         setState("error");
         return;
       }
 
+      let body: unknown;
       try {
-        const payload = (await response.json()) as {
-          question_plan?: unknown;
-        };
-        if (!Array.isArray(payload.question_plan)) {
-          console.error(
-            "[step-two-processing] analyze response missing question_plan",
-          );
-          setState("error");
-          return;
-        }
+        body = await response.json();
       } catch (error) {
         if (!cancelled) {
-          console.error(
-            "[step-two-processing] analyze response parse failed",
-            error,
-          );
+          console.error("[step-two-processing] analyze_json_failed", error);
           setState("error");
         }
         return;
       }
+
+      const parsed = QuestionPlanResolved.safeParse(body);
+      if (!parsed.success) {
+        console.error(
+          "[step-two-processing] analyze_plan_invalid",
+          parsed.error.flatten(),
+        );
+        setState("error");
+        return;
+      }
+
+      console.error("[step-two-processing] analyze_ok", {
+        analysisDegraded: parsed.data.analysis_degraded,
+        moduleCount: parsed.data.question_plan.length,
+      });
 
       router.refresh();
     }

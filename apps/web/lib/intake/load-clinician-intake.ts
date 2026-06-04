@@ -1,5 +1,5 @@
 import { writeAudit } from "@/lib/audit/write-audit";
-import { requireAuth } from "@/lib/auth/require-auth";
+import { requireAuth, type Session } from "@/lib/auth/require-auth";
 import { patientBelongsToTenant } from "@/lib/auth/patient-belongs-to-tenant";
 import type { IntakeStatus } from "@/lib/db/schema/patients-intake";
 import {
@@ -32,14 +32,15 @@ export class ClinicianIntakeAccessError extends Error {
 export async function resolveClinicianIntakeByToken(
   rawToken: string,
   clientIp: string,
+  session?: Session,
 ): Promise<ClinicianIntakeReview> {
-  const session = await requireAuth();
+  const auth = session ?? (await requireAuth());
   const verified = await getIntakeTokenService().verify({
     rawToken,
     clientIp,
   });
 
-  await assertClinicianMayAccessPatient(session.tenantId, verified);
+  await assertClinicianMayAccessPatient(auth.tenantId, verified);
 
   const state = await getPatientIntakeState(verified.tenantId, verified.patientId);
   if (!state) {
@@ -54,7 +55,7 @@ export async function loadClinicianIntakeByToken(
   clientIp: string,
 ): Promise<ClinicianIntakeReview> {
   const session = await requireAuth();
-  const review = await resolveClinicianIntakeByToken(rawToken, clientIp);
+  const review = await resolveClinicianIntakeByToken(rawToken, clientIp, session);
 
   await writeAudit({
     tenantId: review.tenantId,

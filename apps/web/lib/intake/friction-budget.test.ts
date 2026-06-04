@@ -1,12 +1,46 @@
+/**
+ * Friction Budget — Phase 2 TDD scaffold.
+ * Matrix: docs/architecture/phase-2-test-matrix.md §4 (FB-01–FB-22), inputs §0.3.
+ *
+ * Lightweight contract mocks until question-plan Zod wires `friction_budget`.
+ */
 import { describe, expect, it } from "vitest";
+import { applyFrictionBudget } from "./friction-budget";
 
-import {
-  applyFrictionBudget,
-  type FrictionBudgetConfig,
-  type FrictionBudgetModuleInput,
-  type FrictionBudgetQuestion,
-  type FrictionBudgetResult,
-} from "./friction-budget";
+type FrictionBudgetQuestion = {
+  id: string;
+  priority: "must_have" | "nice_to_have";
+};
+
+type FrictionBudgetModuleInput = {
+  module_key: string;
+  is_deterministic: boolean;
+  questions: FrictionBudgetQuestion[];
+};
+
+type FrictionBudgetConfig = {
+  max_augmented_modules: number;
+  max_questions_per_module: number;
+  max_total_augmented_questions: number;
+};
+
+type FrictionBudgetModuleOutput = FrictionBudgetModuleInput & {
+  was_budget_suppressed: boolean;
+  questions_trimmed_count: number;
+};
+
+type FrictionBudgetTrimReport = {
+  module_key: string;
+  trimmed_count: number;
+};
+
+type FrictionBudgetResult = {
+  modules: FrictionBudgetModuleOutput[];
+  deterministic_count: number;
+  augmented_count: number;
+  suppressed: string[];
+  trimmed: FrictionBudgetTrimReport[];
+};
 
 type QuestionPriority = FrictionBudgetQuestion["priority"];
 
@@ -32,14 +66,13 @@ function budgetConfig(overrides: {
   };
 }
 
+/** `6D(2M+1N)` or bare `0A` / `0D` (zero modules, FB-22). Question group optional when count is 0. */
 const MODULE_SEGMENT =
-  /^(\d+)([DA])\((\d+)M\+(\d+)N\)$/;
-
-const ZERO_MODULE_SEGMENT = /^0([DA])$/;
+  /^(\d+)([DA])(?:\((\d+)M\+(\d+)N\))?$/;
 
 /**
  * Builds module inputs from §0.3 notation, e.g. `3D(3M+2N)` or
- * `2D(3M+2N) + 2A(2M+2N)`.
+ * `2D(3M+2N) + 2A(2M+2N)` or `6D(2M+1N) + 0A`.
  */
 function buildModulesFromNotation(notation: string): FrictionBudgetModuleInput[] {
   const normalized = notation.replace(/\s+/g, " ").trim();
@@ -57,19 +90,19 @@ function buildModulesFromNotation(notation: string): FrictionBudgetModuleInput[]
       continue;
     }
 
-    if (ZERO_MODULE_SEGMENT.test(trimmed)) {
-      continue;
-    }
-
     const match = MODULE_SEGMENT.exec(trimmed);
     if (!match) {
       throw new Error(`Invalid friction-budget notation segment: ${segment}`);
     }
 
     const count = Number(match[1]);
+    if (count === 0) {
+      continue;
+    }
+
     const kind = match[2];
-    const mustCount = Number(match[3]);
-    const niceCount = Number(match[4]);
+    const mustCount = Number(match[3] ?? 0);
+    const niceCount = Number(match[4] ?? 0);
     const isDeterministic = kind === "D";
 
     for (let moduleIndex = 0; moduleIndex < count; moduleIndex += 1) {
@@ -126,16 +159,11 @@ function niceCount(module: FrictionBudgetResult["modules"][number]): number {
   ).length;
 }
 
-function totalQuestions(
-  modules: FrictionBudgetResult["modules"],
-): number {
-  return modules.reduce(
-    (sum, module) => sum + questionCount(module),
-    0,
-  );
+function totalQuestions(modules: FrictionBudgetResult["modules"]): number {
+  return modules.reduce((sum, module) => sum + questionCount(module), 0);
 }
 
-describe("friction budget (§4 Friction Budget Matrix)", () => {
+describe("friction budget (PRD §5.3)", () => {
   it("FB-01", () => {
     const result = applyFrictionBudget([]);
 
@@ -275,6 +303,7 @@ describe("friction budget (§4 Friction Budget Matrix)", () => {
     expect(renderedModules(result)).toHaveLength(4);
     expect(suppressedModules(result)).toHaveLength(1);
     expect(suppressedModules(result)[0]?.was_budget_suppressed).toBe(true);
+    expect(suppressedModules(result)[0]?.module_key).toBe("aug_5");
   });
 
   it("FB-13", () => {

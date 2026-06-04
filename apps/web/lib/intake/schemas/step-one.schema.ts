@@ -1,6 +1,7 @@
 /**
- * Step-1 intake schemas (legacy-aligned field names).
- * Implementation lives in `./step-one/` slices; this file re-exports for stable imports.
+ * Step-1 intake schemas (PRD §2.1 / Phase 2.1).
+ * Slices: About You, Why Here, Symptoms (MSQ), Lifestyle (+ medications, hormones,
+ * previous_labs for deterministic triggers via `toStepOneTriggerInput`).
  */
 export {
   AboutYouSchema,

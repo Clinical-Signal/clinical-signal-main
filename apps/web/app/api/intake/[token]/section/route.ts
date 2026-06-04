@@ -160,6 +160,7 @@ export async function POST(
 
     return NextResponse.json({
       savedAt,
+      section: parsedBody.data.section,
       intakeStatus: existing.intakeStatus,
       intakeData: merged,
     });

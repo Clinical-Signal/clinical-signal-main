@@ -56,6 +56,7 @@ AS $$
     FROM intake_tokens
    WHERE patient_id = p_patient_id
      AND revoked_at IS NULL
+     AND status = 'pending'
    LIMIT 1;
 $$;
 

@@ -1,6 +1,11 @@
 "use client";
 
 import { scheduleAutoAdvance } from "./auto-advance-delay";
+import {
+  chipBaseClass,
+  chipIdleClass,
+  chipSelectedClass,
+} from "./field-styles";
 
 const BRISTOL_OPTIONS = [
   { value: "1", label: "Type 1" },
@@ -35,10 +40,8 @@ export function BristolControl({
             type="button"
             disabled={disabled}
             aria-pressed={isSelected}
-            className={`min-h-12 rounded-md border px-3 text-sm font-medium ${
-              isSelected
-                ? "border-accent bg-accent-soft text-accent"
-                : "border-line-strong bg-surface text-ink"
+            className={`${chipBaseClass} rounded-md px-3 text-sm ${
+              isSelected ? chipSelectedClass : chipIdleClass
             }`}
             onClick={() => {
               onChange(option.value);

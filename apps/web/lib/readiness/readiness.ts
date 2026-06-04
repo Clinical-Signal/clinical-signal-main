@@ -2,27 +2,19 @@ import type { ReadinessCheck, ReadinessResult } from "./readiness.types";
 
 export type { ReadinessCheck, ReadinessResult } from "./readiness.types";
 
-function gapIdentifier(check: ReadinessCheck): string {
-  return check.detail ?? check.key;
-}
-
+/**
+ * Pure Protocol Readiness Gate (PRD §5.1, ADR-001 §5).
+ * Caller must always include an `ai_confirmed` check (met when no AI fields exist).
+ */
 export function readiness(checks: ReadinessCheck[]): ReadinessResult {
-  const aiCheck = checks.find((check) => check.key === "ai_confirmed");
-  if (!aiCheck) {
-    throw new Error(
-      "ReadinessCheck invariant violated: ai_confirmed check is required",
-    );
+  const aiCheck = checks.find((c) => c.key === "ai_confirmed");
+  if (aiCheck === undefined) {
+    throw new Error("readiness: missing required ai_confirmed check");
   }
 
-  const blocking = checks.filter(
-    (check) => check.weight === "Required" && !check.met,
-  );
-  const highGaps = checks.filter(
-    (check) => check.weight === "High" && !check.met,
-  );
-  const medGaps = checks.filter(
-    (check) => check.weight === "Medium" && !check.met,
-  );
+  const blocking = checks.filter((c) => c.weight === "Required" && !c.met);
+  const highGaps = checks.filter((c) => c.weight === "High" && !c.met);
+  const medGaps = checks.filter((c) => c.weight === "Medium" && !c.met);
   const aiUnconfirmed = !aiCheck.met;
 
   const readinessLevel: ReadinessResult["readiness"] =
@@ -43,17 +35,22 @@ export function readiness(checks: ReadinessCheck[]): ReadinessResult {
 
   const can_generate = readinessLevel !== "insufficient";
 
-  const nonBlockingChecks = [
-    ...highGaps,
-    ...medGaps,
-    ...(aiUnconfirmed ? [aiCheck] : []),
-  ];
+  const blocking_gaps = blocking.map((c) => c.key);
+  const non_blocking_gaps = checks
+    .filter(
+      (c) =>
+        !c.met &&
+        (c.weight === "High" ||
+          c.weight === "Medium" ||
+          c.weight === "Required-for-high"),
+    )
+    .map((c) => c.key);
 
   return {
     readiness: readinessLevel,
     confidence_ceiling,
-    blocking_gaps: blocking.map(gapIdentifier),
-    non_blocking_gaps: nonBlockingChecks.map(gapIdentifier),
+    blocking_gaps,
+    non_blocking_gaps,
     can_generate,
   };
 }

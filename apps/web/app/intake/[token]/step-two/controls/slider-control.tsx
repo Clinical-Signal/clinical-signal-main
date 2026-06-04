@@ -10,6 +10,7 @@ type SliderControlProps = {
   disabled?: boolean;
 };
 
+/** Sliders intentionally omit auto-advance — users adjust before confirming via Next. */
 export function SliderControl({
   control,
   value,

@@ -62,12 +62,13 @@ export function CopyEmrButton({ synthesis }: CopyEmrButtonProps) {
       variant="secondary"
       onClick={() => void copyToEmr()}
       aria-live="polite"
+      className={copied ? "min-w-[8.5rem]" : undefined}
     >
       {copied ? (
-        <>
+        <span className="inline-flex items-center gap-2">
           <CheckIcon />
           Copied!
-        </>
+        </span>
       ) : (
         "Copy to EMR"
       )}

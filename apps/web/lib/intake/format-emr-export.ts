@@ -8,6 +8,17 @@ import type { SynthesisResolved } from "./schemas/synthesis-resolved.schema";
 
 const SECTION_HEADING = /^##\s+(.+)$/;
 
+/** Canonical CC → HPI → ROS order for EMR paste (matches synthesis schema). */
+const CLINICAL_SECTION_ORDER: Record<string, number> = {
+  "chief complaint": 0,
+  "history of present illness (hpi)": 1,
+  "review of systems (ros)": 2,
+};
+
+function clinicalSectionSortKey(title: string): number {
+  return CLINICAL_SECTION_ORDER[title.trim().toLowerCase()] ?? 50;
+}
+
 const PRIORITY_ORDER: Record<SuggestedNextStepPriority, number> = {
   high: 0,
   medium: 1,
@@ -44,6 +55,19 @@ function stripInlineMarkdown(line: string): string {
   return text.trimEnd();
 }
 
+function isSkippableMarkdownLine(trimmed: string): boolean {
+  if (trimmed.startsWith("|") && trimmed.includes("|")) {
+    return true;
+  }
+  if (/^!\[.*\]\(.*\)$/.test(trimmed)) {
+    return true;
+  }
+  if (/^<[^>]+>.*<\/[^>]+>$/.test(trimmed)) {
+    return true;
+  }
+  return false;
+}
+
 function plainifyMarkdownBody(markdown: string): string {
   const lines = markdown.split("\n");
   const output: string[] = [];
@@ -59,6 +83,10 @@ function plainifyMarkdownBody(markdown: string): string {
 
     if (inFence) {
       output.push(raw);
+      continue;
+    }
+
+    if (isSkippableMarkdownLine(trimmed)) {
       continue;
     }
 
@@ -115,7 +143,9 @@ function parseSummarySections(markdown: string): Array<{ title: string; body: st
 }
 
 function formatClinicalSummary(clinicalSummary: string): string {
-  const sections = parseSummarySections(clinicalSummary);
+  const sections = [...parseSummarySections(clinicalSummary)].sort(
+    (a, b) => clinicalSectionSortKey(a.title) - clinicalSectionSortKey(b.title),
+  );
   const blocks = sections.map((section) => {
     const body = plainifyMarkdownBody(section.body);
     return `${headingBlock(section.title)}\n\n${body || "(No content provided.)"}`;

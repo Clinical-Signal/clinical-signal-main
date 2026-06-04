@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -8,7 +9,7 @@ type SendState = "idle" | "sending" | "success" | "error";
 
 export type SendIntakeButtonProps = {
   patientId: string;
-  /** When true, intake is finalized — copy warns before reissuing a new link. */
+  /** When true, intake is finalized — confirm before reissuing a new magic link. */
   intakeFinished?: boolean;
 };
 
@@ -22,15 +23,18 @@ export function SendIntakeButton({
   patientId,
   intakeFinished = false,
 }: SendIntakeButtonProps) {
+  const router = useRouter();
   const [sendState, setSendState] = useState<SendState>("idle");
   const [feedback, setFeedback] = useState<string | null>(null);
 
-  const label =
-    sendState === "success"
-      ? "Link sent"
-      : intakeFinished
-        ? "Reissue intake link"
-        : "Send intake link";
+  const isSending = sendState === "sending";
+  const isSuccess = sendState === "success";
+
+  const label = isSuccess
+    ? "Link sent"
+    : intakeFinished
+      ? "Reissue Intake Link"
+      : "Send Intake Link";
 
   const handleSend = useCallback(async () => {
     if (intakeFinished) {
@@ -55,11 +59,13 @@ export function SendIntakeButton({
 
       if (!response.ok) {
         setSendState("error");
-        setFeedback(
-          body.error === "NOT_AUTHENTICATED"
-            ? "Sign in to send intake links."
-            : "Could not send the intake link. Try again.",
-        );
+        if (body.error === "NOT_AUTHENTICATED") {
+          setFeedback("Sign in to send intake links.");
+        } else if (body.error === "ACTIVE_TOKEN_EXISTS") {
+          setFeedback("An active link already exists. Refresh the page or try again.");
+        } else {
+          setFeedback("Could not send the intake link. Try again.");
+        }
         return;
       }
 
@@ -69,25 +75,26 @@ export function SendIntakeButton({
         : "Intake link sent.";
       const urlLine = body.intakeUrl ? ` Open: ${body.intakeUrl}` : "";
       setFeedback(`${emailLine}${urlLine}`);
+      router.refresh();
     } catch {
       setSendState("error");
       setFeedback("Network error — check your connection and try again.");
     }
-  }, [intakeFinished, patientId]);
+  }, [intakeFinished, patientId, router]);
 
   return (
     <div className="flex flex-col items-end gap-1.5">
       <Button
         type="button"
-        variant={sendState === "success" ? "secondary" : "primary"}
+        variant={isSuccess ? "secondary" : "primary"}
         size="sm"
-        loading={sendState === "sending"}
+        loading={isSending}
         loadingText="Sending…"
         onClick={() => void handleSend()}
-        disabled={sendState === "sending"}
+        disabled={isSending}
         aria-live="polite"
       >
-        {sendState === "success" ? (
+        {isSuccess ? (
           <span className="inline-flex items-center gap-1.5">
             <CheckIcon />
             {label}
@@ -98,7 +105,7 @@ export function SendIntakeButton({
       </Button>
       {feedback ? (
         <p
-          className={`max-w-[16rem] text-right text-xs ${
+          className={`max-w-[18rem] text-right text-xs leading-snug ${
             sendState === "error" ? "text-danger" : "text-ink-muted"
           }`}
           role="status"

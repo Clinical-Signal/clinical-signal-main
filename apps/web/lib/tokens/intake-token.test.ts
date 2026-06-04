@@ -129,6 +129,34 @@ describe("intake-token service", () => {
     ).rejects.toMatchObject({ code: "invalid_token" });
   });
 
+  it("rate limits successful verifications per token", async () => {
+    const config = {
+      ...INTAKE_TOKEN_DEFAULTS,
+      rateLimitPerMin: 2,
+      ipRateLimitPerMin: 100,
+      lockoutFailureThreshold: 10,
+      lockoutDurationMs: 60_000,
+    };
+    const store = new InMemoryIntakeTokenStore();
+    const rateLimiter = new InMemoryIntakeTokenRateLimiter(config);
+    const service = createIntakeTokenService(store, rateLimiter, config, {
+      randomToken: () => "rate-limit-token",
+    });
+
+    const minted = await service.mint({
+      patientId: PATIENT_ID,
+      tenantId: TENANT_ID,
+      createdBy: CREATED_BY,
+    });
+
+    await service.verify({ rawToken: minted.token, clientIp: CLIENT_IP });
+    await service.verify({ rawToken: minted.token, clientIp: CLIENT_IP });
+
+    await expect(
+      service.verify({ rawToken: minted.token, clientIp: CLIENT_IP }),
+    ).rejects.toMatchObject({ code: "rate_limited" });
+  });
+
   it("locks out after the configured failure threshold", async () => {
     const { service } = createTestHarness({
       randomToken: () => "valid-token-value",
@@ -192,6 +220,35 @@ describe("intake-token service", () => {
     await expect(
       service.verify({ rawToken: minted.token, clientIp: CLIENT_IP }),
     ).rejects.toMatchObject({ code: "completed" });
+  });
+
+  it("inspectGate persists expired status when TTL has passed", async () => {
+    const past = new Date("2020-01-01T00:00:00.000Z");
+    const { store, service } = createTestHarness({
+      randomToken: () => "gate-expired-token",
+      now: () => new Date("2025-01-01T00:00:00.000Z"),
+    });
+
+    const minted = await service.mint({
+      patientId: PATIENT_ID,
+      tenantId: TENANT_ID,
+      createdBy: CREATED_BY,
+    });
+
+    const record = await store.findById(minted.tokenId);
+    expect(record).not.toBeNull();
+    await store.update({
+      ...record!,
+      expiresAt: past,
+    });
+
+    await expect(service.inspectGate(minted.token)).resolves.toEqual({
+      allowed: false,
+      reason: "expired",
+    });
+
+    const updated = await store.findById(minted.tokenId);
+    expect(updated?.status).toBe("expired");
   });
 
   it("inspectGate blocks completed tokens without rate limiting", async () => {

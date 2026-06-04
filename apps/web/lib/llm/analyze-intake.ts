@@ -5,31 +5,26 @@ import type { MessageParam } from "@anthropic-ai/sdk/resources/messages.mjs";
 
 import type { IntakeData } from "@/lib/intake/schemas/intake-data.schema";
 import {
-  QuestionPlanLLMOutput,
-  type QuestionPlanLLMOutput as QuestionPlanLLMOutputType,
+  IntakeIssueIdentificationOutput,
+  type IntakeIssueIdentificationOutput as IntakeIssueIdentificationOutputType,
 } from "@/lib/intake/schemas/question-plan.schema";
 import { DEFAULT_MODEL, stripCodeFences } from "@/lib/llm";
 
-export const INTAKE_DYNAMIC_QUESTIONS_PROMPT_FILE =
-  "intake_dynamic_questions_v1.md";
+export const INTAKE_ISSUE_IDENTIFICATION_PROMPT_FILE =
+  "intake_issue_identification_v1.md";
 
 /** Persisted alongside successful analyze results (immutable prompt artifact version). */
-export const INTAKE_DYNAMIC_QUESTIONS_PROMPT_VERSION = "v1" as const;
+export const INTAKE_ISSUE_IDENTIFICATION_PROMPT_VERSION = "v1" as const;
 
-const PROMPT_RELATIVE = path.join(
-  "services",
-  "analysis-engine",
-  "prompts",
-  INTAKE_DYNAMIC_QUESTIONS_PROMPT_FILE,
-);
+const PROMPTS_DIR = path.join("services", "analysis-engine", "prompts");
 
-const MAX_OUTPUT_TOKENS = 4096;
+const MAX_OUTPUT_TOKENS = 2048;
 const MAX_PARSE_ATTEMPTS = 2;
 
 export type AnalyzeIntakeSuccess = {
-  plan: QuestionPlanLLMOutputType;
+  output: IntakeIssueIdentificationOutputType;
   modelId: string;
-  promptVersion: typeof INTAKE_DYNAMIC_QUESTIONS_PROMPT_VERSION;
+  promptVersion: typeof INTAKE_ISSUE_IDENTIFICATION_PROMPT_VERSION;
 };
 
 type TextBlock = { type: "text"; text: string };
@@ -55,30 +50,34 @@ export type AnalyzeIntakeDependencies = {
   modelId?: string;
 };
 
-function resolvePromptPath(): string {
+function resolvePromptPath(fileName: string): string {
+  const relative = path.join(PROMPTS_DIR, fileName);
   const candidates = [
-    path.join(process.cwd(), PROMPT_RELATIVE),
-    path.join(process.cwd(), "..", "..", PROMPT_RELATIVE),
+    path.join(process.cwd(), relative),
+    path.join(process.cwd(), "..", "..", relative),
   ];
   for (const candidate of candidates) {
     if (existsSync(candidate)) {
       return candidate;
     }
   }
-  throw new Error(
-    `Missing system prompt at ${PROMPT_RELATIVE} (cwd=${process.cwd()})`,
-  );
+  throw new Error(`Missing system prompt at ${relative} (cwd=${process.cwd()})`);
 }
 
-let cachedSystemPrompt: string | undefined;
+const promptCache = new Map<string, string>();
 
-/** Loads the PHI-free system prompt from the analysis-engine prompts directory. */
-export function loadIntakeDynamicQuestionsPrompt(): string {
-  if (cachedSystemPrompt !== undefined) {
-    return cachedSystemPrompt;
+/** Loads the PHI-free issue-identification system prompt from the analysis-engine prompts directory. */
+export function loadIntakeIssueIdentificationPrompt(): string {
+  const cached = promptCache.get(INTAKE_ISSUE_IDENTIFICATION_PROMPT_FILE);
+  if (cached !== undefined) {
+    return cached;
   }
-  cachedSystemPrompt = readFileSync(resolvePromptPath(), "utf-8");
-  return cachedSystemPrompt;
+  const text = readFileSync(
+    resolvePromptPath(INTAKE_ISSUE_IDENTIFICATION_PROMPT_FILE),
+    "utf-8",
+  );
+  promptCache.set(INTAKE_ISSUE_IDENTIFICATION_PROMPT_FILE, text);
+  return text;
 }
 
 function extractResponseText(message: AnthropicMessageResult): string {
@@ -91,10 +90,10 @@ function extractResponseText(message: AnthropicMessageResult): string {
   return text;
 }
 
-function parseModelOutput(raw: string): QuestionPlanLLMOutputType {
+function parseModelOutput(raw: string): IntakeIssueIdentificationOutputType {
   const jsonText = stripCodeFences(raw);
   const parsed: unknown = JSON.parse(jsonText);
-  return QuestionPlanLLMOutput.parse(parsed);
+  return IntakeIssueIdentificationOutput.parse(parsed);
 }
 
 async function defaultCreateMessage(
@@ -117,15 +116,15 @@ async function defaultCreateMessage(
 }
 
 /**
- * Runs the intake dynamic-questions LLM call. Returns null after two parse failures,
- * missing configuration, or any runtime error so the caller can use fallback banks.
+ * Runs the intake issue-identification LLM call. Returns null after two parse failures,
+ * missing configuration, or any runtime error so the caller can use the degraded path.
  */
 export async function analyzeIntake(
   intakeData: IntakeData,
   deps: AnalyzeIntakeDependencies = {},
 ): Promise<AnalyzeIntakeSuccess | null> {
   try {
-    const loadPrompt = deps.loadSystemPrompt ?? loadIntakeDynamicQuestionsPrompt;
+    const loadPrompt = deps.loadSystemPrompt ?? loadIntakeIssueIdentificationPrompt;
     const systemPrompt = loadPrompt();
     const modelId = deps.modelId ?? process.env.ANTHROPIC_MODEL ?? DEFAULT_MODEL;
     const createMessage = deps.createMessage ?? defaultCreateMessage;
@@ -157,11 +156,11 @@ export async function analyzeIntake(
 
       try {
         const text = extractResponseText(message);
-        const plan = parseModelOutput(text);
+        const output = parseModelOutput(text);
         return {
-          plan,
+          output,
           modelId,
-          promptVersion: INTAKE_DYNAMIC_QUESTIONS_PROMPT_VERSION,
+          promptVersion: INTAKE_ISSUE_IDENTIFICATION_PROMPT_VERSION,
         };
       } catch (error) {
         console.error(

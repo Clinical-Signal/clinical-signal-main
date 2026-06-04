@@ -1,3 +1,6 @@
+/**
+ * Friction budget — pure enforcement per PRD §5.3 and matrix §1.2 (D-FB-1–D-FB-6).
+ */
 export type FrictionBudgetQuestion = {
   id: string;
   priority: "must_have" | "nice_to_have";
@@ -86,14 +89,15 @@ function totalAugmentedQuestions(
 function recordTrim(
   trimmed: FrictionBudgetTrimReport[],
   moduleKey: string,
+  count: number,
 ): void {
   const existing = trimmed.find((entry) => entry.module_key === moduleKey);
   if (existing) {
-    existing.trimmed_count += 1;
+    existing.trimmed_count += count;
     return;
   }
 
-  trimmed.push({ module_key: moduleKey, trimmed_count: 1 });
+  trimmed.push({ module_key: moduleKey, trimmed_count: count });
 }
 
 function findLastNiceToHaveIndex(
@@ -108,6 +112,7 @@ function findLastNiceToHaveIndex(
   return -1;
 }
 
+/** D-FB-3 / D-FB-5: trim nice-to-have from tail across augmented modules until total ≤ cap. */
 function applyTotalAugmentedQuestionCap(
   modules: FrictionBudgetModuleOutput[],
   maxTotalAugmentedQuestions: number,
@@ -137,7 +142,7 @@ function applyTotalAugmentedQuestionCap(
         (_, questionIndex) => questionIndex !== niceIndex,
       );
       module.questions_trimmed_count += 1;
-      recordTrim(trimmed, module.module_key);
+      recordTrim(trimmed, module.module_key, 1);
       total -= 1;
       removed = true;
       break;
@@ -199,10 +204,7 @@ export function applyFrictionBudget(
     });
 
     if (perModuleTrim.trimmedCount > 0) {
-      trimmed.push({
-        module_key: module.module_key,
-        trimmed_count: perModuleTrim.trimmedCount,
-      });
+      recordTrim(trimmed, module.module_key, perModuleTrim.trimmedCount);
     }
   }
 

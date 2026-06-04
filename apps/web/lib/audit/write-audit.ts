@@ -1,6 +1,6 @@
 /**
  * Intake module audit writer stub (PRD Phase 0.6 / C-AUDIT).
- * Separate from legacy `@/lib/audit` — inserts audit_log + patient_timeline when wired.
+ * Phase 1+: insert audit_log + paired patient_timeline when entity === 'patient'.
  */
 export type IntakeAuditEntity = "patient" | "intake_document" | "protocol" | "token";
 
@@ -19,5 +19,4 @@ export async function writeAudit(input: IntakeAuditInput): Promise<void> {
   }
 
   void input;
-  // Phase 0: no-op in development until Phase 1 DB wiring.
 }

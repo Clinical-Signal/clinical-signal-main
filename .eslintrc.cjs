@@ -12,24 +12,33 @@ module.exports = {
   },
   plugins: ["@typescript-eslint", "c-tokens"],
   extends: ["eslint:recommended"],
+  ignorePatterns: [
+    "node_modules/",
+    "dist/",
+    ".next/",
+    "coverage/",
+    "pnpm-lock.yaml",
+  ],
   overrides: [
     {
       files: [
-        "apps/web/lib/intake/**/*.{ts,tsx}",
-        "apps/web/lib/readiness/**/*.{ts,tsx}",
-        "apps/web/lib/transcription/**/*.{ts,tsx}",
-        "apps/web/lib/tokens/**/*.{ts,tsx}",
-        "apps/web/lib/llm/**/*.{ts,tsx}",
         "apps/web/lib/env.ts",
-        "apps/web/lib/env.test.ts",
         "apps/web/lib/auth/**/*.{ts,tsx}",
         "apps/web/lib/audit/**/*.{ts,tsx}",
-        "apps/web/app/intake/**/*.{ts,tsx}",
-        "apps/web/styles/**/*.css",
+        "apps/web/app/intake/**/*.{ts,tsx,css}",
       ],
       excludedFiles: ["**/apps/web/styles/tokens.css"],
       rules: {
         "c-tokens/no-raw-color-literal": "error",
+      },
+    },
+    {
+      files: ["apps/web/app/intake/**/*.{ts,tsx}"],
+      env: { browser: true },
+      parserOptions: { ecmaFeatures: { jsx: true } },
+      rules: {
+        "no-undef": "off",
+        "no-unused-vars": "off",
       },
     },
   ],

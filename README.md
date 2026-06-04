@@ -1,55 +1,56 @@
 # Clinical Signal
 
-Enterprise-grade clinical intake and AI-assisted documentation for functional health practices. Patients complete a structured, token-gated intake; the platform routes them through deterministic and LLM-augmented deep dives, then gives clinicians a review surface with persisted clinical synthesis and EMR-ready export.
+Enterprise clinical intake and AI-assisted documentation for functional health practices. Patients complete a token-gated, multi-step intake; the platform applies deterministic routing and Anthropic-backed analysis with strict validation; clinicians review structured data, generate persisted clinical synthesis, and export EMR-ready plain text.
 
-For product context see `CLAUDE.md`. For infrastructure migration status see the deployment note below and `infrastructure/aws/README.md`.
+**Handoff context:** Product scope and practitioner workflow are documented in [`CLAUDE.md`](CLAUDE.md). Platform architecture is in [`ARCHITECTURE.md`](ARCHITECTURE.md). AWS migration status is in [`infrastructure/aws/README.md`](infrastructure/aws/README.md).
 
-> **Deployment status (2026):** Hosted Aptible/Railway environments are retired. AWS bring-up is in progress. **Local development via Docker Compose is the supported path** until production is wired.
+> **Deployment (2026):** Production hosting is in transition to AWS. **Local development via Docker Compose is the supported path** until cloud environments are wired.
 
 ---
 
 ## Overview
 
-Clinical Signal implements an **agentic intake pipeline** with explicit safety boundaries: every model output is validated, capped, and auditable before it reaches a patient or clinician UI.
+Clinical Signal implements an **agentic intake pipeline** with explicit safety boundaries: model output is treated as untrusted input, validated with Zod, capped by a friction budget, and auditable before it reaches patient or clinician surfaces.
 
 | Phase | Capability | Primary surfaces |
 |-------|------------|------------------|
-| **1–3** | Token-gated patient intake, Step 1 (legacy-aligned sections), autosave, audit | `/intake/[token]`, `POST /api/intake/[token]/section` |
-| **4** | Dynamic Step 2 question plan (deterministic triggers + Anthropic) | `POST /api/intake/[token]/analyze`, Step 2 UI |
-| **5–6** | Clinician read-only review + clinical synthesis (CC/HPI/ROS) | `/clinician/intake/[token]`, `POST /api/clinician/intake/[token]/synthesize` |
-| **7** | Persisted synthesis + EMR plain-text export | `step_two._synthesis_resolved`, Copy to EMR |
-| **8** | Demo seed patients for sales/engineering | `pnpm run seed:demo` (in `apps/web`) |
+| **1–3** | Magic-link intake, Step 1 (baseline sections), autosave, audit | `/intake/[token]`, `GET/POST /api/intake/[token]/*` |
+| **4** | Step 1 analyze → Step 2 question plan (deterministic triggers + LLM issue ID + static banks) | `POST /api/intake/[token]/analyze`, Step 2 UI |
+| **5–6** | Clinician review + clinical synthesis (CC / HPI / ROS) | `/clinician/intake/[token]`, `POST /api/clinician/intake/[token]/synthesize` |
+| **7** | Persisted synthesis + EMR export | `intake_data.step_two._synthesis_resolved`, Copy to EMR |
+| **8** | Demo seed patients | `pnpm run seed:demo` (in `apps/web`) |
 
 ### End-to-end workflow
 
 ```mermaid
 sequenceDiagram
-  participant P as Patient (token link)
-  participant API as Intake API
+  participant P as Patient (magic link)
+  participant API as Next.js Intake API
   participant LLM as Anthropic
   participant DB as PostgreSQL (RLS)
-  participant C as Clinician
+  participant C as Clinician (authenticated)
 
   P->>API: Step 1 sections (autosave)
   P->>API: POST /api/intake/[token]/analyze
-  API->>DB: Load intake_data
-  API->>API: Deterministic triggers (Step 1 rules)
-  API->>LLM: analyzeIntake (optional)
-  LLM-->>API: QuestionPlanLLMOutput (Zod-validated)
+  API->>DB: Load intake_data (tenant context)
+  API->>API: Deterministic triggers from Step 1
+  API->>LLM: analyzeIntake (issue identification)
+  LLM-->>API: IntakeIssueIdentificationOutput (Zod)
   API->>API: buildResolvedQuestionPlan + friction budget
   API->>DB: Persist step_two._question_plan_resolved
   P->>API: Step 2 answers (per control)
-  C->>API: Clinician review (auth + token)
+  C->>API: GET clinician review (auth + token)
   C->>API: POST .../synthesize
   API->>LLM: synthesizeNote
+  LLM-->>API: ClinicalSynthesisOutput (Zod)
   API->>DB: Persist step_two._synthesis_resolved
   C->>C: Copy to EMR (formatForEMR)
 ```
 
-1. **Step 1** — Patient completes baseline intake (demographics, MSQ, lifestyle, hormones, etc.) via magic link. Data lands in `patients.intake_data` JSONB with provenance metadata.
-2. **Analyze** — After Step 1, the patient (or orchestration) calls the analyze endpoint. The server derives **deterministic module keys** from Step 1 (e.g. digestive MSQ → `gut_deep_dive`), optionally calls **Anthropic** for augmented modules, merges results, applies the **friction budget**, and stores a resolved plan at `intake_data.step_two._question_plan_resolved`.
-3. **Step 2** — The patient answers only the questions in the resolved plan (typed controls: yes/no, chips, slider, free text, numeric, Bristol).
-4. **Clinician review** — Authenticated practitioners open `/clinician/intake/[token]` to read Step 1 + Step 2, generate a **clinical synthesis** draft, and copy a flattened note into an external EMR.
+1. **Step 1** — Patient completes baseline intake (demographics, MSQ, lifestyle, hormones, history, etc.) via an unauthenticated magic link. Responses are stored in `patients.intake_data` (JSONB) with provenance metadata (`_provenance`, `_ai_confirmations`, `_analysis_degraded`).
+2. **Analyze** — After Step 1, `POST /api/intake/[token]/analyze` runs the unified pipeline: deterministic module keys (e.g. digestive MSQ → `gut_deep_dive`), optional **issue identification** via Anthropic, assembly of Step 2 modules from **offline question banks**, friction-budget enforcement, and persistence of `step_two._question_plan_resolved`. The HTTP handler **always returns HTTP 200 with a valid `QuestionPlanResolved`** on the happy path, including fully degraded static plans.
+3. **Step 2** — Patient answers only questions in the resolved plan (typed controls: yes/no, chips, slider, free text, numeric, Bristol stool chart).
+4. **Clinician review** — Authenticated practitioners open `/clinician/intake/[token]`, review Step 1 + Step 2, run **clinical synthesis**, edit in-browser, and copy a flattened note to an external EMR.
 
 ---
 
@@ -57,80 +58,90 @@ sequenceDiagram
 
 | Layer | Technology |
 |-------|------------|
-| Web application | **Next.js 14** (App Router), React 18, **Tailwind CSS** (design tokens in `apps/web/styles/tokens.css`) |
-| Data access | **Drizzle ORM** + raw SQL where RLS/GUC semantics require it (`@cs/db`) |
-| Database | **PostgreSQL** with tenant **Row-Level Security**, `pgcrypto` for PHI columns |
-| Validation | **Zod** (Step 1, question plan, clinical synthesis, persisted synthesis) |
+| Web application | **Next.js 14** (App Router), React 18, **Tailwind CSS** (semantic tokens in `apps/web/styles/tokens.css`) |
+| Data access | **Drizzle ORM** + `@cs/db` (`withTenantContext`, `withSystem`) for RLS-aware PostgreSQL access |
+| Database | **PostgreSQL** with tenant **Row-Level Security**, `pgcrypto` for encrypted PHI columns |
+| Validation | **Zod** — Step 1, question plan, issue identification, clinical synthesis, persisted synthesis |
 | LLM | **Anthropic Messages API** (`@anthropic-ai/sdk`); PHI-free system prompts under `services/analysis-engine/prompts/` |
-| Monorepo | **pnpm** workspaces (`apps/web`, `packages/*`, `services/analysis-engine`) |
-| Unit tests | **Vitest** (`apps/web`) |
-| E2E | **Playwright** (`apps/web`, `pnpm run test:e2e`) |
+| Analysis service | **FastAPI** (`services/analysis-engine/`) for protocol/lab pipelines (separate from intake analyze path in `apps/web`) |
+| Monorepo | **pnpm** workspaces (`apps/web`, `packages/*`, `services/*`) |
+| Unit tests | **Vitest** |
+| E2E | **Playwright** (`apps/web`, script `test:e2e`) |
+
+**Runtime requirements (root `package.json`):** Node `20.11.x`, pnpm `9.12.x`.
 
 ---
 
 ## AI safety and fallback mechanisms
 
-The intake LLM path is designed to **fail closed into deterministic behavior**—never into unvalidated JSON or unbounded question lists.
+The intake LLM path is designed to **fail closed into deterministic, pre-approved content**—never into unvalidated JSON or unbounded question lists.
 
 ### Zod sandbox (parse retry)
 
-Both `analyzeIntake` and `synthesizeNote` treat the model as an untrusted serializer:
+`analyzeIntake` and `synthesizeNote` treat the model as an untrusted serializer:
 
-- Raw assistant text is stripped of markdown fences, `JSON.parse`d, then validated with a strict Zod schema (`QuestionPlanLLMOutput`, `ClinicalSynthesisOutput`).
-- **`MAX_PARSE_ATTEMPTS = 2`** in `apps/web/lib/llm/analyze-intake.ts` and `synthesize-note.ts`: one initial call plus **one retry** on parse/validation failure.
-- Anthropic transport errors short-circuit to `null` (analyze) or `null` (synthesize) with structured server logging—no PHI in log payloads.
+| Step | Behavior |
+|------|----------|
+| Extract | Assistant text → strip markdown fences (`stripCodeFences`) → `JSON.parse` |
+| Validate | Strict Zod schema: `IntakeIssueIdentificationOutput` (analyze) or `ClinicalSynthesisOutput` (synthesize) |
+| Retry | **`MAX_PARSE_ATTEMPTS = 2`** — initial call plus **one retry** on parse/validation failure (`apps/web/lib/llm/analyze-intake.ts`, `synthesize-note.ts`) |
+| Transport failure | Anthropic errors log structured metadata **without PHI**; function returns `null` so callers use degraded paths |
 
-If all attempts fail, `analyzeIntake` returns `null` and the pipeline sets `analysis_degraded: true`.
+Analyze-specific schema lives in `apps/web/lib/intake/schemas/question-plan.schema.ts` (`IntakeIssueIdentificationOutput`). Synthesis schema is in `apps/web/lib/llm/clinical-synthesis.schema.ts` (requires `## Chief Complaint`, `## History of Present Illness (HPI)`, `## Review of Systems (ROS)` in `clinical_summary`).
 
 ### Friction budget (patient burden cap)
 
-After modules are assembled, `applyFrictionBudget` (`apps/web/lib/intake/friction-budget.ts`) enforces:
+After module drafts are assembled, `applyFrictionBudget` (`apps/web/lib/intake/friction-budget.ts`) enforces caps from `FRICTION_BUDGET_DEFAULTS` (`apps/web/lib/intake/constants.ts`):
 
-| Limit | Default (`FRICTION_BUDGET_DEFAULTS`) |
-|-------|--------------------------------------|
+| Limit | Default |
+|-------|---------|
 | Max LLM-augmented modules | 4 |
 | Max questions per module | 6 |
 | Max total augmented questions | **18** |
 
-Trimming prefers `must_have` questions over `nice_to_have`. Suppressed modules and trim counts are recorded in `friction_budget_report` on the resolved plan. Hard schema ceilings (e.g. 20 questions/module) are defined separately in `SCHEMA_LIMITS`.
+**Deterministic modules** (from Step 1 triggers) are not counted toward the augmented question total. Trimming prefers `must_have` over `nice_to_have`; suppressed modules and per-module trim counts are recorded in `friction_budget_report` on the resolved plan. Hard Zod ceilings (e.g. 20 questions/module) are defined separately in `SCHEMA_LIMITS`.
 
 ### Offline fallback banks (graceful degradation)
 
-`apps/web/lib/intake/question-banks.ts` defines **canonical question libraries** per module key, aligned with the legacy dashboard deep dives. When `analysis_degraded` is true or the LLM omits a deterministic module:
+`apps/web/lib/intake/question-banks.ts` defines **canonical, version-controlled question libraries** per `ModuleKey`, aligned with legacy dashboard deep dives (slices `question-banks-legacy-8-11.ts`, `question-banks-legacy-12-13.ts`).
 
-- `buildResolvedQuestionPlan` (`apps/web/lib/intake/build-question-plan.ts`) loads questions via `getFallbackQuestions(moduleKey)`.
-- Degraded plans use `model_id: "static-fallback"` in the resolved envelope.
-- The system prompt `services/analysis-engine/prompts/intake_dynamic_questions_v1.md` includes an **Approved Question Library** so live LLM runs select only pre-approved `id` / `prompt` / `control` tuples.
+When `analysis_degraded` is true, the LLM call fails, or a deterministic module has no matching LLM module payload:
 
-Deterministic triggers (`apps/web/lib/intake/deterministic-triggers.ts`) are pure functions over Step 1—no model required for gut/hormone/immune/medication/wellness/labs routing.
+- `buildResolvedQuestionPlan` / `buildDegradedQuestionPlan` (`apps/web/lib/intake/build-question-plan.ts`) loads questions via **`getFallbackQuestions(moduleKey)`**.
+- Degraded envelopes set **`model_id: "static-fallback"`**.
+- The analyze route’s catastrophic catch returns **`buildDegradedQuestionPlan([], …)`** so clients still receive a valid plan JSON body.
+
+**Deterministic triggers** (`apps/web/lib/intake/deterministic-triggers.ts`) are pure functions over Step 1—no model required for gut, hormone, immune, medication, wellness, or prior-labs routing.
+
+A separate prompt artifact, `services/analysis-engine/prompts/intake_dynamic_questions_v1.md`, documents the **approved question library** contract for future LLM-authored modules; the live analyze path uses **`intake_issue_identification_v1.md`** for issue identification only.
 
 ### Additional guardrails
 
-- **C-PHI:** System prompts are PHI-free; patient JSON is user message content only. Audit payloads exclude field-level PHI.
-- **C-AUDIT:** Analyze, synthesize, token access, and section saves write `audit_log` rows via `writeAudit`.
-- **Token security:** Intake links use 128-bit tokens, SHA-256 at rest, TTL, rate limits, lockout (`intake_tokens`, `intake_token_rate_limits`).
-- **C-LOC / C-SLICE / C-TOKENS:** Enforced via `pnpm run loc-check`, slice architecture, and ESLint design-token rules.
+- **C-PHI:** System prompts contain no patient narratives; Step 1 JSON is user message content only. Audit payloads exclude field-level PHI.
+- **C-AUDIT:** Analyze, synthesize, token access, and section saves write `audit_log` via `writeAudit` (`apps/web/lib/audit/write-audit.ts`).
+- **Token security:** 128-bit raw tokens, SHA-256 at rest, TTL, rate limits (`intake_tokens`, `intake_token_rate_limits`).
+- **Engineering gates:** `pnpm run loc-check` (500 LOC/file), vertical **C-SLICE** layout, ESLint **C-TOKENS** (no raw colors in UI).
 
 ---
 
 ## Request lifecycle: `analyzeIntake`
 
-Entry point for patients: **`POST /api/intake/[token]/analyze`** (`apps/web/app/api/intake/[token]/analyze/route.ts`).
+**Entry:** `POST /api/intake/[token]/analyze` — `apps/web/app/api/intake/[token]/analyze/route.ts`  
+**Orchestration:** `runIntakeAnalyzePipeline` — `apps/web/lib/intake/run-intake-analyze-pipeline.ts`  
+**LLM client:** `analyzeIntake` — `apps/web/lib/llm/analyze-intake.ts`
 
-1. **Verify token** — `getIntakeTokenService().verify` (tenant + patient binding, rate limit).
-2. **`runIntakeAnalyzePipeline`** (`apps/web/lib/intake/run-intake-analyze-pipeline.ts`):
-   - Load `intake_data` under tenant RLS.
-   - Parse Step 1 with `StepOneSchema`; compute `getDeterministicTriggers(toStepOneTriggerInput(stepOne))`.
-   - Call **`analyzeIntake(intakeData)`** (`apps/web/lib/llm/analyze-intake.ts`):
-     - Load PHI-free system prompt from `intake_dynamic_questions_v1.md`.
-     - Send Step 1 (+ existing step_two shell) as JSON user content.
-     - Validate response as `QuestionPlanLLMOutput` (up to 2 attempts).
-   - **`buildResolvedQuestionPlan`** — Merge deterministic modules (LLM or fallback banks), append non-deterministic LLM modules when not degraded, run friction budget, produce `QuestionPlanResolved`.
-   - **Persist** — `mergeIntakeData` writes `step_two._question_plan_resolved` and `_analysis_degraded`; `savePatientIntakeData`.
-   - **Audit** — `intake_analysis_completed` or `intake_analysis_degraded` with PHI-free payload (module counts, flags).
-3. **Response** — JSON body is the resolved question plan for the Step 2 UI.
+| # | Stage | Detail |
+|---|--------|--------|
+| 1 | **Verify token** | `getIntakeTokenService().verify` — tenant/patient binding, rate limits, lockout |
+| 2 | **Load state** | `getPatientIntakeState` under tenant RLS |
+| 3 | **Deterministic triggers** | `extractDeterministicKeysFromIntake` → `getDeterministicTriggers(toStepOneTriggerInput(stepOne))` |
+| 4 | **LLM issue identification** | Load PHI-free prompt `intake_issue_identification_v1.md`; send `intake_data` as JSON user content; validate `IntakeIssueIdentificationOutput` (up to 2 attempts). On failure → `null` → degraded path |
+| 5 | **Build resolved plan** | Map LLM output to `QuestionPlanLLMOutput` (issues + optional future `question_plan` modules). **`buildSuccessQuestionPlan`** or **`buildDegradedQuestionPlan`** merges deterministic modules with **`getFallbackQuestions`** when degraded or LLM module missing; run **`applyFrictionBudget`**; produce **`QuestionPlanResolved`** |
+| 6 | **Persist** | `mergeIntakeData` + `savePatientIntakeData` — `step_two._question_plan_resolved`, `_analysis_degraded`, preserve prior Step 2 answers |
+| 7 | **Audit** | `intake_analysis_completed` or `intake_analysis_degraded` (PHI-free counts and flags) |
+| 8 | **Respond** | JSON `QuestionPlanResolved` for Step 2 renderer (`coerceQuestionPlanResolved` for client contract) |
 
-Clinician synthesis follows a parallel pattern: **`synthesizeNote`** → validate `ClinicalSynthesisOutput` → persist `step_two._synthesis_resolved` → audit `intake_synthesis_generated`. Export uses **`formatForEMR`** (`apps/web/lib/intake/format-emr-export.ts`) for clipboard-ready plain text.
+**Clinician synthesis (parallel path):** `synthesizeNote` (`apps/web/lib/llm/synthesize-note.ts`) → validate `ClinicalSynthesisOutput` → `savePatientSynthesisResolved` → `intake_data.step_two._synthesis_resolved` → audit `intake_synthesis_generated`. EMR export: **`formatForEMR`** (`apps/web/lib/intake/format-emr-export.ts`) flattens CC/HPI/ROS and prioritized next steps to plain text; **`CopyEmrButton`** uses `navigator.clipboard.writeText`.
 
 ---
 
@@ -138,29 +149,27 @@ Clinician synthesis follows a parallel pattern: **`synthesizeNote`** → validat
 
 ```
 clinical-signal/
-├── apps/web/                          # Next.js application (intake + dashboard + clinician)
+├── apps/web/                              # Next.js — intake, dashboard, clinician review
 │   ├── app/
-│   │   ├── intake/[token]/            # Patient Step 1 & Step 2
-│   │   ├── clinician/intake/[token]/  # Review + synthesis + EMR copy
+│   │   ├── intake/[token]/                # Patient Step 1 & Step 2
+│   │   ├── clinician/intake/[token]/      # Review, synthesis, EMR copy
 │   │   └── api/
-│   │       ├── intake/[token]/        # API-1 load, section save, analyze
-│   │       └── clinician/intake/      # Synthesis API
+│   │       ├── intake/[token]/analyze/    # Phase 4 analyze (API-3)
+│   │       └── clinician/intake/          # Synthesis API
 │   ├── lib/
-│   │   ├── intake/                    # Triggers, merge, friction budget, question banks
-│   │   ├── llm/                       # analyze-intake, synthesize-note, schemas
-│   │   ├── tokens/                    # Intake token service + Drizzle store
-│   │   └── db/schema/                 # Drizzle table definitions (intake)
-│   ├── drizzle/migrations/            # Intake SQL (schema, RLS, tokens, synthesis docs)
+│   │   ├── intake/                        # Triggers, banks, friction budget, merge, EMR
+│   │   ├── llm/                           # analyze-intake, synthesize-note
+│   │   └── tokens/                        # Intake token service
+│   ├── drizzle/migrations/                # Intake DDL + RLS supplements
 │   └── scripts/
-│       ├── seed-demo-patients.ts      # Demo patients + tokens
+│       ├── seed-demo-patients.ts          # Phase 8 demo patients
 │       └── intake-drizzle-migrate.mjs
-├── packages/
-│   ├── core/                          # Tenancy, JWT types
-│   └── db/                            # Pool, withTenantContext, withSystem, phiKey
-├── services/analysis-engine/          # FastAPI + versioned PHI-free prompts
-├── database/migrations/               # Core platform SQL (auth, patients, protocols)
-├── docker-compose.yml                 # Local postgres + migrate + web + engine
-└── scripts/loc-check.mjs              # 500 LOC gate (CI)
+├── packages/core/                         # Tenancy, JWT types
+├── packages/db/                           # Pool, RLS helpers, phiKey
+├── services/analysis-engine/              # FastAPI + versioned PHI-free prompts
+├── database/migrations/                   # Core platform SQL (auth, patients, protocols)
+├── docker-compose.yml                     # Postgres, migrate, web, analysis-engine
+└── scripts/loc-check.mjs                  # 500 LOC CI gate
 ```
 
 ---
@@ -169,60 +178,60 @@ clinical-signal/
 
 ### Prerequisites
 
-- **Node.js** `>=20.11.0 <21.0.0` and **pnpm** `9.12.x` (see root `package.json` `engines`)
-- **Docker Desktop** (recommended) for PostgreSQL and one-command bring-up
+- **Node.js** `20.11.x` and **pnpm** `9.12.x` (see root `package.json` `engines`)
+- **Docker Desktop** (recommended) for PostgreSQL and one-command stack bring-up
 
 ### Environment variables
 
-1. Root Compose / platform:
+1. **Repository root** (Docker Compose and shared secrets):
 
    ```bash
    cp .env.example .env
    ```
 
-   Set at minimum: `ANTHROPIC_API_KEY` (dev/synthetic only), `PHI_ENCRYPTION_KEY` (must match dev seed: `dev_only_change_me_phi_crypt_key`), `AUTH_SECRET`, `ENGINE_JWT_SECRET`.
+   Set at minimum: `DATABASE_URL`, `PHI_ENCRYPTION_KEY` (dev seed uses `dev_only_change_me_phi_crypt_key`), `AUTH_SECRET`, `ENGINE_JWT_SECRET`, `ANTHROPIC_API_KEY` (synthetic/dev only).
 
-2. Web / intake module:
+2. **Web app** (intake module; required when running Next outside Compose):
 
    ```bash
    cp apps/web/.env.example apps/web/.env
    ```
 
-   `apps/web/lib/env.ts` requires: `DATABASE_URL`, `REDIS_URL`, `S3_*`, `AWS_*`, `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, `WHISPER_SERVICE_URL`, and intake token settings. Use the example placeholders for local work.
+   `apps/web/lib/env.ts` validates database, Redis, S3, Anthropic, Whisper, and intake token settings. Use example placeholders for local work.
 
 ### Database
 
-**Option A — Docker Compose (full stack)**
+**Option A — Docker Compose (recommended)**
 
 ```bash
 docker compose up --build
 ```
 
-Boot order: `postgres` → `migrate` (applies `database/migrations/`) → `web` + `analysis-engine`. Web: http://localhost:3000
+Boot order: `postgres` → `migrate` (`database/migrations/` via `apps/web/scripts/migrate.mjs`) → `web` + `analysis-engine`. Web UI: http://localhost:3000
 
-**Option B — Host-run migrations**
+**Option B — Host-run platform migrations**
 
 ```bash
 cd apps/web
-DATABASE_URL=postgresql://clinical_signal:change_me_dev_only@localhost:5432/clinical_signal \
-  pnpm run db:migrate
+pnpm run db:migrate
 ```
 
-**Intake module schema** (tables, RLS for intake tokens):
+**Intake module schema** (intake tokens, documents, RLS helpers):
 
 ```bash
 cd apps/web
 pnpm run db:intake-migrate
 ```
 
-This applies `drizzle/migrations/0001_intake_schema.sql` and `0002_rls.sql`. If you need token verify helpers or synthesis column documentation, apply remaining files manually:
+Applies `apps/web/drizzle/migrations/` (brownfield: supplemental + RLS; greenfield: set `INTAKE_MIGRATE_GREENFIELD=1`). Optional follow-ups documented in migration headers, e.g.:
 
 ```bash
 psql "$DATABASE_URL" -f apps/web/drizzle/migrations/0003_intake_token_rate_limits_and_verify.sql
 psql "$DATABASE_URL" -f apps/web/drizzle/migrations/0004_intake_synthesis_resolved.sql
+psql "$DATABASE_URL" -f apps/web/drizzle/migrations/0005_intake_token_status.sql
 ```
 
-Apply dev practitioner + sample patients (legacy dashboard seed):
+**Dev practitioner seed** (dashboard login):
 
 ```bash
 psql "$DATABASE_URL" -f database/migrations/0003_seed_dev.sql
@@ -230,84 +239,82 @@ psql "$DATABASE_URL" -f database/migrations/0003_seed_dev.sql
 
 Login: `dev@example.com` / `devpassword12!`
 
-### Run the web app
+### Run the web application
 
 ```bash
-cd apps/web
 pnpm install
+cd apps/web
 pnpm run dev
 ```
 
+Other `apps/web` scripts from `package.json`:
+
+| Script | Command |
+|--------|---------|
+| Production build | `pnpm run build` |
+| Production server | `pnpm run start` |
+| Next.js lint | `pnpm run lint` |
+| Typecheck | `pnpm run typecheck` |
+| Drizzle Kit generate | `pnpm run db:generate` |
+| Drizzle Studio | `pnpm run db:studio` |
+| System-access CI gate | `pnpm run check:system-access` |
+
 ### Demo intake patients (Phase 8)
 
-Seeds three fictional patients (gut, hormone, metabolic) with completed Step 1 and active intake tokens:
+Three fictional patients (gut, hormone, metabolic) with completed Step 1 and fresh magic links:
 
 ```bash
 cd apps/web
 pnpm run seed:demo
 ```
 
-Requires `DATABASE_URL` and `PHI_ENCRYPTION_KEY` in `apps/web/.env`. Prints clinician URLs:
+Requires `DATABASE_URL` and `PHI_ENCRYPTION_KEY` in `apps/web/.env` (or exported in the shell). On success, prints:
 
-`http://localhost:3000/clinician/intake/<token>`
+- `http://localhost:3000/clinician/intake/<token>` (requires `dev@example.com` login)
+- `http://localhost:3000/intake/<token>` (patient magic link)
 
-Optional: `DEMO_APP_BASE_URL` overrides the printed host.
-
-### Other `apps/web` scripts (reference)
-
-| Script | Command |
-|--------|---------|
-| Production build | `pnpm run build` |
-| Drizzle Kit generate | `pnpm run db:generate` |
-| Drizzle Studio | `pnpm run db:studio` |
-| System-access CI gate | `pnpm run check:system-access` |
-
-Root workspace:
-
-| Script | Command |
-|--------|---------|
-| ESLint | `pnpm run lint` |
-| Typecheck (web) | `pnpm run typecheck` |
-| Intake TS project | `pnpm run typecheck:intake` |
-| LOC gate | `pnpm run loc-check` |
+Set `DEMO_APP_BASE_URL` to override the printed host.
 
 ---
 
 ## Testing
 
-From the **repository root** (pnpm workspace):
+Install dependencies from the **repository root**:
 
 ```bash
 pnpm install
-pnpm run typecheck
-pnpm run test
 ```
 
-`pnpm run test` runs `pnpm --filter @clinical-signal/web test:unit` → **`vitest run`** with includes:
+### Root workspace (`package.json`)
 
-- `lib/__tests__/**/*.test.ts`
-- `lib/**/*.test.ts` (intake, LLM, tokens, friction budget, EMR format, etc.)
+| Script | What it runs |
+|--------|----------------|
+| `pnpm run typecheck` | `pnpm --filter @clinical-signal/web typecheck` |
+| `pnpm run typecheck:intake` | `tsc -p apps/web/tsconfig.intake.json --noEmit` |
+| `pnpm run verify:phase1` | `tsc -p tsconfig.db.json --noEmit` + `pnpm run loc-check` |
+| `pnpm run loc-check` | `node scripts/loc-check.mjs` |
+| `pnpm run lint` | ESLint on env, auth, audit, scripts |
+| `pnpm run test` | `vitest run --config vitest.config.mjs` (curated intake/LLM/token tests under `apps/web/lib/`) |
+| `pnpm run test:env` | `vitest run --config vitest.config.mjs lib/env.test.ts` |
 
-From **`apps/web`** directly:
+The root Vitest config explicitly includes files such as `lib/llm/analyze-intake.test.ts`, `lib/llm/synthesize-note.test.ts`, `lib/intake/friction-budget.test.ts`, `lib/intake/question-banks.test.ts`, and `lib/intake/format-emr-export.test.ts`.
+
+### `apps/web` package (`apps/web/package.json`)
 
 ```bash
 cd apps/web
-pnpm run test:unit
-pnpm run typecheck
-pnpm run test:e2e          # Playwright
+pnpm run test:unit      # vitest run — lib/__tests__/** and lib/**/*.test.ts
+pnpm run typecheck      # tsc --noEmit
+pnpm run test:e2e       # playwright test
 ```
 
-Phase 1 intake verification (root):
+**CI (`.github/workflows/validate.yml`):** `apps/web` job runs `npx tsc --noEmit` and `npx vitest run lib/__tests__/`; `engine` job runs Python `compileall` on `services/analysis-engine`.
 
-```bash
-pnpm run verify:phase1     # typecheck:intake + loc-check
-```
-
-Engine compile check (optional):
+**Analysis engine (optional local check):**
 
 ```bash
 cd services/analysis-engine
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 python -m compileall -q app scripts
 ```
 
@@ -315,12 +322,12 @@ python -m compileall -q app scripts
 
 ## Security and compliance
 
-- **Synthetic data only** in local/staging; do not load real PHI outside production controls.
-- **BAA** required for production Anthropic (and other PHI-adjacent vendors).
-- **RLS** enforced via `withTenantContext` — use `@cs/db`, not ad-hoc `pg` in application code (see `pnpm run check:system-access`).
-- Immutable SQL migrations: never edit applied files; add a new versioned migration instead.
+- Use **synthetic data only** in local and staging environments; do not load real PHI outside production controls.
+- **Business Associate Agreements** are required for production use of Anthropic and other PHI-adjacent vendors.
+- **Row-Level Security** is enforced via `withTenantContext` / `withTenant` in `@cs/db` — avoid ad-hoc `pg` clients in application code (`pnpm run check:system-access` in `apps/web`).
+- SQL migrations are **immutable** once applied; add a new versioned file instead of editing history.
 
-See `CLAUDE.md`, `.cursor/rules/04-c-phi.mdc`, and `.cursor/rules/05-c-audit.mdc` for full policies.
+See [`CLAUDE.md`](CLAUDE.md), [`.cursor/rules/04-c-phi.mdc`](.cursor/rules/04-c-phi.mdc), and [`.cursor/rules/05-c-audit.mdc`](.cursor/rules/05-c-audit.mdc).
 
 ---
 
@@ -328,14 +335,13 @@ See `CLAUDE.md`, `.cursor/rules/04-c-phi.mdc`, and `.cursor/rules/05-c-audit.mdc
 
 | Document | Purpose |
 |----------|---------|
-| `CLAUDE.md` | Product workflow and MVP scope |
-| `ARCHITECTURE.md` | Platform architecture |
-| `docs/architecture/question-plan-schema-design.md` | Question plan contract |
-| `docs/architecture/ADR-001-readiness-gate.md` | Protocol readiness (GATE-3) |
-| `services/analysis-engine/prompts/` | Versioned PHI-free LLM prompts |
+| [`CLAUDE.md`](CLAUDE.md) | Product workflow, MVP boundaries, build order |
+| [`ARCHITECTURE.md`](ARCHITECTURE.md) | Platform architecture |
+| [`docs/architecture/question-plan-schema-design.md`](docs/architecture/question-plan-schema-design.md) | Question plan contract |
+| [`services/analysis-engine/prompts/`](services/analysis-engine/prompts/) | Versioned PHI-free LLM prompts |
 
 ---
 
 ## Continuous integration
 
-`.github/workflows/validate.yml` runs web typecheck, Vitest unit tests, engine `compileall`, and migration filename hygiene. Merges to `main` validate only; deploy workflows are pending AWS bring-up.
+GitHub Actions workflow **`validate`** (on `pull_request` and `push` to `main`) runs web typecheck, scoped Vitest unit tests, analysis-engine compile, and migration filename hygiene. Deploy workflows are pending AWS bring-up.

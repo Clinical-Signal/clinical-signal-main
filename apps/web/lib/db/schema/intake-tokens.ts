@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  index,
   integer,
   pgTable,
   text,
@@ -10,7 +11,14 @@ import {
 
 import type { IntakeTokenStatus } from "./intake-token-status";
 
-/** SEC-18 — hashed intake link tokens; one pending token per patient (partial index). */
+/**
+ * SEC-18 — hashed intake link tokens (PRD §4.2).
+ *
+ * Partial unique index `one_active_token_per_patient`: one non-revoked pending link
+ * per patient. PRD also requires non-expired tokens (`expires_at > now()`); PostgreSQL
+ * cannot use `now()` in index predicates (not IMMUTABLE), so expiry is enforced in
+ * `lib/tokens/intake-token.ts` verify() in addition to this index.
+ */
 export const intakeTokens = pgTable(
   "intake_tokens",
   {
@@ -30,9 +38,13 @@ export const intakeTokens = pgTable(
     useCount: integer("use_count").notNull().default(0),
   },
   (table) => ({
+    tenantIdx: index("intake_tokens_tenant_idx").on(table.tenantId),
+    patientIdx: index("intake_tokens_patient_idx").on(table.patientId),
     oneActiveTokenPerPatient: uniqueIndex("one_active_token_per_patient")
       .on(table.patientId)
-      .where(sql`${table.revokedAt} is null and ${table.status} = 'pending'`),
+      .where(
+        sql`${table.revokedAt} is null and ${table.status} = 'pending'`,
+      ),
   }),
 );
 

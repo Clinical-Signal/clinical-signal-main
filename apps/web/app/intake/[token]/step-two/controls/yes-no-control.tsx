@@ -1,6 +1,11 @@
 "use client";
 
 import { scheduleAutoAdvance } from "./auto-advance-delay";
+import {
+  yesNoBaseClass,
+  yesNoIdleClass,
+  yesNoSelectedClass,
+} from "./field-styles";
 
 type YesNoControlProps = {
   value: boolean | undefined;
@@ -26,10 +31,8 @@ export function YesNoControl({
         type="button"
         disabled={disabled}
         aria-pressed={value === true}
-        className={`min-h-12 rounded-md border px-4 text-base font-medium transition-colors ${
-          value === true
-            ? "border-accent bg-accent text-ink-inverse"
-            : "border-line-strong bg-surface text-ink"
+        className={`${yesNoBaseClass} ${
+          value === true ? yesNoSelectedClass : yesNoIdleClass
         }`}
         onClick={() => select(true)}
       >
@@ -39,10 +42,8 @@ export function YesNoControl({
         type="button"
         disabled={disabled}
         aria-pressed={value === false}
-        className={`min-h-12 rounded-md border px-4 text-base font-medium transition-colors ${
-          value === false
-            ? "border-accent bg-accent text-ink-inverse"
-            : "border-line-strong bg-surface text-ink"
+        className={`${yesNoBaseClass} ${
+          value === false ? yesNoSelectedClass : yesNoIdleClass
         }`}
         onClick={() => select(false)}
       >
