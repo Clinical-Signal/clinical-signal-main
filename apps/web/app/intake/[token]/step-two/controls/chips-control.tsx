@@ -3,6 +3,7 @@
 import type { Control } from "@/lib/intake/schemas/question-plan.schema";
 
 import { scheduleAutoAdvance } from "./auto-advance-delay";
+import { chipBaseClass, chipIdleClass, chipSelectedClass } from "./field-styles";
 
 type ChipsControlProps = {
   control: Extract<Control, { kind: "chips" }>;
@@ -52,11 +53,7 @@ export function ChipsControl({
             type="button"
             disabled={disabled}
             aria-pressed={isSelected}
-            className={`min-h-12 rounded-full border px-4 text-sm font-medium transition-colors ${
-              isSelected
-                ? "border-accent bg-accent-soft text-accent"
-                : "border-line-strong bg-surface text-ink"
-            }`}
+            className={`${chipBaseClass} ${isSelected ? chipSelectedClass : chipIdleClass}`}
             onClick={() => toggle(option.value)}
           >
             {option.label}

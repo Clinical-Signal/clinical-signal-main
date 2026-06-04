@@ -168,6 +168,42 @@ function parseTrimmedModuleKeys(
   return entries;
 }
 
+/**
+ * Degraded path (API-3): deterministic modules only, static banks via `getFallbackQuestions`,
+ * no LLM augmentation. Sets `analysis_degraded` on the resolved envelope.
+ */
+export function buildDegradedQuestionPlan(
+  deterministicKeys: readonly DeterministicModuleKey[],
+  promptVersion: string,
+): QuestionPlanResolvedType {
+  return buildResolvedQuestionPlan({
+    deterministicKeys,
+    llmPlan: null,
+    analysisDegraded: true,
+    modelId: DEGRADED_MODEL_ID,
+    promptVersion,
+  });
+}
+
+/**
+ * Success path (API-3): deterministic triggers + LLM plan, then `applyFrictionBudget` inside
+ * `buildResolvedQuestionPlan` to trim augmented modules and preserve must-haves.
+ */
+export function buildSuccessQuestionPlan(
+  deterministicKeys: readonly DeterministicModuleKey[],
+  llmPlan: QuestionPlanLLMOutput,
+  modelId: string,
+  promptVersion: string,
+): QuestionPlanResolvedType {
+  return buildResolvedQuestionPlan({
+    deterministicKeys,
+    llmPlan,
+    analysisDegraded: false,
+    modelId,
+    promptVersion,
+  });
+}
+
 /** Merges deterministic triggers, LLM or fallback banks, and friction budget into a resolved plan. */
 export function buildResolvedQuestionPlan(
   input: BuildResolvedQuestionPlanInput,

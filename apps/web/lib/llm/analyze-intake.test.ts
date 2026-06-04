@@ -3,13 +3,14 @@ import { describe, expect, it, vi } from "vitest";
 import { createEmptyIntakeData } from "@/lib/intake/schemas/intake-data.schema";
 
 import {
-  INTAKE_DYNAMIC_QUESTIONS_PROMPT_VERSION,
+  INTAKE_ISSUE_IDENTIFICATION_PROMPT_VERSION,
   analyzeIntake,
+  loadIntakeIssueIdentificationPrompt,
   type AnthropicMessageResult,
   type CreateMessageFn,
 } from "./analyze-intake";
 
-const VALID_PLAN_JSON = {
+const VALID_ISSUES_JSON = {
   identified_issues: [
     {
       id: "sleep_issue",
@@ -17,27 +18,11 @@ const VALID_PLAN_JSON = {
       signal_source: "symptom",
       red_flag: false,
     },
-  ],
-  question_plan: [
     {
-      module_key: "sleep_deep_dive",
-      rationale: "Sleep disruption noted in intake.",
-      questions: [
-        {
-          id: "sleep_onset",
-          prompt: "How long does it take you to fall asleep?",
-          control: {
-            kind: "chips",
-            multi: false,
-            options: [
-              { value: "under_15", label: "Under 15 min" },
-              { value: "15_30", label: "15–30 min" },
-            ],
-          },
-          priority: "must_have",
-          required: true,
-        },
-      ],
+      id: "elevated_stress",
+      label: "High perceived stress",
+      signal_source: "lifestyle",
+      red_flag: false,
     },
   ],
 };
@@ -47,9 +32,15 @@ function messageWithText(text: string): AnthropicMessageResult {
 }
 
 describe("analyzeIntake", () => {
-  it("parses valid JSON and returns plan with model_id and prompt_version", async () => {
+  it("loads the PHI-free issue-identification system prompt from disk", () => {
+    const prompt = loadIntakeIssueIdentificationPrompt();
+    expect(prompt).toContain("identified_issues");
+    expect(prompt).not.toMatch(/\bJane\b|\bJohn\b|@/);
+  });
+
+  it("parses valid JSON and returns output with model_id and prompt_version", async () => {
     const createMessage: CreateMessageFn = vi.fn(async () =>
-      messageWithText(JSON.stringify(VALID_PLAN_JSON)),
+      messageWithText(JSON.stringify(VALID_ISSUES_JSON)),
     );
 
     const result = await analyzeIntake(createEmptyIntakeData(), {
@@ -59,15 +50,16 @@ describe("analyzeIntake", () => {
     });
 
     expect(result).not.toBeNull();
-    expect(result?.plan.identified_issues).toHaveLength(1);
-    expect(result?.plan.question_plan[0]?.module_key).toBe("sleep_deep_dive");
+    expect(result?.output.identified_issues).toHaveLength(2);
+    expect(result?.output.identified_issues[0]?.id).toBe("sleep_issue");
     expect(result?.modelId).toBe("claude-test-model");
-    expect(result?.promptVersion).toBe(INTAKE_DYNAMIC_QUESTIONS_PROMPT_VERSION);
+    expect(result?.promptVersion).toBe(INTAKE_ISSUE_IDENTIFICATION_PROMPT_VERSION);
     expect(createMessage).toHaveBeenCalledTimes(1);
 
     const call = vi.mocked(createMessage).mock.calls[0]?.[0];
     expect(call?.messages[0]?.role).toBe("user");
     expect(call?.messages[0]?.content).toContain("about_you");
+    expect(call?.system[0]?.text).toBe("PHI-free stub prompt");
     expect(call?.system[0]?.cache_control).toEqual({ type: "ephemeral" });
   });
 

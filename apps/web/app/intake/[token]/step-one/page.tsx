@@ -24,8 +24,9 @@ function requestFromHeaders(): Request {
   });
 }
 
+/** Server entry for Step 1 — verifies token, loads intake state, passes initial payload to the client form. */
 export default async function StepOnePage({ params }: PageProps) {
-  const rawToken = params.token;
+  const rawToken = params.token?.trim();
   if (!rawToken) {
     notFound();
   }

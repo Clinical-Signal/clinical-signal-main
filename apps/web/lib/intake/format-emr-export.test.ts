@@ -44,6 +44,25 @@ const SAMPLE: SynthesisResolved = SynthesisResolved.parse({
 });
 
 describe("formatForEMR", () => {
+  it("orders CC, HPI, and ROS before suggested next steps regardless of markdown order", () => {
+    const reversed = SynthesisResolved.parse({
+      ...SAMPLE,
+      clinical_summary: [
+        "## Review of Systems (ROS)",
+        "GI: bloating.",
+        "## Chief Complaint",
+        "Fatigue.",
+        "## History of Present Illness (HPI)",
+        "• Onset over 3 months",
+      ].join("\n"),
+    });
+
+    const text = formatForEMR(reversed);
+    expect(text.indexOf("CHIEF COMPLAINT")).toBeLessThan(text.indexOf("HISTORY OF PRESENT ILLNESS"));
+    expect(text.indexOf("HISTORY OF PRESENT ILLNESS")).toBeLessThan(text.indexOf("REVIEW OF SYSTEMS"));
+    expect(text.indexOf("REVIEW OF SYSTEMS")).toBeLessThan(text.indexOf("SUGGESTED NEXT STEPS"));
+  });
+
   it("produces plain-text sections with clinical headings and ordered next steps", () => {
     const text = formatForEMR(SAMPLE);
 

@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { SCHEMA_LIMITS } from "../constants";
 
+/** Closed module set (design doc §4.1) — must match deterministic-triggers + question-banks. */
 export const MODULE_KEYS = [
   "gut_deep_dive",
   "hormone_deep_dive",
@@ -113,6 +114,32 @@ export const IdentifiedIssue = z.object({
   red_flag: z.boolean(),
 });
 export type IdentifiedIssue = z.infer<typeof IdentifiedIssue>;
+
+/** LLM output for `intake_issue_identification_v1` (Step-1 analyze, issues only). */
+const IntakeIssueIdentificationOutputBase = z.object({
+  identified_issues: z
+    .array(IdentifiedIssue)
+    .min(0)
+    .max(SCHEMA_LIMITS.max_identified_issues),
+});
+
+export const IntakeIssueIdentificationOutput =
+  IntakeIssueIdentificationOutputBase.superRefine((output, ctx) => {
+    const issueIds = output.identified_issues.map((issue) => issue.id);
+    const duplicateIssueIds = issueIds.filter(
+      (id, index) => issueIds.indexOf(id) !== index,
+    );
+    if (duplicateIssueIds.length > 0) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["identified_issues"],
+        message: `duplicate identified-issue id: ${duplicateIssueIds.join(", ")}`,
+      });
+    }
+  });
+export type IntakeIssueIdentificationOutput = z.infer<
+  typeof IntakeIssueIdentificationOutput
+>;
 
 export const ModulePlanLLM = z.object({
   module_key: ModuleKey,

@@ -1,9 +1,7 @@
 import type { Config } from "tailwindcss";
 
-// Design tokens exposed as CSS vars in globals.css. Tailwind references
-// them via `rgb(var(--token) / <alpha-value>)` so opacity modifiers still
-// work (e.g., `bg-canvas/80`). Keep the surface area narrow — additions
-// should be rare and considered.
+// Maps to CSS variables in app/globals.css and styles/tokens.css (C-TOKENS).
+// No hardcoded hex/rgb/hsl literals in this file.
 const config: Config = {
   content: [
     "./app/**/*.{ts,tsx}",
@@ -12,23 +10,23 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        canvas: "var(--color-canvas)",
-        surface: "var(--color-surface)",
+        canvas: "rgb(var(--color-canvas) / <alpha-value>)",
+        surface: "rgb(var(--color-surface) / <alpha-value>)",
         "surface-sunken": "rgb(var(--color-surface-sunken) / <alpha-value>)",
-        ink: "var(--color-ink)",
+        ink: "rgb(var(--color-ink) / <alpha-value>)",
         "ink-muted": "rgb(var(--color-ink-muted) / <alpha-value>)",
         "ink-subtle": "rgb(var(--color-ink-subtle) / <alpha-value>)",
         "ink-faint": "rgb(var(--color-ink-faint) / <alpha-value>)",
         "ink-inverse": "rgb(var(--color-ink-inverse) / <alpha-value>)",
         line: "rgb(var(--color-line) / <alpha-value>)",
         "line-strong": "rgb(var(--color-line-strong) / <alpha-value>)",
-        accent: "var(--color-accent)",
+        accent: "rgb(var(--color-accent) / <alpha-value>)",
         "accent-hover": "rgb(var(--color-accent-hover) / <alpha-value>)",
         "accent-soft": "rgb(var(--color-accent-soft) / <alpha-value>)",
         danger: "rgb(var(--color-danger) / <alpha-value>)",
         "danger-soft": "rgb(var(--color-danger-soft) / <alpha-value>)",
-        warning: "var(--color-warn)",
-        warn: "var(--color-warn)",
+        warning: "rgb(var(--color-warning) / <alpha-value>)",
+        warn: "rgb(var(--color-warning) / <alpha-value>)",
         "warning-soft": "rgb(var(--color-warning-soft) / <alpha-value>)",
         success: "rgb(var(--color-success) / <alpha-value>)",
         "success-soft": "rgb(var(--color-success-soft) / <alpha-value>)",
@@ -55,8 +53,23 @@ const config: Config = {
         xl: "12px",
       },
       boxShadow: {
-        sm: "0 1px 2px 0 rgb(0 0 0 / 0.04)",
-        focus: "0 0 0 2px rgb(var(--color-accent) / 0.4)",
+        sm: "var(--shadow-sm)",
+        focus: "var(--focus-ring)",
+        "chat-composer": "0 -4px 24px rgb(var(--color-ink) / 0.06)",
+      },
+      keyframes: {
+        "message-in": {
+          from: { opacity: "0", transform: "translateY(8px)" },
+          to: { opacity: "1", transform: "translateY(0)" },
+        },
+        "typing-dot": {
+          "0%, 100%": { opacity: "0.35", transform: "translateY(0)" },
+          "50%": { opacity: "1", transform: "translateY(-3px)" },
+        },
+      },
+      animation: {
+        "message-in": "message-in 0.35s ease-out both",
+        "typing-dot": "typing-dot 1s ease-in-out infinite",
       },
     },
   },

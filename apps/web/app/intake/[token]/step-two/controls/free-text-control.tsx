@@ -1,8 +1,9 @@
 "use client";
 
-import type { KeyboardEvent } from "react";
-
 import type { Control } from "@/lib/intake/schemas/question-plan.schema";
+
+import { handleEnterToAdvance } from "./enter-to-advance";
+import { fieldInputClass, fieldTextareaClass } from "./field-styles";
 
 type FreeTextControlProps = {
   control: Extract<Control, { kind: "free_text" }>;
@@ -12,23 +13,6 @@ type FreeTextControlProps = {
   onAutoAdvance?: () => void;
   disabled?: boolean;
 };
-
-function handleEnterAdvance(
-  event: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>,
-  text: string,
-  onAutoAdvance?: () => void,
-): void {
-  if (event.key !== "Enter" || event.shiftKey) {
-    return;
-  }
-  if (!text.trim()) {
-    return;
-  }
-
-  event.preventDefault();
-  event.currentTarget.blur();
-  onAutoAdvance?.();
-}
 
 export function FreeTextControl({
   control,
@@ -48,7 +32,7 @@ export function FreeTextControl({
       maxLength={control.max_chars}
       rows={5}
       placeholder={control.placeholder}
-      className="w-full rounded-md border border-line-strong bg-surface px-3 py-3 text-base text-ink"
+      className={fieldTextareaClass}
       onChange={(event) => onChange(event.target.value)}
       onBlur={onCommit}
     />
@@ -59,10 +43,10 @@ export function FreeTextControl({
       value={text}
       maxLength={control.max_chars}
       placeholder={control.placeholder}
-      className="min-h-12 w-full rounded-md border border-line-strong bg-surface px-3 text-base text-ink"
+      className={fieldInputClass}
       onChange={(event) => onChange(event.target.value)}
       onBlur={onCommit}
-      onKeyDown={(event) => handleEnterAdvance(event, text, onAutoAdvance)}
+      onKeyDown={(event) => handleEnterToAdvance(event, onAutoAdvance)}
     />
   );
 

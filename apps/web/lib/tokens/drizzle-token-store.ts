@@ -1,3 +1,6 @@
+/**
+ * Drizzle `IntakeTokenStore` — tenant-scoped writes, SECURITY DEFINER hash lookup for verify.
+ */
 import type { PoolClient } from "@cs/db";
 import { withSystem, withTenantContext } from "@cs/db";
 import type { TenantContext } from "@cs/core";
@@ -130,18 +133,6 @@ async function lookupById(client: PoolClient, tokenId: string): Promise<IntakeTo
   return row ? pgRowToRecord(row) : null;
 }
 
-async function lookupActiveByPatient(
-  client: PoolClient,
-  patientId: string,
-): Promise<IntakeTokenRecord | null> {
-  const { rows } = await client.query<IntakeTokenPgRow>(
-    "SELECT * FROM lookup_active_intake_token_by_patient($1::uuid)",
-    [patientId],
-  );
-  const row = rows[0];
-  return row ? pgRowToRecord(row) : null;
-}
-
 export class DrizzleIntakeTokenStore implements IntakeTokenStore {
   async insert(record: IntakeTokenRecord): Promise<void> {
     const ctx = tenantContext(record.tenantId, record.createdBy);
@@ -196,9 +187,8 @@ export class DrizzleIntakeTokenStore implements IntakeTokenStore {
   }
 
   async findActiveByPatientId(patientId: string): Promise<IntakeTokenRecord | null> {
-    return withSystem(
-      { reason: "intake_token_active_lookup_by_patient" },
-      async (client) => lookupActiveByPatient(client, patientId),
+    return withSystem({ reason: "intake_token_active_lookup_by_patient" }, async (client) =>
+      findActiveByPatientIdWithClient(client, patientId),
     );
   }
 

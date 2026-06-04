@@ -23,9 +23,11 @@ yarn.lock
 *.min.css
 
 # SQL migrations (often long by design)
+**/drizzle/migrations/
 database/migrations/
 
-# Legacy files over 500 LOC — split in Phase 8.2 (C-LOC cleanup); remove entries as each file is split
+# Legacy files over 500 LOC — remove each entry as the file is split (Phase 8.2)
+apps/web/lib/intake/schemas/question-plan.schema.test.ts
 apps/web/app/(dashboard)/dashboard/patients/[id]/protocol/[protocolId]/edit/edit-form.tsx
 apps/web/app/(dashboard)/dashboard/patients/[id]/intake/form.tsx
 apps/web/app/(dashboard)/dashboard/patients/[id]/intake-hub/intake-hub.tsx

@@ -57,6 +57,8 @@ export function QuestionControl({
   const control: Control = question.control;
   const setValue = (next: unknown, persistImmediately = false) =>
     onValueChange(question.id, next, persistImmediately);
+  const autoAdvanceProps =
+    onAutoAdvance !== undefined ? { onAutoAdvance } : {};
 
   switch (control.kind) {
     case "yes_no":
@@ -65,10 +67,12 @@ export function QuestionControl({
           value={readBoolean(value)}
           disabled={disabled}
           onChange={(next) => setValue(next, true)}
-          onAutoAdvance={onAutoAdvance}
+          {...autoAdvanceProps}
         />
       );
-    case "chips":
+    case "chips": {
+      const chipsAdvance =
+        !control.multi && onAutoAdvance !== undefined ? { onAutoAdvance } : {};
       return (
         <ChipsControl
           control={control}
@@ -76,9 +80,10 @@ export function QuestionControl({
           disabled={disabled}
           onChange={(next) => setValue(next, true)}
           onCommit={onCommit}
-          onAutoAdvance={control.multi ? undefined : onAutoAdvance}
+          {...chipsAdvance}
         />
       );
+    }
     case "slider":
       return (
         <SliderControl
@@ -97,7 +102,7 @@ export function QuestionControl({
           disabled={disabled}
           onChange={(next) => setValue(next)}
           onCommit={onCommit}
-          onAutoAdvance={onAutoAdvance}
+          {...autoAdvanceProps}
         />
       );
     case "numeric":
@@ -108,7 +113,7 @@ export function QuestionControl({
           disabled={disabled}
           onChange={(next) => setValue(next)}
           onCommit={onCommit}
-          onAutoAdvance={onAutoAdvance}
+          {...autoAdvanceProps}
         />
       );
     case "bristol":
@@ -117,7 +122,7 @@ export function QuestionControl({
           value={readString(value)}
           disabled={disabled}
           onChange={(next) => setValue(next, true)}
-          onAutoAdvance={onAutoAdvance}
+          {...autoAdvanceProps}
         />
       );
     default: {

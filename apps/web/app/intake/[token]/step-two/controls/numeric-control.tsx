@@ -2,6 +2,9 @@
 
 import type { Control } from "@/lib/intake/schemas/question-plan.schema";
 
+import { handleEnterToAdvance } from "./enter-to-advance";
+import { fieldInputClass } from "./field-styles";
+
 type NumericControlProps = {
   control: Extract<Control, { kind: "numeric" }>;
   value: number | undefined;
@@ -30,7 +33,7 @@ export function NumericControl({
         value={value ?? ""}
         {...(min !== undefined ? { min } : {})}
         {...(max !== undefined ? { max } : {})}
-        className="min-h-12 w-full rounded-md border border-line-strong bg-surface px-3 text-base text-ink"
+        className={fieldInputClass}
         onChange={(event) => {
           const raw = event.target.value;
           if (raw === "") {
@@ -54,12 +57,22 @@ export function NumericControl({
           if (event.key !== "Enter") {
             return;
           }
-          if (value === undefined) {
+          const raw = event.currentTarget.value;
+          if (raw.trim() === "") {
             return;
           }
-          event.preventDefault();
-          event.currentTarget.blur();
-          onAutoAdvance?.();
+          const parsed = Number(raw);
+          if (Number.isNaN(parsed)) {
+            return;
+          }
+          if (min !== undefined && parsed < min) {
+            return;
+          }
+          if (max !== undefined && parsed > max) {
+            return;
+          }
+          onChange(parsed);
+          handleEnterToAdvance(event, onAutoAdvance);
         }}
       />
       {control.unit ? (

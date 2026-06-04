@@ -1,5 +1,5 @@
 {
-  "id": "861a4348-3b2a-4a4f-a8f8-c30abae756d1",
+  "id": "53586e33-1a41-442c-8f06-359bfb5c4c03",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "6",
   "dialect": "postgresql",
@@ -45,6 +45,19 @@
           "primaryKey": false,
           "notNull": false
         },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "completed_at": {
+          "name": "completed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_by": {
           "name": "created_by",
           "type": "uuid",
@@ -73,6 +86,20 @@
         }
       },
       "indexes": {
+        "intake_tokens_tenant_idx": {
+          "name": "intake_tokens_tenant_idx",
+          "columns": [
+            "tenant_id"
+          ],
+          "isUnique": false
+        },
+        "intake_tokens_patient_idx": {
+          "name": "intake_tokens_patient_idx",
+          "columns": [
+            "patient_id"
+          ],
+          "isUnique": false
+        },
         "one_active_token_per_patient": {
           "name": "one_active_token_per_patient",
           "columns": [
@@ -165,7 +192,7 @@
           "name": "created_by",
           "type": "uuid",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "reviewed_by": {
           "name": "reviewed_by",
@@ -181,7 +208,22 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "intake_documents_tenant_idx": {
+          "name": "intake_documents_tenant_idx",
+          "columns": [
+            "tenant_id"
+          ],
+          "isUnique": false
+        },
+        "intake_documents_patient_idx": {
+          "name": "intake_documents_patient_idx",
+          "columns": [
+            "patient_id"
+          ],
+          "isUnique": false
+        }
+      },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {}
@@ -247,7 +289,22 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "document_chunks_document_idx": {
+          "name": "document_chunks_document_idx",
+          "columns": [
+            "document_id"
+          ],
+          "isUnique": false
+        },
+        "document_chunks_tenant_idx": {
+          "name": "document_chunks_tenant_idx",
+          "columns": [
+            "tenant_id"
+          ],
+          "isUnique": false
+        }
+      },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {}
@@ -323,7 +380,22 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "processing_jobs_document_idx": {
+          "name": "processing_jobs_document_idx",
+          "columns": [
+            "document_id"
+          ],
+          "isUnique": false
+        },
+        "processing_jobs_tenant_idx": {
+          "name": "processing_jobs_tenant_idx",
+          "columns": [
+            "tenant_id"
+          ],
+          "isUnique": false
+        }
+      },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {}
@@ -383,7 +455,16 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "audit_log_tenant_created_idx": {
+          "name": "audit_log_tenant_created_idx",
+          "columns": [
+            "tenant_id",
+            "created_at"
+          ],
+          "isUnique": false
+        }
+      },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {}

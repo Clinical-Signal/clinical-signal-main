@@ -1,5 +1,5 @@
 -- 0002_rls.sql — Tenant-scoped RLS for intake module tables (PRD Phase 1.4b).
--- Canonical GUC: app.current_tenant_id (see 0012_fix_rls_guc_name.sql).
+-- Canonical GUC: app.current_tenant_id (see database/migrations/0012_fix_rls_guc_name.sql).
 --
 -- Run after 0001_intake_schema.sql:
 --   psql "$DATABASE_URL" -f apps/web/drizzle/migrations/0002_rls.sql
@@ -14,7 +14,8 @@ BEGIN
     'intake_tokens',
     'intake_documents',
     'document_chunks',
-    'processing_jobs'
+    'processing_jobs',
+    'audit_log'
   ]) LOOP
     EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
     EXECUTE format('ALTER TABLE %I FORCE ROW LEVEL SECURITY', t);
@@ -27,8 +28,8 @@ BEGIN
   END LOOP;
 END $$;
 
--- audit_log: intentionally NO RLS (legacy 0002 — append-only, cross-tenant admin reads,
--- pre-tenant login events). Intake audit writes use withSystem({ reason: ... }) like
--- the existing lib/audit.ts pattern. C-AUDIT payload rules enforced in application code.
+-- Brownfield note: legacy audit rows with NULL tenant_id are hidden under FORCE RLS.
+-- Pre-tenant events (e.g. login) use the existing withSystem() / superuser paths.
+-- New intake audit writes MUST set tenant_id (C-AUDIT).
 
 COMMIT;

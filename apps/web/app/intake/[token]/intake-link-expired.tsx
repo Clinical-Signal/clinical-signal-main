@@ -7,11 +7,7 @@ export function IntakeLinkExpired() {
         </p>
         <h1 className="font-serif text-2xl text-ink">Link expired or invalid</h1>
         <p className="text-base leading-relaxed text-ink-muted">
-          This intake link is no longer available. It may have already been used, expired, or
-          replaced with a new link.
-        </p>
-        <p className="text-sm text-ink-muted">
-          Please request a new link from your provider.
+          Link Expired or Invalid. Please request a new link from your provider.
         </p>
       </div>
     </div>

@@ -1,6 +1,7 @@
 export * from "./patients-intake";
 export * from "./intake-token-status";
 export * from "./intake-tokens";
+export * from "./intake-chat-messages";
 export * from "./intake-documents";
 export * from "./document-chunks";
 export * from "./processing-jobs";

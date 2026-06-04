@@ -65,6 +65,9 @@ exports[`intake-data.schema > matches IntakeDataSchema.shape snapshot 1`] = `
       "default": "ZodString",
     },
   },
+  "contact_email": {
+    "optional": "ZodString",
+  },
   "history": {
     "diagnoses": {
       "default": {

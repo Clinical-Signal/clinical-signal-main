@@ -6,16 +6,26 @@ describe("lib/env", () => {
     vi.resetModules();
   });
 
-  it("throws synchronously when DATABASE_URL is missing", async () => {
-    vi.stubEnv("DATABASE_URL", "");
+  function stubRequiredEnvExcept(databaseUrl: string) {
+    vi.stubEnv("DATABASE_URL", databaseUrl);
     vi.stubEnv("REDIS_URL", "redis://localhost:6379");
     vi.stubEnv("S3_BUCKET", "test-bucket");
     vi.stubEnv("S3_REGION", "us-east-1");
     vi.stubEnv("AWS_ACCESS_KEY_ID", "test-key");
     vi.stubEnv("AWS_SECRET_ACCESS_KEY", "test-secret");
-    vi.stubEnv("ANTHROPIC_API_KEY", "test-anthropic");
-    vi.stubEnv("ANTHROPIC_MODEL", "claude-sonnet-4-5");
+    vi.stubEnv("OPENROUTER_API_KEY", "test-openrouter");
+    vi.stubEnv("OPENROUTER_MODEL", "anthropic/claude-3.5-sonnet");
+  }
 
+  it("throws synchronously when DATABASE_URL is missing", async () => {
+    stubRequiredEnvExcept("");
     await expect(import("./env")).rejects.toThrow(/DATABASE_URL/i);
+  });
+
+  it("parses when all required variables are present", async () => {
+    stubRequiredEnvExcept("postgresql://localhost:5432/clinical_signal");
+    const { env } = await import("./env");
+    expect(env.DATABASE_URL).toBe("postgresql://localhost:5432/clinical_signal");
+    expect(env.OPENROUTER_MODEL).toBe("anthropic/claude-3.5-sonnet");
   });
 });

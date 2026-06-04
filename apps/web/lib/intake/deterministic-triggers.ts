@@ -1,3 +1,7 @@
+/**
+ * Deterministic trigger map — pure signal→module map (PRD §5.2, matrix §1.3 D-DT-1–D-DT-4).
+ */
+
 export type DeterministicModuleKey =
   | "gut_deep_dive"
   | "hormone_deep_dive"
@@ -29,6 +33,7 @@ function hasWellnessPracticeTrigger(input: StepOneTriggerInput): boolean {
   return input.sauna || input.cold_exposure || input.meditation;
 }
 
+/** D-DT-1: canonical order — dig, hor, aut, med, wellness, lab. */
 export function getDeterministicTriggers(
   input: StepOneTriggerInput,
 ): DeterministicModuleKey[] {

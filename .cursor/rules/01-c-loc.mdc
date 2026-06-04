@@ -1,5 +1,5 @@
 ---
-description: C-LOC — enforce a strict 500-line cap per file; split before CI fails
+description: C-LOC — enforce a strict 500-line cap per file; split before CI fails (PRD §1.4, Phase 0.2c)
 alwaysApply: true
 ---
 
@@ -9,7 +9,7 @@ alwaysApply: true
 
 ## Rule
 
-- Count physical lines in each file (including blanks and comments) unless excluded by `.loc-ignore`.
+- Count **physical lines** in each file (including blanks and comments) unless excluded by `.loc-ignore`.
 - **Hard limit: 500 lines.** There is no grace buffer in CI.
 - **Soft limit: ~400 lines.** If a file you are editing approaches 400 lines, split it proactively before adding more logic.
 - Orchestrator/shell files should stay **≤200 LOC** (e.g. `step-one-form.tsx`, `step-two-renderer.tsx`, `intake-review.tsx`). Push UI and logic into sibling slice files.
@@ -25,10 +25,10 @@ alwaysApply: true
 
 ## Agent workflow
 
-1. Before finishing any task, mentally estimate final line count of touched files.
+1. Before finishing any task, estimate final line count of touched files.
 2. If adding code would push a file past 400 lines, **split first**, then implement.
 3. Never "just add a few more helpers" to a 450-line file — extract a new slice file instead.
-4. At phase boundaries, search for files over 400 LOC and split any that are trending toward the gate.
+4. At phase boundaries, run a repo scan for files over 400 LOC and split any trending toward the gate.
 
 ## Violations (examples)
 
@@ -47,5 +47,5 @@ alwaysApply: true
 
 1. **Inlining a whole feature** into an existing file because "it's only 80 more lines" when the file is already at 430 lines.
 2. **Generating large boilerplate blocks** (repeated form fields, table-driven UI) in one file instead of extracting shared primitives to `components/ui/`.
-3. **Leaving generated migration SQL or lockfiles** out of `.loc-ignore` while counting application source — only ignore paths explicitly listed in `.loc-ignore`; do not add broad ignores to dodge the gate.
+3. **Broad `.loc-ignore` entries** to dodge the gate — only ignore paths explicitly listed for generated artifacts (lockfiles, migration SQL), not application source.
 4. **Deferring the split** with a `// TODO: split later` comment — CI will fail before "later" arrives.
