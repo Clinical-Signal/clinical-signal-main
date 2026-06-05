@@ -1,8 +1,10 @@
+import type { LanguageModel } from "ai";
 import { generateText } from "ai";
 import { z } from "zod";
 
+import { logSafeError } from "@/lib/log-safe";
+import { getBedrockChatModel } from "@/lib/llm/bedrock";
 import { parseLlmJson } from "@/lib/llm/parse-llm-json";
-import { getOpenRouterChatModel } from "@/lib/llm/openrouter";
 
 import { loadIntakeChatPrompt } from "./load-intake-chat-prompt";
 
@@ -18,6 +20,8 @@ export type GatekeeperResult = z.infer<typeof GatekeeperSchema>;
 export async function evaluateChatEditSignificance(input: {
   original: string;
   edited: string;
+  /** Bedrock model via Vercel AI SDK (defaults to Claude 3 Opus). */
+  model?: LanguageModel;
 }): Promise<GatekeeperResult> {
   const original = input.original.trim();
   const edited = input.edited.trim();
@@ -30,7 +34,7 @@ export async function evaluateChatEditSignificance(input: {
   }
 
   const { text } = await generateText({
-    model: getOpenRouterChatModel(),
+    model: input.model ?? getBedrockChatModel(),
     maxOutputTokens: 120,
     temperature: 0,
     system: loadIntakeChatPrompt(GATEKEEPER_PROMPT_FILE),
@@ -40,7 +44,7 @@ export async function evaluateChatEditSignificance(input: {
   try {
     return parseLlmJson(text, GatekeeperSchema);
   } catch (error) {
-    console.error("[GATEKEEPER_PARSE_ERROR]", error);
+    logSafeError("[GATEKEEPER_PARSE_ERROR]", error);
     throw new Error(
       error instanceof Error
         ? `Gatekeeper JSON invalid: ${error.message}`

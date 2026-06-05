@@ -8,7 +8,8 @@ import {
 } from "@/lib/intake/intake-chat-edit-response";
 import { getIntakeChatMessageById } from "@/lib/intake/intake-chat-store";
 import { runIntakeChatBranchTurn } from "@/lib/intake/run-intake-chat-branch-turn";
-import { getOpenRouterChatModel } from "@/lib/llm/openrouter";
+import { logSafeError } from "@/lib/log-safe";
+import { getBedrockChatModel } from "@/lib/llm/bedrock";
 import { IntakeTokenError } from "@/lib/tokens/intake-token";
 import { extractClientIp, tokenErrorResponse } from "@/lib/tokens/intake-token-api";
 import { getIntakeTokenService } from "@/lib/tokens/intake-token-service";
@@ -61,7 +62,7 @@ export async function POST(
       editedContent: body.editedContent,
       gatekeeperReason: body.gatekeeperReason,
       userMessage: body.message,
-      model: getOpenRouterChatModel(),
+      model: getBedrockChatModel(),
     });
 
     await writeAudit({
@@ -91,8 +92,7 @@ export async function POST(
     if (error instanceof IntakeTokenError) {
       return tokenErrorResponse(error);
     }
-    console.error("[CHAT_BRANCH_ERROR]", error);
-    const message = error instanceof Error ? error.message : "Branch chat failed";
-    return NextResponse.json({ error: message }, { status: 500 });
+    logSafeError("[CHAT_BRANCH_ERROR]", error);
+    return NextResponse.json({ error: "BRANCH_CHAT_FAILED" }, { status: 500 });
   }
 }

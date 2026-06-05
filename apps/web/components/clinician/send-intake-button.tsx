@@ -9,15 +9,17 @@ type SendState = "idle" | "sending" | "success" | "error";
 
 export type SendIntakeButtonProps = {
   patientId: string;
-  /** When true, intake is finalized — confirm before reissuing a new magic link. */
+  /** When true, intake is finalized — confirm before reissuing a new intake link. */
   intakeFinished?: boolean;
 };
 
 type SendIntakeResponse = {
-  intakeUrl?: string;
-  patientEmail?: string;
   error?: string;
+  message?: string;
 };
+
+const INTAKE_LINK_SENT_MESSAGE =
+  "Intake link successfully sent to the patient's email.";
 
 export function SendIntakeButton({
   patientId,
@@ -39,7 +41,7 @@ export function SendIntakeButton({
   const handleSend = useCallback(async () => {
     if (intakeFinished) {
       const confirmed = window.confirm(
-        "This patient has already completed their intake. Send a new magic link? Their previous link will stop working.",
+        "This patient has already completed their intake. Send a new intake link? Their previous link will stop working.",
       );
       if (!confirmed) {
         return;
@@ -63,6 +65,14 @@ export function SendIntakeButton({
           setFeedback("Sign in to send intake links.");
         } else if (body.error === "ACTIVE_TOKEN_EXISTS") {
           setFeedback("An active link already exists. Refresh the page or try again.");
+        } else if (body.error === "PATIENT_EMAIL_REQUIRED") {
+          setFeedback(
+            "Add the patient's email on their intake record before sending a link.",
+          );
+        } else if (body.error === "EMAIL_DISPATCH_FAILED") {
+          setFeedback(
+            body.message ?? "Failed to dispatch email. Please try again.",
+          );
         } else {
           setFeedback("Could not send the intake link. Try again.");
         }
@@ -70,11 +80,7 @@ export function SendIntakeButton({
       }
 
       setSendState("success");
-      const emailLine = body.patientEmail
-        ? `Email queued to ${body.patientEmail}.`
-        : "Intake link sent.";
-      const urlLine = body.intakeUrl ? ` Open: ${body.intakeUrl}` : "";
-      setFeedback(`${emailLine}${urlLine}`);
+      setFeedback(INTAKE_LINK_SENT_MESSAGE);
       router.refresh();
     } catch {
       setSendState("error");
@@ -83,7 +89,17 @@ export function SendIntakeButton({
   }, [intakeFinished, patientId, router]);
 
   return (
-    <div className="flex flex-col items-end gap-1.5">
+    <>
+      {sendState === "error" && feedback ? (
+        <div
+          role="alert"
+          aria-live="assertive"
+          className="fixed bottom-6 left-1/2 z-50 w-[min(100%,22rem)] -translate-x-1/2 rounded-lg border border-line bg-surface px-4 py-3 text-center text-sm text-danger shadow-sm"
+        >
+          {feedback}
+        </div>
+      ) : null}
+      <div className="flex flex-col items-end gap-1.5">
       <Button
         type="button"
         variant={isSuccess ? "secondary" : "primary"}
@@ -103,17 +119,16 @@ export function SendIntakeButton({
           label
         )}
       </Button>
-      {feedback ? (
+      {feedback && sendState !== "error" ? (
         <p
-          className={`max-w-[18rem] text-right text-xs leading-snug ${
-            sendState === "error" ? "text-danger" : "text-ink-muted"
-          }`}
+          className="max-w-[18rem] text-right text-xs leading-snug text-ink-muted"
           role="status"
         >
           {feedback}
         </p>
       ) : null}
     </div>
+    </>
   );
 }
 

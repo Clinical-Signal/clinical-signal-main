@@ -1,6 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useCallback, useMemo, useState } from "react";
+
+import { IntakeTransitionLoader } from "../intake-transition-loader";
 
 import type { IntakeData } from "@/lib/intake/schemas/intake-data.schema";
 import type { IntakeStatus } from "@/lib/db/schema/patients-intake";
@@ -29,7 +32,9 @@ const STEP1_READY_STATUSES: IntakeStatus[] = [
 ];
 
 export function StepOneForm({ token, intakeStatus, initialIntakeData }: StepOneFormProps) {
+  const router = useRouter();
   const [currentStep, setCurrentStep] = useState<StepOneScreenKey>("about_you");
+  const [isTransitioning, setIsTransitioning] = useState(false);
   const draft = useStepOneDraft(initialIntakeData);
 
   const stepIndex = STEP_ONE_SCREENS.findIndex((step) => step.key === currentStep);
@@ -67,9 +72,17 @@ export function StepOneForm({ token, intakeStatus, initialIntakeData }: StepOneF
     }
   };
 
+  const startStepTwoTransition = useCallback(() => {
+    if (isTransitioning) {
+      return;
+    }
+    setIsTransitioning(true);
+    router.push(stepTwoHref);
+  }, [isTransitioning, router, stepTwoHref]);
+
   const goNext = () => {
     if (isLastStep && canAdvance) {
-      window.location.href = stepTwoHref;
+      startStepTwoTransition();
       return;
     }
     const next = STEP_ONE_SCREENS[stepIndex + 1];
@@ -77,6 +90,10 @@ export function StepOneForm({ token, intakeStatus, initialIntakeData }: StepOneF
       setCurrentStep(next.key);
     }
   };
+
+  if (isTransitioning) {
+    return <IntakeTransitionLoader />;
+  }
 
   return (
     <StepOneChrome
@@ -86,7 +103,7 @@ export function StepOneForm({ token, intakeStatus, initialIntakeData }: StepOneF
       stepOneComplete={stepOneComplete}
       isLastStep={isLastStep}
       canAdvance={canAdvance}
-      stepTwoHref={stepTwoHref}
+      onContinueToStepTwo={startStepTwoTransition}
       onBack={goBack}
       onNext={goNext}
     >

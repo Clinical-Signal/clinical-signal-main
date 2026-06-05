@@ -11,7 +11,7 @@ type StepOneChromeProps = {
   stepOneComplete: boolean;
   isLastStep: boolean;
   canAdvance: boolean;
-  stepTwoHref: string;
+  onContinueToStepTwo: () => void;
   onBack: () => void;
   onNext: () => void;
   children: React.ReactNode;
@@ -24,7 +24,7 @@ export function StepOneChrome({
   stepOneComplete,
   isLastStep,
   canAdvance,
-  stepTwoHref,
+  onContinueToStepTwo,
   onBack,
   onNext,
   children,
@@ -62,12 +62,13 @@ export function StepOneChrome({
           role="status"
         >
           Step 1 is saved.{" "}
-          <a
-            href={stepTwoHref}
+          <button
+            type="button"
             className="font-medium text-accent underline-offset-2 hover:underline"
+            onClick={onContinueToStepTwo}
           >
             Continue to Step 2 follow-up questions
-          </a>
+          </button>
           .
         </div>
       ) : null}

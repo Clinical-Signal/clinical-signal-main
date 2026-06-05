@@ -191,7 +191,7 @@ function intakeHubStatus(
     return "Patient intake complete";
   }
   if (linkStatus === "pending") {
-    return "Magic link active — awaiting patient";
+    return "Intake link sent — awaiting patient";
   }
   if (s.intake.submittedAt) {
     return `Submitted ${new Date(s.intake.submittedAt).toLocaleDateString()}`;

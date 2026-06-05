@@ -1,9 +1,7 @@
+import { env } from "@/lib/env";
+
 export function buildIntakeAppBaseUrl(): string {
-  return (
-    process.env.DEMO_APP_BASE_URL ??
-    process.env.NEXT_PUBLIC_APP_URL ??
-    "http://localhost:3000"
-  ).replace(/\/$/, "");
+  return env.NEXT_PUBLIC_APP_URL.replace(/\/$/, "");
 }
 
 export function buildPatientIntakeUrl(rawToken: string): string {

@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { writeAudit } from "@/lib/audit/write-audit";
-import { getOpenRouterChatModel } from "@/lib/llm/openrouter";
+import { logSafeError } from "@/lib/log-safe";
+import { getBedrockChatModel } from "@/lib/llm/bedrock";
 import { listMainIntakeChatMessages } from "@/lib/intake/intake-chat-store";
 import { runIntakeChatTurn } from "@/lib/intake/run-intake-chat-turn";
 import { getPatientIntakeState } from "@/lib/intake/patient-intake-store";
@@ -54,7 +55,7 @@ export async function POST(
         intakeTokenId: verified.tokenId,
         intakeData: state.intakeData,
         userMessage: body.message,
-        model: getOpenRouterChatModel(),
+        model: getBedrockChatModel(),
         existingMessages: chatMessages,
       });
 
@@ -82,20 +83,18 @@ export async function POST(
         totalMessages: result.totalMessages,
         userTurns: result.userTurns,
         assistantTurns: result.assistantTurns,
+        userMessageId: result.userMessageId,
+        assistantMessageId: result.assistantMessageId,
       });
     } catch (error) {
-      console.error("[CHAT_API_ERROR]", error);
-      const message =
-        error instanceof Error ? error.message : "Chat request failed";
-      return NextResponse.json({ error: message }, { status: 500 });
+      logSafeError("[CHAT_API_ERROR]", error);
+      return NextResponse.json({ error: "CHAT_REQUEST_FAILED" }, { status: 500 });
     }
   } catch (error) {
     if (error instanceof IntakeTokenError) {
       return tokenErrorResponse(error);
     }
-    console.error(LOG, error instanceof Error ? error.message : error);
-    const message =
-      error instanceof Error ? error.message : "Unexpected error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    logSafeError(LOG, error);
+    return NextResponse.json({ error: "INTERNAL_ERROR" }, { status: 500 });
   }
 }

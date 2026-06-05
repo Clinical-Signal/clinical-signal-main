@@ -14,7 +14,8 @@ import {
 } from "@/lib/intake/intake-chat-edit-response";
 import { EditChatBodySchema } from "@/lib/intake/parse-edit-chat-body";
 import { runIntakeChatBranchTurn } from "@/lib/intake/run-intake-chat-branch-turn";
-import { getOpenRouterChatModel } from "@/lib/llm/openrouter";
+import { logSafeError } from "@/lib/log-safe";
+import { getBedrockChatModel } from "@/lib/llm/bedrock";
 import { IntakeTokenError } from "@/lib/tokens/intake-token";
 import { extractClientIp, tokenErrorResponse } from "@/lib/tokens/intake-token-api";
 import { getIntakeTokenService } from "@/lib/tokens/intake-token-service";
@@ -66,9 +67,12 @@ export async function PUT(
     const originalContent = existing.content;
     const editedContent = body.content.trim();
 
+    const model = getBedrockChatModel();
+
     const gate = await evaluateChatEditSignificance({
       original: originalContent,
       edited: editedContent,
+      model,
     });
 
     await updateIntakeChatMessageContent({
@@ -108,7 +112,7 @@ export async function PUT(
       originalContent,
       editedContent,
       gatekeeperReason: gate.reason,
-      model: getOpenRouterChatModel(),
+      model,
     });
 
     const response: EditChatMessageResponse = {
@@ -127,8 +131,7 @@ export async function PUT(
     if (error instanceof IntakeTokenError) {
       return tokenErrorResponse(error);
     }
-    console.error("[CHAT_EDIT_ERROR]", error);
-    const message = error instanceof Error ? error.message : "Edit failed";
-    return NextResponse.json({ error: message }, { status: 500 });
+    logSafeError("[CHAT_EDIT_ERROR]", error);
+    return NextResponse.json({ error: "EDIT_FAILED" }, { status: 500 });
   }
 }

@@ -1,7 +1,7 @@
 import type { LanguageModel } from "ai";
 import { generateText } from "ai";
 
-import { getOpenRouterChatModel } from "@/lib/llm/openrouter";
+import { getBedrockChatModel } from "@/lib/llm/bedrock";
 
 import { buildBranchChatSystemPrompt } from "./build-branch-chat-system-prompt";
 import { stripBranchCompleteMarker } from "./intake-chat-branch-markers";
@@ -127,7 +127,7 @@ export async function runIntakeChatBranchTurn(
   }
 
   const { text } = await generateText({
-    model: input.model ?? getOpenRouterChatModel(),
+    model: input.model ?? getBedrockChatModel(),
     system: buildBranchChatSystemPrompt({
       originalContent: input.originalContent,
       editedContent: input.editedContent,

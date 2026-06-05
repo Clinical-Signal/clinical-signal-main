@@ -1,7 +1,7 @@
 import type { LanguageModel } from "ai";
 import { generateText } from "ai";
 
-import { getOpenRouterChatModel } from "@/lib/llm/openrouter";
+import { getBedrockChatModel } from "@/lib/llm/bedrock";
 import type { IntakeData } from "@/lib/intake/schemas/intake-data.schema";
 
 import { buildStepTwoChatSystemPrompt } from "./build-step-two-chat-system-prompt";
@@ -61,7 +61,7 @@ export type RunIntakeChatTurnInput = {
   intakeTokenId: string;
   intakeData: IntakeData;
   userMessage: string;
-  /** OpenRouter model via `@ai-sdk/openai` custom provider (`.chat()`). */
+  /** Bedrock model via Vercel AI SDK (defaults to Claude 3 Opus). */
   model?: LanguageModel;
   /** When provided (e.g. from the chat route), avoids a duplicate list query. */
   existingMessages?: IntakeChatMessageRow[];
@@ -75,6 +75,9 @@ export type RunIntakeChatTurnResult = {
   totalMessages: number;
   userTurns: number;
   assistantTurns: number;
+  /** Persisted row ids so the client can enable edit on newly sent messages. */
+  userMessageId?: string;
+  assistantMessageId?: string;
 };
 
 async function persistForcedClosingTurn(input: {
@@ -99,7 +102,7 @@ async function persistForcedClosingTurn(input: {
     };
   }
 
-  await insertIntakeChatMessage({
+  const assistantMessageId = await insertIntakeChatMessage({
     tenantId: input.tenantId,
     intakeTokenId: input.intakeTokenId,
     role: "assistant",
@@ -121,6 +124,7 @@ async function persistForcedClosingTurn(input: {
     totalMessages: budget.totalMessages,
     userTurns: budget.userTurns,
     assistantTurns: budget.assistantTurns,
+    assistantMessageId,
   };
 }
 
@@ -145,6 +149,8 @@ export async function runIntakeChatTurn(
     });
   }
 
+  let userMessageId: string | undefined;
+
   if (!kickoff) {
     if (budget.atUserCeiling) {
       return persistForcedClosingTurn({
@@ -155,7 +161,7 @@ export async function runIntakeChatTurn(
       });
     }
 
-    await insertIntakeChatMessage({
+    userMessageId = await insertIntakeChatMessage({
       tenantId: input.tenantId,
       intakeTokenId: input.intakeTokenId,
       role: "user",
@@ -193,7 +199,7 @@ export async function runIntakeChatTurn(
   }
 
   const { text } = await generateText({
-    model: input.model ?? getOpenRouterChatModel(),
+    model: input.model ?? getBedrockChatModel(),
     system: buildStepTwoChatSystemPrompt({
       assistantTurn: budget.nextAssistantTurn,
       patientFirstName: firstName,
@@ -204,7 +210,7 @@ export async function runIntakeChatTurn(
   const { displayText, interviewComplete: markerComplete } = stripCompleteMarker(text);
   const phraseComplete = responseSignalsInterviewComplete(text);
 
-  await insertIntakeChatMessage({
+  const assistantMessageId = await insertIntakeChatMessage({
     tenantId: input.tenantId,
     intakeTokenId: input.intakeTokenId,
     role: "assistant",
@@ -227,5 +233,7 @@ export async function runIntakeChatTurn(
     totalMessages: finalBudget.totalMessages,
     userTurns: finalBudget.userTurns,
     assistantTurns: finalBudget.assistantTurns,
+    userMessageId,
+    assistantMessageId,
   };
 }

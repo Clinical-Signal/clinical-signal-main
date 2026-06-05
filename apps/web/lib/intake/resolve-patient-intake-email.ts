@@ -15,23 +15,9 @@ function readContactEmail(intakeData: IntakeData | undefined): string | null {
   return null;
 }
 
-/** Resolves a dispatch address for the magic-link email (dev fallback when none on file). */
+/** Patient email on file (`intake_data.contact_email`) for magic-link dispatch. */
 export function resolvePatientIntakeEmail(
   intakeData: IntakeData | undefined,
-  patientId: string,
-  displayName?: string | null,
-): string {
-  const fromIntake = readContactEmail(intakeData);
-  if (fromIntake) {
-    return fromIntake;
-  }
-
-  const slug =
-    displayName
-      ?.trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, ".")
-      .replace(/^\.+|\.+$/g, "") || "patient";
-
-  return `${slug}.${patientId.slice(0, 8)}@intake.example.com`;
+): string | null {
+  return readContactEmail(intakeData);
 }

@@ -4,12 +4,15 @@ import { writeAudit } from "@/lib/audit/write-audit";
 import { apiAuth } from "@/lib/auth";
 import { buildPatientIntakeUrl } from "@/lib/intake/build-intake-url";
 import { dispatchIntakeEmail } from "@/lib/intake/dispatch-intake-email";
-import { getPatientDisplayName } from "@/lib/intake/get-patient-display-name";
 import { getPatientIntakeState } from "@/lib/intake/patient-intake-store";
 import { resolvePatientIntakeEmail } from "@/lib/intake/resolve-patient-intake-email";
 import { patientBelongsToTenant } from "@/lib/records";
 import { IntakeTokenError } from "@/lib/tokens/intake-token";
+import { logSafeError } from "@/lib/log-safe";
 import { getIntakeTokenService } from "@/lib/tokens/intake-token-service";
+
+const EMAIL_DISPATCH_FAILED_MESSAGE =
+  "Failed to dispatch email. Please try again.";
 
 export async function POST(
   _request: Request,
@@ -34,15 +37,28 @@ export async function POST(
     });
 
     const state = await getPatientIntakeState(user.tenantId, patientId);
-    const displayName = await getPatientDisplayName(user.tenantId, patientId);
-    const patientEmail = resolvePatientIntakeEmail(
-      state?.intakeData,
-      patientId,
-      displayName,
-    );
+    const patientEmail = resolvePatientIntakeEmail(state?.intakeData);
+    if (!patientEmail) {
+      return NextResponse.json(
+        { error: "PATIENT_EMAIL_REQUIRED" },
+        { status: 400 },
+      );
+    }
+
     const intakeUrl = buildPatientIntakeUrl(minted.token);
 
-    await dispatchIntakeEmail({ patientEmail, intakeUrl });
+    try {
+      await dispatchIntakeEmail({ patientEmail, intakeUrl });
+    } catch (emailError) {
+      logSafeError("[send-intake] email_dispatch_failed", emailError);
+      return NextResponse.json(
+        {
+          error: "EMAIL_DISPATCH_FAILED",
+          message: EMAIL_DISPATCH_FAILED_MESSAGE,
+        },
+        { status: 500 },
+      );
+    }
 
     await writeAudit({
       tenantId: user.tenantId,
@@ -70,8 +86,6 @@ export async function POST(
     return NextResponse.json({
       tokenId: minted.tokenId,
       expiresAt: minted.expiresAt.toISOString(),
-      intakeUrl,
-      patientEmail,
       status: "pending",
     });
   } catch (error) {
@@ -79,10 +93,7 @@ export async function POST(
       return NextResponse.json({ error: "ACTIVE_TOKEN_EXISTS" }, { status: 409 });
     }
 
-    console.error(
-      "[send-intake] failed:",
-      error instanceof Error ? error.message : error,
-    );
+    logSafeError("[send-intake] failed", error);
     return NextResponse.json({ error: "INTERNAL_ERROR" }, { status: 500 });
   }
 }
