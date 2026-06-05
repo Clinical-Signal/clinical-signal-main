@@ -1,15 +1,23 @@
-/**
- * Mock intake magic-link email dispatch (Phase 0 — replace with Resend/SES in production).
- * PHI-free: logs recipient + URL only; never logs intake answers.
- */
+import { createSmtpTransport } from "@/lib/email/smtp-transport";
+import { env } from "@/lib/env";
+
+import { buildIntakeLinkEmailContent } from "./build-intake-link-email";
 
 export type DispatchIntakeEmailInput = {
   patientEmail: string;
   intakeUrl: string;
 };
 
+/** Sends the intake magic link to the patient's email via production SMTP. */
 export async function dispatchIntakeEmail(input: DispatchIntakeEmailInput): Promise<void> {
-  console.log(
-    `[intake-email] Email sent to ${input.patientEmail} with link: ${input.intakeUrl}`,
-  );
+  const transport = createSmtpTransport();
+  const { subject, text, html } = buildIntakeLinkEmailContent(input.intakeUrl);
+
+  await transport.sendMail({
+    from: env.EMAIL_FROM_ADDRESS,
+    to: input.patientEmail,
+    subject,
+    text,
+    html,
+  });
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { Pencil, Stethoscope } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { isPersistedIntakeChatMessageId } from "@/lib/intake/intake-chat-message-id";
 import type { UiChatBranch, UiChatMessage } from "@/lib/intake/partition-intake-chat-messages";
@@ -84,6 +84,12 @@ function UserBubble({
   onSaveEdit: (content: string) => void;
 }) {
   const [draft, setDraft] = useState(message.content);
+
+  useEffect(() => {
+    if (isEditing) {
+      setDraft(message.content);
+    }
+  }, [isEditing, message.content]);
 
   if (isEditing) {
     return (

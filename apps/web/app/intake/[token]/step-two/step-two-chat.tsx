@@ -26,12 +26,15 @@ type StepTwoChatProps = {
   token: string;
   initialMessages: ChatBubbleMessage[];
   initialBranches: Record<string, UiChatBranch>;
+  /** Fires when an empty thread finishes kickoff or fails (hides Step 1→2 loader). */
+  onBootstrapSettled?: () => void;
 };
 
 export function StepTwoChat({
   token,
   initialMessages,
   initialBranches,
+  onBootstrapSettled,
 }: StepTwoChatProps) {
   const [messages, setMessages] = useState<ChatBubbleMessage[]>(initialMessages);
   const [branches, setBranches] =
@@ -53,6 +56,8 @@ export function StepTwoChat({
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const kickoffStarted = useRef(false);
+  const bootstrapSettled = useRef(initialMessages.length > 0);
+  const autoFinishStarted = useRef(false);
   const scrollAnchorRef = useRef<HTMLDivElement>(null);
   const branchInputRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -120,11 +125,14 @@ export function StepTwoChat({
 
       const isUserTurn =
         message.trim().length > 0 && message !== INTAKE_CHAT_KICKOFF_MESSAGE;
-      if (isUserTurn) {
+      const pendingUserId = isUserTurn ? `user-pending-${Date.now()}` : null;
+      const pendingAssistantId = `assistant-pending-${Date.now()}`;
+
+      if (isUserTurn && pendingUserId) {
         setMessages((prev) => [
           ...prev,
           {
-            id: `user-pending-${Date.now()}`,
+            id: pendingUserId,
             role: "user",
             content: message.trim(),
           },
@@ -152,6 +160,8 @@ export function StepTwoChat({
         canFinish?: boolean;
         interviewComplete?: boolean;
         isComplete?: boolean;
+        userMessageId?: string;
+        assistantMessageId?: string;
         error?: string;
       };
       try {
@@ -178,14 +188,24 @@ export function StepTwoChat({
 
       const { displayText } = stripCompleteMarker(payload.reply);
 
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `assistant-${Date.now()}`,
-          role: "assistant",
-          content: displayText,
-        },
-      ]);
+      setMessages((prev) => {
+        const withUserIds = pendingUserId
+          ? prev.map((row) =>
+              row.id === pendingUserId && payload.userMessageId
+                ? { ...row, id: payload.userMessageId }
+                : row,
+            )
+          : prev;
+
+        return [
+          ...withUserIds,
+          {
+            id: payload.assistantMessageId ?? pendingAssistantId,
+            role: "assistant",
+            content: displayText,
+          },
+        ];
+      });
 
       if (payload.isComplete ?? payload.canFinish ?? payload.interviewComplete) {
         setIsComplete(true);
@@ -288,6 +308,16 @@ export function StepTwoChat({
       void sendToApi(INTAKE_CHAT_KICKOFF_MESSAGE);
     }
   }, [activeBranchId, initialMessages.length, isComplete, sendToApi]);
+
+  useEffect(() => {
+    if (bootstrapSettled.current || !onBootstrapSettled) {
+      return;
+    }
+    if (messages.length > 0 || errorMessage) {
+      bootstrapSettled.current = true;
+      onBootstrapSettled();
+    }
+  }, [errorMessage, messages.length, onBootstrapSettled]);
 
   const handleSend = useCallback(() => {
     const text = input.trim();
@@ -417,24 +447,45 @@ export function StepTwoChat({
       if (!response.ok) {
         setErrorMessage("Could not submit your intake. Try again.");
         setIsSubmitting(false);
+        autoFinishStarted.current = false;
         return;
       }
       window.location.href = `/intake/${encodeURIComponent(token)}/complete`;
     } catch {
       setErrorMessage("Network error while submitting.");
       setIsSubmitting(false);
+      autoFinishStarted.current = false;
     }
   }, [token]);
 
+  useEffect(() => {
+    if (
+      !isComplete ||
+      isThinking ||
+      isSubmitting ||
+      activeBranchId ||
+      branchThinkingId ||
+      isSavingEdit ||
+      autoFinishStarted.current
+    ) {
+      return;
+    }
+
+    autoFinishStarted.current = true;
+    void handleFinish();
+  }, [
+    activeBranchId,
+    branchThinkingId,
+    handleFinish,
+    isComplete,
+    isSavingEdit,
+    isSubmitting,
+    isThinking,
+  ]);
+
   return (
     <div className="mx-auto flex h-[100dvh] w-full max-w-md flex-col bg-canvas">
-      <StepTwoChatHeader
-        token={token}
-        canFinish={isComplete}
-        isSubmitting={isSubmitting}
-        isThinking={isThinking}
-        onFinish={() => void handleFinish()}
-      />
+      <StepTwoChatHeader token={token} />
 
       <main className="flex min-h-0 flex-1 flex-col overflow-y-auto scroll-smooth px-4">
         <StepTwoChatBubbles
@@ -475,7 +526,6 @@ export function StepTwoChat({
           input={input}
           onInputChange={setInput}
           onSend={handleSend}
-          onFinish={() => void handleFinish()}
           inputDisabled={inputDisabled}
           isComplete={isComplete}
           isSubmitting={isSubmitting}
