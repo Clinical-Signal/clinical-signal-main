@@ -8,6 +8,8 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
+import { bytea } from "./pg-types";
+
 /**
  * Intake upload metadata (PRD §4.3).
  *
@@ -23,7 +25,7 @@ export const intakeDocuments = pgTable(
     fileType: text("file_type").notNull(),
     s3Key: text("s3_key"),
     processingStatus: text("processing_status").notNull().default("pending"),
-    extractedText: text("extracted_text"),
+    extractedTextEncrypted: bytea("extracted_text_encrypted"),
     metadata: jsonb("metadata").notNull().default({}),
     isVerified: boolean("is_verified").notNull().default(false),
     correctionsMade: boolean("corrections_made").notNull().default(false),

@@ -1,6 +1,6 @@
 import { index, integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
-import { int4range, vector1536 } from "./pg-types";
+import { bytea, int4range, vector1536 } from "./pg-types";
 
 /**
  * Transcript / document chunks for retrieval (PRD §4.4 / TR-6).
@@ -14,7 +14,7 @@ export const documentChunks = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     documentId: uuid("document_id").notNull(),
     tenantId: uuid("tenant_id").notNull(),
-    chunkText: text("chunk_text").notNull(),
+    chunkTextEncrypted: bytea("chunk_text_encrypted"),
     tokenRange: int4range("token_range"),
     page: integer("page"),
     timeRange: text("time_range"),
