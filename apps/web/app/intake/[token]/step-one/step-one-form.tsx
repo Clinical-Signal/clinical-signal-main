@@ -10,6 +10,8 @@ import type { IntakeStatus } from "@/lib/db/schema/patients-intake";
 
 import { STEP_ONE_SCREENS, type StepOneScreenKey } from "./step-one-screens";
 import { StepOneChrome } from "./step-one-chrome";
+import { computeStepOneFieldProgress } from "./step-one-field-progress";
+import { StepOneSaveProvider } from "./step-one-save-context";
 import { StepOneScreenRenderer } from "./step-one-screen-renderer";
 import {
   canAdvanceStepOneScreen,
@@ -60,6 +62,11 @@ export function StepOneForm({ token, intakeStatus, initialIntakeData }: StepOneF
     [currentStep, draftSlice],
   );
 
+  const fieldProgressPct = useMemo(
+    () => computeStepOneFieldProgress(draftSlice),
+    [draftSlice],
+  );
+
   const stepOneComplete =
     STEP1_READY_STATUSES.includes(intakeStatus) || isStepOneDraftValid(draftSlice);
 
@@ -96,23 +103,26 @@ export function StepOneForm({ token, intakeStatus, initialIntakeData }: StepOneF
   }
 
   return (
-    <StepOneChrome
-      stepIndex={stepIndex}
-      stepLabel={stepLabel}
-      intakeStatus={intakeStatus}
-      stepOneComplete={stepOneComplete}
-      isLastStep={isLastStep}
-      canAdvance={canAdvance}
-      onContinueToStepTwo={startStepTwoTransition}
-      onBack={goBack}
-      onNext={goNext}
-    >
-      <StepOneScreenRenderer
-        token={token}
-        screen={currentStep}
-        draft={draft}
-        showIntro={currentStep === "about_you" && stepIndex === 0}
-      />
-    </StepOneChrome>
+    <StepOneSaveProvider>
+      <StepOneChrome
+        stepIndex={stepIndex}
+        stepLabel={stepLabel}
+        intakeStatus={intakeStatus}
+        fieldProgressPct={fieldProgressPct}
+        stepOneComplete={stepOneComplete}
+        isLastStep={isLastStep}
+        canAdvance={canAdvance}
+        onContinueToStepTwo={startStepTwoTransition}
+        onBack={goBack}
+        onNext={goNext}
+      >
+        <StepOneScreenRenderer
+          token={token}
+          screen={currentStep}
+          draft={draft}
+          showIntro={currentStep === "about_you" && stepIndex === 0}
+        />
+      </StepOneChrome>
+    </StepOneSaveProvider>
   );
 }

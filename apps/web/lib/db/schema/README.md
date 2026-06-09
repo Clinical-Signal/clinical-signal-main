@@ -33,7 +33,8 @@ Or: `pnpm --filter @clinical-signal/web db:intake-migrate` (brownfield path).
 | `document-chunks.ts` | `document_chunks` + `vector(1536)` |
 | `processing-jobs.ts` | `processing_jobs` |
 | `audit-log.ts` | `audit_log` (legacy column names) |
-| `patients-intake.ts` | Documents `intake_status` + `intake_data` keys (no `pgTable`) |
+| `patients-intake.ts` | Documents `intake_status` + `intake_data` keys |
+| `patients.ts` | Legacy `patients` `pgTable` (Studio / local dev only) |
 
 ## Verify
 

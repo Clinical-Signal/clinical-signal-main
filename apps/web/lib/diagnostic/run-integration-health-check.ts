@@ -16,7 +16,6 @@ async function testBedrockConnection(): Promise<string> {
       model: getBedrockChatModel(),
       prompt: 'Respond with the word "CONNECTED" only.',
       maxOutputTokens: 16,
-      temperature: 0,
     });
 
     if (!text.toUpperCase().includes("CONNECTED")) {

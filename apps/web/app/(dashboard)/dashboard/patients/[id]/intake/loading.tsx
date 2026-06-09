@@ -5,7 +5,7 @@ export default function IntakeLoading() {
   return (
     <Page>
       <Skeleton className="mb-3 h-3 w-28" />
-      <PageHeader title="Capture the baseline" />
+      <PageHeader title="Intake summary" />
       <div className="flex flex-col gap-6">
         {Array.from({ length: 4 }).map((_, i) => (
           <section key={i} className="rounded-xl border border-line bg-surface">

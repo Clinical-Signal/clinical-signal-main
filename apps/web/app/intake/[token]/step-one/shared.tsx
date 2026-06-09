@@ -1,7 +1,9 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { z } from "zod";
+
+import { useStepOneSaveContext } from "./step-one-save-context";
 
 export type SaveStatus = "idle" | "saving" | "saved" | "error";
 
@@ -75,14 +77,27 @@ export function useSectionBlurSave<T>({
   value,
   schema,
   onSynced,
+  debounceMs = 1000,
 }: {
   token: string;
   section: StepOneSectionKey;
   value: T;
   schema: z.ZodType<T>;
   onSynced: (next: T) => void;
+  debounceMs?: number;
 }) {
+  const { reportSaveStatus } = useStepOneSaveContext();
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
+  const skipNextAutosave = useRef(true);
+  const lastSavedJson = useRef<string | null>(null);
+
+  const updateSaveStatus = useCallback(
+    (status: SaveStatus) => {
+      setSaveStatus(status);
+      reportSaveStatus(status);
+    },
+    [reportSaveStatus],
+  );
 
   const saveValue = useCallback(
     async (payload: T) => {
@@ -91,21 +106,49 @@ export function useSectionBlurSave<T>({
         return;
       }
 
-      setSaveStatus("saving");
-      const result = await postIntakeSection(token, section, parsed.data);
-      if (!result.ok) {
-        setSaveStatus("error");
+      const serialized = JSON.stringify(parsed.data);
+      if (serialized === lastSavedJson.current) {
         return;
       }
 
+      updateSaveStatus("saving");
+      const result = await postIntakeSection(token, section, parsed.data);
+      if (!result.ok) {
+        updateSaveStatus("error");
+        return;
+      }
+
+      lastSavedJson.current = serialized;
       onSynced(parsed.data);
-      setSaveStatus("saved");
-      window.setTimeout(() => setSaveStatus("idle"), 2000);
+      updateSaveStatus("saved");
+      window.setTimeout(() => updateSaveStatus("idle"), 2000);
     },
-    [onSynced, schema, section, token],
+    [onSynced, schema, section, token, updateSaveStatus],
   );
 
   const saveOnBlur = useCallback(() => saveValue(value), [saveValue, value]);
+
+  useEffect(() => {
+    if (skipNextAutosave.current) {
+      skipNextAutosave.current = false;
+      const parsed = schema.safeParse(value);
+      if (parsed.success) {
+        lastSavedJson.current = JSON.stringify(parsed.data);
+      }
+      return;
+    }
+
+    const parsed = schema.safeParse(value);
+    if (!parsed.success) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      void saveValue(parsed.data);
+    }, debounceMs);
+
+    return () => window.clearTimeout(timer);
+  }, [debounceMs, saveValue, schema, value]);
 
   return { saveStatus, saveOnBlur, saveValue };
 }
@@ -134,7 +177,7 @@ export function IntroBanner() {
   return (
     <p className="mb-6 rounded-md border border-line bg-surface-sunken px-4 py-3 text-sm text-ink-muted">
       Please set aside 15–20 minutes to complete this intake thoughtfully. Your answers
-      autosave when you leave each field.
+      autosave as you type.
     </p>
   );
 }

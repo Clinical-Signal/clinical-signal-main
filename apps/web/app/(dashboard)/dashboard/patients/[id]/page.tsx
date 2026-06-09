@@ -90,19 +90,10 @@ export default async function PatientDetailPage({
             </div>
           }
           primary={{
-            href: summary.intake.submittedAt
-              ? `/dashboard/patients/${params.id}/intake/review`
-              : `/dashboard/patients/${params.id}/intake`,
-            label: summary.intake.submittedAt ? "Review intake" : "Continue intake",
+            href: `/dashboard/patients/${params.id}/intake`,
+            label: "View intake summary",
           }}
-          secondary={
-            summary.intake.submittedAt
-              ? {
-                  href: `/dashboard/patients/${params.id}/intake`,
-                  label: "Edit",
-                }
-              : null
-          }
+          secondary={null}
         />
         <HubCard
           title="Documents & prep brief"

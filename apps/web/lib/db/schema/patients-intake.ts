@@ -37,6 +37,7 @@ export const PATIENTS_INTAKE_STATUS_CHECK_SQL = `
  * | `_provenance` | `Record<fieldPath, "patient" \| "clinician" \| "ai">` | Per-field source (S-6) |
  * | `_ai_confirmations` | `Record<fieldPath, { confirmed, by, at }>` | Clinician confirm gate (DoD-10) |
  * | `_analysis_degraded` | `boolean` | LLM analyze fell back to deterministic plan |
+ * | `contact_email` | `string` (email) | Clinician-set address for intake magic-link dispatch |
  *
  * Step payloads (`step_one`, `step_two`, etc.) are validated in `lib/intake/schemas/`.
  *
@@ -52,6 +53,7 @@ export const INTAKE_DATA_JSONB_KEYS = [
   "_provenance",
   "_ai_confirmations",
   "_analysis_degraded",
+  "contact_email",
 ] as const;
 
 export type IntakeDataJsonbKey = (typeof INTAKE_DATA_JSONB_KEYS)[number];

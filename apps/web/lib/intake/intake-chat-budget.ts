@@ -3,6 +3,7 @@ import {
   INTAKE_CHAT_MAX_ASSISTANT_TURNS,
   INTAKE_CHAT_MAX_TOTAL_MESSAGES,
   INTAKE_CHAT_MAX_USER_TURNS,
+  INTAKE_CHAT_MIN_ASSISTANT_TURNS_BEFORE_COMPLETE,
 } from "./intake-chat-constants";
 import { responseSignalsInterviewComplete } from "./intake-chat-closing";
 import { stripCompleteMarker } from "./intake-chat-markers";
@@ -49,6 +50,10 @@ export function budgetForcesTermination(budget: IntakeChatBudgetState): boolean 
   );
 }
 
+function metMinimumInterviewDepth(budget: IntakeChatBudgetState): boolean {
+  return budget.assistantTurns >= INTAKE_CHAT_MIN_ASSISTANT_TURNS_BEFORE_COMPLETE;
+}
+
 export function resolveIntakeChatIsComplete(input: {
   budget: IntakeChatBudgetState;
   assistantReply?: string;
@@ -56,6 +61,9 @@ export function resolveIntakeChatIsComplete(input: {
 }): boolean {
   if (budgetForcesTermination(input.budget)) {
     return true;
+  }
+  if (!metMinimumInterviewDepth(input.budget)) {
+    return false;
   }
   if (input.interviewCompleteMarker) {
     return true;

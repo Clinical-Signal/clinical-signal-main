@@ -36,7 +36,6 @@ export async function evaluateChatEditSignificance(input: {
   const { text } = await generateText({
     model: input.model ?? getBedrockChatModel(),
     maxOutputTokens: 120,
-    temperature: 0,
     system: loadIntakeChatPrompt(GATEKEEPER_PROMPT_FILE),
     prompt: `Original message:\n${original}\n\nEdited message:\n${edited}`,
   });
