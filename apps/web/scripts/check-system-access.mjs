@@ -42,6 +42,8 @@ const WITH_SYSTEM_ALLOWLIST = new Set([
   "apps/web/lib/db.ts",
   "apps/web/lib/audit.ts",
   "apps/web/lib/auth.ts",
+  "apps/web/lib/auth/mfa.ts",
+  "apps/web/lib/auth/mfa-routes.ts",
   "apps/web/lib/session.ts",
   "apps/web/lib/tokens/drizzle-token-store.ts",
   "apps/web/lib/tokens/postgres-intake-token-rate-limiter.ts",

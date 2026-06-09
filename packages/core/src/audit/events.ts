@@ -26,7 +26,11 @@ export type AuditAction =
   | "intake_submitted"
   | "protocol_edited"
   | "protocol_status_changed"
-  | "protocol_exported";
+  | "protocol_exported"
+  | "mfa_enrolled"
+  | "mfa_verified"
+  | "mfa_failed"
+  | "mfa_required_redirect";
 
 export interface AuditEvent {
   readonly action: AuditAction;

@@ -26,7 +26,10 @@ import { cookies, headers } from "next/headers";
 import { withSystem } from "@cs/db";
 import type { TenantContext, TenantLifecycleStatus, PractitionerRole } from "@cs/core";
 
-import { SESSION_COOKIE_NAME as COOKIE_NAME } from "./session-constants";
+import {
+  MFA_VERIFIED_COOKIE_NAME,
+  SESSION_COOKIE_NAME as COOKIE_NAME,
+} from "./session-constants";
 const TOKEN_BYTES = 32;
 const COOKIE_MAX_AGE_SECONDS = 24 * 60 * 60; // 24h absolute cookie lifetime
 
@@ -66,6 +69,8 @@ export async function createSession(practitionerId: string): Promise<string> {
       [tokenHash, newExpiry(), ip, ua, practitionerId],
     );
   });
+
+  clearMfaVerifiedCookie();
 
   cookies().set(COOKIE_NAME, raw, {
     httpOnly: true,
@@ -141,9 +146,50 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   };
 }
 
+export async function isSessionMfaVerified(sessionId: string): Promise<boolean> {
+  return withSystem({ reason: "session_mfa_status_lookup" }, async (c) => {
+    const { rows } = await c.query<{ mfa_verified_at: Date | null }>(
+      `SELECT mfa_verified_at FROM sessions WHERE id = $1`,
+      [sessionId],
+    );
+    return rows[0]?.mfa_verified_at !== null;
+  });
+}
+
+export async function markSessionMfaVerified(sessionId: string): Promise<void> {
+  await withSystem({ reason: "session_mfa_verified_stamp" }, async (c) => {
+    await c.query(
+      `UPDATE sessions SET mfa_verified_at = now() WHERE id = $1`,
+      [sessionId],
+    );
+  });
+  setMfaVerifiedCookie();
+}
+
+export function setMfaVerifiedCookie(): void {
+  cookies().set(MFA_VERIFIED_COOKIE_NAME, "1", {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: COOKIE_MAX_AGE_SECONDS,
+  });
+}
+
+export function clearMfaVerifiedCookie(): void {
+  cookies().set(MFA_VERIFIED_COOKIE_NAME, "", {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: 0,
+  });
+}
+
 export async function destroyCurrentSession(): Promise<string | null> {
   const raw = cookies().get(COOKIE_NAME)?.value;
   clearSessionCookie();
+  clearMfaVerifiedCookie();
   if (!raw) return null;
   const tokenHash = hashToken(raw);
   return withSystem({ reason: "session_destroy" }, async (c) => {
@@ -165,4 +211,7 @@ export function clearSessionCookie() {
   });
 }
 
-export { SESSION_COOKIE_NAME } from "./session-constants";
+export {
+  MFA_VERIFIED_COOKIE_NAME,
+  SESSION_COOKIE_NAME,
+} from "./session-constants";

@@ -15,7 +15,11 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export default {
   test: {
     environment: "node",
-    include: ["lib/__tests__/**/*.test.ts", "lib/**/*.test.ts"],
+    include: [
+      "lib/__tests__/**/*.test.ts",
+      "lib/**/*.test.ts",
+      "tests/**/*.test.ts",
+    ],
     exclude: ["lib/__tests__/migrate.test.ts"],
   },
   resolve: {
