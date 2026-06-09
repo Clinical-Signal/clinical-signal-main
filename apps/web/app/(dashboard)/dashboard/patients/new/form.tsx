@@ -14,6 +14,19 @@ export function NewPatientForm() {
         <Input id="patient-name" name="name" required />
       </Field>
       <Field
+        label="Email"
+        htmlFor="patient-email"
+        hint="We'll email the patient a secure link to complete their intake form."
+      >
+        <Input
+          id="patient-email"
+          name="email"
+          type="email"
+          autoComplete="email"
+          required
+        />
+      </Field>
+      <Field
         label="Date of birth"
         htmlFor="patient-dob"
         hint="Optional, but useful for age-based reference ranges."

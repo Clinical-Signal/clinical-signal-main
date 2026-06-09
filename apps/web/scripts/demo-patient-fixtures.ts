@@ -11,6 +11,9 @@ import {
   type IntakeData,
 } from "@/lib/intake/schemas/intake-data.schema";
 
+/** Dev/demo intake magic-link destination for all synthetic patients. */
+export const DEMO_PATIENT_CONTACT_EMAIL = "harsh@getventive.com";
+
 export type DemoPatientFixture = {
   displayName: string;
   dob: string;
@@ -54,6 +57,7 @@ function baseAboutYou(
 function toIntakeData(stepOne: StepOne): IntakeData {
   return IntakeDataSchema.parse({
     ...stepOne,
+    contact_email: DEMO_PATIENT_CONTACT_EMAIL,
     _provenance: {},
     _ai_confirmations: {},
     _analysis_degraded: false,

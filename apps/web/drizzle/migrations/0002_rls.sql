@@ -14,8 +14,7 @@ BEGIN
     'intake_tokens',
     'intake_documents',
     'document_chunks',
-    'processing_jobs',
-    'audit_log'
+    'processing_jobs'
   ]) LOOP
     EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
     EXECUTE format('ALTER TABLE %I FORCE ROW LEVEL SECURITY', t);
@@ -28,8 +27,7 @@ BEGIN
   END LOOP;
 END $$;
 
--- Brownfield note: legacy audit rows with NULL tenant_id are hidden under FORCE RLS.
--- Pre-tenant events (e.g. login) use the existing withSystem() / superuser paths.
--- New intake audit writes MUST set tenant_id (C-AUDIT).
+-- audit_log intentionally has NO RLS (see database/migrations/0002_core_schema.sql):
+-- login_failure and other pre-tenant events write via withSystem() with no tenant GUC.
 
 COMMIT;

@@ -16,6 +16,13 @@ export type { AuditAction };
 // type; AuditInput is the writer-side alias kept for back-compat.
 export type AuditInput = AuditEvent;
 
+function nullableUuid(value: string | null | undefined): string | null {
+  if (value == null || value.trim() === "") {
+    return null;
+  }
+  return value;
+}
+
 export async function writeAudit(input: AuditInput): Promise<void> {
   const h = headers();
   const ip =
@@ -31,8 +38,8 @@ export async function writeAudit(input: AuditInput): Promise<void> {
           ip_address, user_agent, metadata)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)`,
       [
-        input.tenantId ?? null,
-        input.practitionerId ?? null,
+        nullableUuid(input.tenantId),
+        nullableUuid(input.practitionerId),
         input.action,
         input.resourceType ?? null,
         input.resourceId ?? null,

@@ -27,6 +27,7 @@ import {
 } from "@/lib/tokens/intake-token";
 
 import {
+  DEMO_PATIENT_CONTACT_EMAIL,
   DEMO_PATIENT_FIXTURES,
   validateDemoPatientFixtures,
 } from "./demo-patient-fixtures";
@@ -143,6 +144,7 @@ async function upsertDemoPatient(input: {
       tenantId: input.tenantId,
       practitionerId: input.practitionerId,
       name: input.displayName,
+      email: DEMO_PATIENT_CONTACT_EMAIL,
       dob: input.dob,
       notes: input.notes,
     });
