@@ -29,8 +29,10 @@ const PROTOCOL_TONE: Record<string, Tone> = {
 
 export default async function PatientDetailPage({
   params,
+  searchParams,
 }: {
   params: { id: string };
+  searchParams?: { intake_email_failed?: string };
 }) {
   const user = await requireAuth();
   const [summary, intakeLink] = await Promise.all([
@@ -58,6 +60,16 @@ export default async function PatientDetailPage({
           ← All patients
         </Link>
       </div>
+
+      {searchParams?.intake_email_failed === "1" ? (
+        <p
+          className="mb-4 rounded-lg border border-warn bg-warn/10 px-4 py-3 text-sm text-ink"
+          role="status"
+        >
+          Patient was created, but the intake email could not be sent. Check SMTP
+          settings and use <strong>Send Intake Link</strong> to try again.
+        </p>
+      ) : null}
 
       <PageHeader
         title={summary.name}

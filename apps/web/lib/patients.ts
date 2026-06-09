@@ -25,8 +25,17 @@ export interface CreatePatientInput {
   tenantId: string;
   practitionerId: string;
   name: string;
+  email: string;
   dob?: string | null;
   notes?: string | null;
+}
+
+function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
+function isValidEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
 function nameHash(name: string): string {
@@ -74,21 +83,26 @@ export async function listPatients(tenantId: string): Promise<PatientListRow[]> 
 export async function createPatient(input: CreatePatientInput): Promise<string> {
   const name = input.name.trim();
   if (!name) throw new Error("Name is required");
+  const email = normalizeEmail(input.email);
+  if (!email) throw new Error("Email is required");
+  if (!isValidEmail(email)) throw new Error("Enter a valid email address");
   const dob = input.dob?.trim() || null;
   if (dob && !/^\d{4}-\d{2}-\d{2}$/.test(dob)) {
     throw new Error("DOB must be in YYYY-MM-DD format");
   }
 
+  const intakeData = JSON.stringify({ contact_email: email });
+
   return withTenant(input.tenantId, async (c) => {
     const { rows } = await c.query<{ id: string }>(
       `INSERT INTO patients
          (tenant_id, practitioner_id, name_encrypted, dob_encrypted,
-          name_search_hash, status, notes)
+          name_search_hash, status, notes, intake_data)
        VALUES (
          $1, $2,
          pgp_sym_encrypt($3, $6),
          CASE WHEN $4::text IS NULL THEN NULL ELSE pgp_sym_encrypt($4, $6) END,
-         $5, 'new', $7
+         $5, 'new', $7, $8::jsonb
        )
        RETURNING id`,
       [
@@ -99,6 +113,7 @@ export async function createPatient(input: CreatePatientInput): Promise<string> 
         nameHash(name),
         phiKey(),
         input.notes?.trim() || null,
+        intakeData,
       ],
     );
     return rows[0]!.id;

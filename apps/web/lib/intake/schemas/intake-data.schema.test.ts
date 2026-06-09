@@ -5,6 +5,7 @@ import {
   AiConfirmationSlot,
   IntakeDataSchema,
   ProvenanceSource,
+  normalizeIntakeData,
 } from "./intake-data.schema";
 import { StepOneSchema } from "./step-one.schema";
 
@@ -83,5 +84,10 @@ describe("intake-data.schema", () => {
     expect(intakeShape).toHaveProperty("_provenance");
     expect(intakeShape).toHaveProperty("_ai_confirmations");
     expect(intakeShape).toHaveProperty("_analysis_degraded");
+  });
+
+  it("preserves contact_email when loading minimal clinician-create payload", () => {
+    const normalized = normalizeIntakeData({ contact_email: "pat@example.com" });
+    expect(normalized.contact_email).toBe("pat@example.com");
   });
 });

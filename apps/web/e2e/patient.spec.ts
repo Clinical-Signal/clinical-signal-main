@@ -17,12 +17,13 @@ test.describe("Patient workflow", () => {
 
     const testName = "E2E Test Patient " + Date.now();
     await page.getByLabel("Full name").fill(testName);
+    await page.getByLabel("Email").fill(`e2e+${Date.now()}@clinical-signal.test`);
     await page.getByLabel("Date of birth").fill("1990-01-15");
     await page.getByRole("button", { name: "Create patient" }).click();
 
-    // Should redirect to dashboard and show the new patient.
-    await page.waitForURL("**/dashboard**", { timeout: 10_000 });
-    await expect(page.getByText(testName)).toBeVisible();
+    // Redirects to the new patient's detail page (intake link emailed when SMTP is configured).
+    await page.waitForURL("**/patients/**", { timeout: 15_000 });
+    await expect(page.getByRole("heading", { name: testName })).toBeVisible();
   });
 
   test("patient detail hub shows all care stage cards", async ({ page }) => {

@@ -81,11 +81,21 @@ function normalizeRawIntake(raw: unknown): IntakeData {
       };
 
   const parsed = IntakeDataSchema.safeParse(withMeta);
-  return parsed.success ? parsed.data : createEmptyIntakeData();
+  const base = parsed.success ? parsed.data : createEmptyIntakeData();
+  const contactEmail = readRawContactEmail(raw);
+  return contactEmail ? { ...base, contact_email: contactEmail } : base;
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function readRawContactEmail(raw: unknown): string | undefined {
+  if (!isPlainObject(raw) || typeof raw.contact_email !== "string") {
+    return undefined;
+  }
+  const trimmed = raw.contact_email.trim();
+  return z.string().email().safeParse(trimmed).success ? trimmed : undefined;
 }
 
 /** Used when loading intake from the database. */

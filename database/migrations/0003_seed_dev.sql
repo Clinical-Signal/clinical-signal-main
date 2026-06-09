@@ -43,6 +43,7 @@ BEGIN
     encode(digest(lower('sarah chen'), 'sha256'), 'hex'),
     'labs_pending',
     jsonb_build_object(
+      'contact_email', 'harsh@getventive.com',
       'chief_complaints', ARRAY['chronic fatigue','afternoon energy crashes','poor sleep'],
       'symptoms', jsonb_build_object(
         'sleep', 'wakes at 3am, cannot return to sleep',
@@ -78,6 +79,7 @@ BEGIN
     encode(digest(lower('marcus alvarez'), 'sha256'), 'hex'),
     'intake_pending',
     jsonb_build_object(
+      'contact_email', 'harsh@getventive.com',
       'chief_complaints', ARRAY['chronic bloating','brain fog','skin flare-ups'],
       'symptoms', jsonb_build_object(
         'digestion', 'bloating after most meals, irregular BMs',
@@ -113,6 +115,7 @@ BEGIN
     encode(digest(lower('priya natarajan'), 'sha256'), 'hex'),
     'new',
     jsonb_build_object(
+      'contact_email', 'harsh@getventive.com',
       'chief_complaints', ARRAY['weight gain','cold intolerance','irregular cycles'],
       'symptoms', jsonb_build_object(
         'energy', 'afternoon fatigue',
@@ -135,5 +138,11 @@ BEGIN
      WHERE tenant_id = dev_tenant
        AND name_search_hash = encode(digest(lower('priya natarajan'), 'sha256'), 'hex')
   );
+
+  -- Backfill contact_email on existing dev-tenant dummy patients (idempotent).
+  UPDATE patients
+     SET intake_data = COALESCE(intake_data, '{}'::jsonb)
+         || jsonb_build_object('contact_email', 'harsh@getventive.com')
+   WHERE tenant_id = dev_tenant;
 END
 $seed$;
