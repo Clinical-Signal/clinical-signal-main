@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "extends": "./apps/web/tsconfig.intake.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["apps/web/*"],
+      "@cs/core": ["packages/core/src/index.ts"],
+      "@cs/core/*": ["packages/core/src/*"],
+      "@cs/db": ["packages/db/src/index.ts"],
+      "@cs/db/*": ["packages/db/src/*"]
+    }
+  },
+  "include": [
+    "apps/web/lib/db/**/*.ts",
+    "apps/web/lib/intake/**/*.ts",
+    "apps/web/lib/readiness/**/*.ts",
+    "apps/web/lib/transcription/**/*.ts",
+    "apps/web/lib/tokens/**/*.ts",
+    "apps/web/lib/llm/**/*.ts",
+    "apps/web/lib/prompt/format-timeline-for-prompt.ts",
+    "apps/web/lib/auth/require-auth.ts",
+    "apps/web/lib/auth/patient-belongs-to-tenant.ts",
+    "apps/web/lib/audit/write-audit.ts",
+    "apps/web/lib/env.ts",
+    "apps/web/app/intake/**/*.ts",
+    "apps/web/app/intake/**/*.tsx",
+    "apps/web/app/api/intake/**/*.ts",
+    "apps/web/app/api/patients/**/intake-token/**/*.ts",
+    "apps/web/app/api/patients/**/protocol-readiness/**/*.ts"
+  ],
+  "exclude": ["node_modules", "**/*.test.ts"]
+}

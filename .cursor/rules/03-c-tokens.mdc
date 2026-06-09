@@ -1,0 +1,48 @@
+---
+description: C-TOKENS — design tokens via CSS variables only; zero raw color literals (PRD §1.4, Phase 0.4)
+alwaysApply: true
+---
+
+# C-TOKENS — Design Tokens Only (No Raw Colors)
+
+**Non-negotiable.** UI code uses **design tokens only**. There are **zero raw color literals** in components, pages, or app-level CSS. CI enforces this via ESLint (`no-raw-color-literal` rule, Phase 0.2b).
+
+## Rule
+
+- **Single source of truth:** `apps/web/styles/tokens.css` defines all colors as CSS custom properties (Ventive token set).
+- **Tailwind maps to variables:** `tailwind.config.ts` reads `var(--color-*)` in `theme.extend.colors` — no hardcoded hex/rgb/hsl in the Tailwind config.
+- **Components use semantic classes:** `bg-canvas`, `text-ink`, `bg-accent`, `text-warn`, etc. — or `var(--color-accent)` in rare inline styles.
+- **The only file that may contain hex literals** is `apps/web/styles/tokens.css` (token definitions). Nowhere else.
+
+## Ventive token set (Phase 0 — define in `tokens.css`)
+
+| Token | Value (`tokens.css` only) |
+|---|---|
+| `--color-canvas` | `#FAFAF7` |
+| `--color-surface` | `#FFFFFF` |
+| `--color-ink` | `#1A1A1A` |
+| `--color-accent` | `#0F4C47` |
+| `--color-warn` | `#B45309` |
+| Radii | `4px`, `8px`, `14px` |
+| Focus ring | `2px solid var(--color-accent)` |
+
+Wire tokens in `app/layout.tsx` via import of `styles/tokens.css`.
+
+## ESLint enforcement (Phase 0.2b)
+
+Scope: `apps/web/**/*.{tsx,ts,css}` (exclude `tokens.css` via eslintignore if needed).
+
+Blocked patterns (regex):
+
+```
+#[0-9a-fA-F]{3,8}|rgb|rgba|hsl|-\[#
+```
+
+This catches Tailwind arbitrary values like `bg-[#fff]` and inline `style={{ color: '#1A1A1A' }}`.
+
+## Failure modes (do not do these)
+
+1. **Using Tailwind arbitrary color syntax** (`text-[#0F4C47]`, `border-[rgb(...)]`) to "quickly match the mock" — use token-backed classes instead.
+2. **Copy-pasting hex from Figma** into JSX or module CSS — translate to a named token in `tokens.css` first.
+3. **Hardcoding colors in `tailwind.config.ts`** instead of `var(--color-*)` references — breaks the single-source-of-truth chain.
+4. **Adding `!important` color overrides** with raw values in global CSS — still a C-TOKENS violation even outside components.

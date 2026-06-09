@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Fraunces, Inter } from "next/font/google";
 import "./globals.css";
+import "../styles/tokens.css";
 
 // Inter for body + UI, Fraunces for display (h1/h2 only, via CSS in
 // globals.css). Both self-hosted by Next at build time — no package

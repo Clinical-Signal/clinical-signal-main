@@ -1,0 +1,101 @@
+---
+description: C-SLICE — vertical slices only; one surface per file; follow the PRD §3 file tree
+alwaysApply: true
+---
+
+# C-SLICE — Vertical Slice Architecture
+
+**Non-negotiable.** Every user-facing surface and domain concern is a **vertical slice** — separate, small, focused files. Do not combine Step 1 screens, Step 2 deep dives, API routes with unrelated UI, or cross-domain logic in one file.
+
+## Rule
+
+- **One slice per file** for UI surfaces: each Step-1 screen, each Step-2 module, the analyze client, and the readiness widget are **separate files**.
+- **Orchestrators only coordinate** — they import slices, manage navigation/state, and stay ≤200 LOC (see C-LOC). They do not contain screen-level markup or business logic.
+- **Lib slices by domain** — schemas, pure logic, LLM, transcription, auth, audit, and tokens each live under their `lib/` subdirectory; no `utils.ts` junk drawer.
+- **If a new file is not in the tree below, stop and ask** before creating it. Do not invent parallel folder structures.
+
+## Existing monorepo layout (do not break)
+
+This repo also contains shared packages and services outside the intake PRD tree:
+
+- `packages/core/` — `@cs/core` types, tenancy, JWT
+- `packages/db/` — `@cs/db` pool, RLS helpers
+- `services/analysis-engine/` — FastAPI Python analysis engine
+
+New **intake module** code follows the PRD tree below under `apps/web/`. Do not move or merge existing dashboard routes into intake slices without an explicit decision.
+
+## Canonical intake file tree (PRD §3)
+
+```
+apps/web/
+├── app/
+│   ├── intake/[token]/
+│   │   ├── page.tsx
+│   │   ├── step-one/
+│   │   │   ├── step-one-form.tsx         # orchestrator only
+│   │   │   ├── about-you.tsx
+│   │   │   ├── why-here.tsx
+│   │   │   ├── symptoms.tsx
+│   │   │   └── lifestyle-snapshot.tsx
+│   │   └── step-two/
+│   │       ├── step-two-renderer.tsx     # orchestrator only
+│   │       ├── analyze-client.ts
+│   │       └── modules/
+│   │           ├── gut-deep-dive.tsx
+│   │           ├── hormone-deep-dive.tsx
+│   │           ├── immune-deep-dive.tsx
+│   │           ├── medication-followups.tsx
+│   │           ├── sleep-deep-dive.tsx
+│   │           ├── stress-deep-dive.tsx
+│   │           └── wellness-practice.tsx
+│   ├── (dashboard)/dashboard/patients/[id]/
+│   │   ├── intake/                       # [STUB Phase 0]
+│   │   └── review/
+│   │       ├── intake-review.tsx         # orchestrator only
+│   │       ├── provenance-badge.tsx
+│   │       ├── ai-field-confirm.tsx
+│   │       └── readiness-widget.tsx
+│   └── api/
+│       ├── intake/[token]/route.ts       # API-1
+│       ├── intake/[token]/section/route.ts
+│       ├── intake/[token]/submit/route.ts
+│       ├── intake/analyze/route.ts
+│       └── patients/[id]/
+│           ├── intake-token/route.ts
+│           ├── intake-docs/route.ts
+│           ├── prep-brief/route.ts       # [STUB Phase 0]
+│           ├── protocol-readiness/route.ts
+│           └── generate-protocol/route.ts
+├── lib/
+│   ├── intake/schemas/
+│   ├── intake/                           # deterministic-triggers, friction-budget, merge-intake, question-banks
+│   ├── readiness/
+│   ├── transcription/
+│   ├── prompt/format-timeline-for-prompt.ts
+│   ├── llm/analyze-intake.ts
+│   ├── audit/write-audit.ts
+│   └── tokens/intake-token.ts
+├── components/ui/
+└── styles/tokens.css
+
+workers/transcription/                    # repo root (not under apps/web)
+services/analysis-engine/prompts/         # PHI-free intake prompts
+services/whisper/server.py
+```
+
+## Slice boundaries
+
+| Layer | Slice unit | Anti-pattern |
+|---|---|---|
+| Step 1 UI | One `.tsx` per screen | All four screens in `step-one-form.tsx` |
+| Step 2 UI | One `.tsx` per deep-dive module | Conditional blocks for gut/hormone/immune in one file |
+| API | One `route.ts` per endpoint | Shared mega-handler for intake + patients |
+| Pure logic | One concern per file in `lib/` | Mixed readiness + merge + triggers in one module |
+| Workers | One processor per media type | Single `process-document.ts` with a giant switch |
+
+## Failure modes (do not do these)
+
+1. **Building `step-two-renderer.tsx` with all seven deep dives inline** because "they share the same layout" — extract shared layout to `components/ui/` if needed; modules stay separate.
+2. **Adding `lib/intake/index.ts` barrel exports** that encourage importing half the domain from one entry point — import from the specific slice file.
+3. **Creating files outside the tree** (e.g. `app/intake/components/SymptomForm.tsx`) without confirming the path change with the user.
+4. **Putting Zod schemas inside route handlers** instead of `lib/intake/schemas/` — schemas are their own slice.

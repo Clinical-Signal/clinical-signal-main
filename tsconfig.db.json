@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "extends": "./tsconfig.intake.json",
+  "include": ["apps/web/lib/db/schema/**/*.ts"],
+  "exclude": ["node_modules"]
+}
