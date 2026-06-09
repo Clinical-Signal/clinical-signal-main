@@ -1,4 +1,5 @@
 export * from "./patients-intake";
+export * from "./patients";
 export * from "./intake-token-status";
 export * from "./intake-tokens";
 export * from "./intake-chat-messages";

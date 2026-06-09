@@ -33,20 +33,50 @@ describe("intake chat budget", () => {
     expect(budget.assistantTurns).toBe(1);
   });
 
-  it("forces termination at 10 persisted messages", () => {
-    const messages: IntakeChatMessageRow[] = [];
-    for (let index = 0; index < 5; index += 1) {
+  it("forces termination at 21 persisted messages", () => {
+    const messages: IntakeChatMessageRow[] = [
+      row("user", INTAKE_CHAT_KICKOFF_MESSAGE, 0),
+    ];
+    for (let index = 0; index < 10; index += 1) {
       messages.push(row("assistant", `Q${index}`, messages.length));
       messages.push(row("user", `A${index}`, messages.length));
     }
     const budget = computeIntakeChatBudget(messages);
-    expect(budget.totalMessages).toBe(10);
+    expect(budget.totalMessages).toBe(21);
     expect(budgetForcesTermination(budget)).toBe(true);
   });
 
-  it("detects closing phrase as complete", () => {
+  it("ignores early completion marker before minimum interview depth", () => {
     const closing = buildIntakeChatClosingMessage("Jane");
-    const budget = computeIntakeChatBudget([row("assistant", closing, 0)]);
+    const messages = [
+      row("user", INTAKE_CHAT_KICKOFF_MESSAGE, 0),
+      row("assistant", "Q1", 1),
+      row("user", "A1", 2),
+      row("assistant", closing, 3),
+    ];
+    const budget = computeIntakeChatBudget(messages);
+    expect(budget.assistantTurns).toBe(2);
+    expect(
+      resolveIntakeChatIsComplete({
+        budget,
+        assistantReply: closing,
+        interviewCompleteMarker: true,
+      }),
+    ).toBe(false);
+  });
+
+  it("detects closing phrase as complete after minimum depth", () => {
+    const closing = buildIntakeChatClosingMessage("Jane");
+    const messages: IntakeChatMessageRow[] = [
+      row("user", INTAKE_CHAT_KICKOFF_MESSAGE, 0),
+    ];
+    for (let index = 0; index < 7; index += 1) {
+      messages.push(row("assistant", `Q${index}`, messages.length));
+      messages.push(row("user", `A${index}`, messages.length));
+    }
+    messages.push(row("assistant", closing, messages.length));
+    const budget = computeIntakeChatBudget(messages);
+    expect(budget.assistantTurns).toBe(8);
     expect(
       resolveIntakeChatIsComplete({
         budget,

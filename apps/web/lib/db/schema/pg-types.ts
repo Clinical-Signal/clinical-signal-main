@@ -1,5 +1,12 @@
 import { customType } from "drizzle-orm/pg-core";
 
+/** pgcrypto-encrypted PHI column (legacy `patients.name_encrypted`, etc.). */
+export const bytea = customType<{ data: Buffer | null; driverData: string | null }>({
+  dataType() {
+    return "bytea";
+  },
+});
+
 /** pgvector column — embedding dimension 1536 (PRD §4.4 / TR-6). */
 export const vector1536 = customType<{ data: number[]; driverData: string }>({
   dataType() {
