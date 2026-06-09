@@ -11,6 +11,11 @@ import {
 } from "@/lib/analysis";
 import { runSafetyValidation } from "@/lib/safety-validation";
 import { logDebug, logError } from "@/lib/logger";
+import type { ReadinessResult } from "@/lib/readiness";
+import {
+  assertProtocolReadinessForGeneration,
+  ProtocolReadinessBlockedError,
+} from "@/lib/readiness/protocol-generation-gate";
 
 export const maxDuration = 300;
 
@@ -31,6 +36,26 @@ export async function POST(
   const body = (await req.json()) as { analysisId: string };
   if (!body.analysisId) {
     return Response.json({ error: ERROR_CODES.VALIDATION_ERROR }, { status: 400 });
+  }
+
+  let readiness: ReadinessResult;
+  try {
+    readiness = await assertProtocolReadinessForGeneration({
+      tenantId: user.tenantId,
+      practitionerId: user.practitionerId,
+      patientId,
+    });
+  } catch (err) {
+    if (err instanceof ProtocolReadinessBlockedError) {
+      return Response.json(
+        {
+          error: "Readiness gate failed",
+          blocking_gaps: err.result.blocking_gaps,
+        },
+        { status: 422 },
+      );
+    }
+    throw err;
   }
 
   const encoder = new TextEncoder();
@@ -98,6 +123,7 @@ export async function POST(
           analysis.findings,
           kbContext.length > 0 ? kbContext : undefined,
           onProgress,
+          { confidenceCeiling: readiness.confidence_ceiling },
         );
 
         const title = (protocol.title as string) || "Draft Protocol";

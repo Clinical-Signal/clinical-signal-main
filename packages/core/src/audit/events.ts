@@ -22,6 +22,8 @@ export type AuditAction =
   | "session_expired"
   | "analysis_generated"
   | "protocol_generated"
+  | "protocol_readiness_evaluated"
+  | "protocol_generation_blocked"
   | "intake_saved"
   | "intake_submitted"
   | "protocol_edited"

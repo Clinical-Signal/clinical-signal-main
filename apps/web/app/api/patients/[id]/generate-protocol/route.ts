@@ -21,6 +21,11 @@ import {
   getRelevantKnowledge,
 } from "@/lib/clinical-dialogue";
 import { logDebug, logError } from "@/lib/logger";
+import type { ReadinessResult } from "@/lib/readiness";
+import {
+  assertProtocolReadinessForGeneration,
+  ProtocolReadinessBlockedError,
+} from "@/lib/readiness/protocol-generation-gate";
 
 export const maxDuration = 300;
 
@@ -40,6 +45,28 @@ export async function POST(
   }
 
   const patientId = ctx.params.id;
+
+  let readiness: ReadinessResult;
+  try {
+    readiness = await assertProtocolReadinessForGeneration({
+      tenantId: user.tenantId,
+      practitionerId: user.practitionerId,
+      patientId,
+    });
+  } catch (err) {
+    if (err instanceof ProtocolReadinessBlockedError) {
+      return Response.json(
+        {
+          error: ERROR_CODES.VALIDATION_ERROR,
+          message: err.message,
+          blocking_gaps: err.result.blocking_gaps,
+        },
+        { status: 422 },
+      );
+    }
+    throw err;
+  }
+
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream({
@@ -122,7 +149,12 @@ export async function POST(
           status: "Drafting clinical protocol and client action plan...",
         });
 
-        const { protocol, meta: pMeta } = await runProtocolGeneration(findings);
+        const { protocol, meta: pMeta } = await runProtocolGeneration(
+          findings,
+          undefined,
+          undefined,
+          { confidenceCeiling: readiness.confidence_ceiling },
+        );
 
         const title = (protocol.title as string) || "Draft Protocol";
         const clinicalContent = (protocol.clinical_protocol ?? {}) as Record<string, unknown>;

@@ -207,12 +207,31 @@ export async function runClinicalAnalysis(
 // Protocol generation (step 2)
 // ---------------------------------------------------------------------------
 
+export type ProtocolGenerationOptions = {
+  confidenceCeiling?: "low" | "medium" | "high";
+};
+
+function buildDegradedConfidencePreamble(
+  ceiling: Exclude<ProtocolGenerationOptions["confidenceCeiling"], "high" | undefined>,
+): string {
+  const label = ceiling === "medium" ? "moderate" : "low";
+  return (
+    `DEGRADED CONFIDENCE MODE (confidence_ceiling: ${label}) — apply FR-19 constraints:\n` +
+    "- Do not assert specific supplement dosages; use cautious ranges or defer to practitioner judgment.\n" +
+    "- Limit scope to foundational-layer interventions; defer advanced optimization.\n" +
+    "- Include a clear uncertainty banner in both clinical_protocol and client_action_plan.\n\n"
+  );
+}
+
 export async function runProtocolGeneration(
   findings: Record<string, unknown>,
   kbContext?: Array<Record<string, unknown>>,
   onProgress?: () => void,
+  options?: ProtocolGenerationOptions,
 ): Promise<{ protocol: Record<string, unknown>; meta: Record<string, unknown>; raw: string }> {
+  const ceiling = options?.confidenceCeiling;
   let userContent =
+    (ceiling && ceiling !== "high" ? buildDegradedConfidencePreamble(ceiling) : "") +
     "Produce the clinical protocol AND phased client action plan for this patient based on the analysis below. Respond with JSON only per the output contract.\n\n<analysis>\n" +
     JSON.stringify(findings) +
     "\n</analysis>";
@@ -297,6 +316,7 @@ export async function runProtocolGeneration(
     },
     kb_context_size: kbContext?.length ?? 0,
     truncated: wasTruncated,
+    ...(ceiling ? { confidence_ceiling: ceiling } : {}),
     ...(missingSections.length > 0 ? { missing_sections: missingSections } : {}),
   };
   return { protocol, meta, raw: result.rawText };
@@ -533,6 +553,7 @@ export async function analyzeAndGenerate(args: {
   tenantId: string;
   patientId: string;
   practitionerId: string;
+  confidenceCeiling?: ProtocolGenerationOptions["confidenceCeiling"];
 }): Promise<{ analysisId: string; protocolId: string }> {
   const timeline = await gatherPatientTimeline(args.tenantId, args.patientId);
 
@@ -568,6 +589,8 @@ export async function analyzeAndGenerate(args: {
   const { protocol, meta: pMeta } = await runProtocolGeneration(
     findings,
     kbContext.length > 0 ? kbContext : undefined,
+    undefined,
+    { confidenceCeiling: args.confidenceCeiling },
   );
 
   const title = (protocol.title as string) || "Draft Protocol";
