@@ -102,11 +102,19 @@ export class IntakeTokenError extends Error {
   }
 }
 
+export type FindActiveIntakeTokenInput = {
+  patientId: string;
+  tenantId: string;
+  practitionerId: string;
+};
+
 export type IntakeTokenStore = {
   insert(record: IntakeTokenRecord): Promise<void>;
   findByHash(tokenHash: string): Promise<IntakeTokenRecord | null>;
   findById(tokenId: string): Promise<IntakeTokenRecord | null>;
-  findActiveByPatientId(patientId: string): Promise<IntakeTokenRecord | null>;
+  findActiveByPatientId(
+    input: FindActiveIntakeTokenInput,
+  ): Promise<IntakeTokenRecord | null>;
   update(record: IntakeTokenRecord): Promise<void>;
 };
 
@@ -251,7 +259,11 @@ export class InMemoryIntakeTokenStore implements IntakeTokenStore {
   private readonly records = new Map<string, IntakeTokenRecord>();
 
   async insert(record: IntakeTokenRecord): Promise<void> {
-    const active = await this.findActiveByPatientId(record.patientId);
+    const active = await this.findActiveByPatientId({
+      patientId: record.patientId,
+      tenantId: record.tenantId,
+      practitionerId: record.createdBy,
+    });
     if (active) {
       throw new IntakeTokenError(
         "active_token_exists",
@@ -276,11 +288,14 @@ export class InMemoryIntakeTokenStore implements IntakeTokenStore {
     return this.records.get(tokenId) ?? null;
   }
 
-  async findActiveByPatientId(patientId: string): Promise<IntakeTokenRecord | null> {
+  async findActiveByPatientId(
+    input: FindActiveIntakeTokenInput,
+  ): Promise<IntakeTokenRecord | null> {
     const now = Date.now();
     for (const record of this.records.values()) {
       if (
-        record.patientId === patientId &&
+        record.patientId === input.patientId &&
+        record.tenantId === input.tenantId &&
         record.revokedAt === null &&
         record.status === "pending" &&
         record.expiresAt.getTime() > now
@@ -463,7 +478,11 @@ export class IntakeTokenService {
   }
 
   async reissue(input: MintIntakeTokenInput): Promise<MintIntakeTokenResult> {
-    const active = await this.store.findActiveByPatientId(input.patientId);
+    const active = await this.store.findActiveByPatientId({
+      patientId: input.patientId,
+      tenantId: input.tenantId,
+      practitionerId: input.createdBy,
+    });
     if (active) {
       await this.revoke(active.id);
     }

@@ -192,7 +192,13 @@ describe("intake-token service", () => {
 
     await service.revoke(first.tokenId);
 
-    expect(await store.findActiveByPatientId(PATIENT_ID)).toBeNull();
+    expect(
+      await store.findActiveByPatientId({
+        patientId: PATIENT_ID,
+        tenantId: TENANT_ID,
+        practitionerId: CREATED_BY,
+      }),
+    ).toBeNull();
 
     const second = await service.mint({
       patientId: PATIENT_ID,
@@ -201,7 +207,13 @@ describe("intake-token service", () => {
     });
 
     expect(second.tokenId).not.toBe(first.tokenId);
-    expect(await store.findActiveByPatientId(PATIENT_ID)).not.toBeNull();
+    expect(
+      await store.findActiveByPatientId({
+        patientId: PATIENT_ID,
+        tenantId: TENANT_ID,
+        practitionerId: CREATED_BY,
+      }),
+    ).not.toBeNull();
   });
 
   it("rejects completed tokens", async () => {

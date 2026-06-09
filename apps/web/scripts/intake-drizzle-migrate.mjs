@@ -29,6 +29,7 @@ const files = greenfield
       "0006_intake_chat_messages.sql",
       "0007_intake_chat_branches.sql",
       "0008_patient_contact_email.sql",
+      "0009_audit_log_no_rls.sql",
     ];
 
 const databaseUrl =

@@ -13,6 +13,7 @@ import type { IntakeTokenStatus } from "@/lib/db/schema/intake-token-status";
 
 import {
   IntakeTokenError,
+  type FindActiveIntakeTokenInput,
   type IntakeTokenRecord,
   type IntakeTokenStore,
 } from "./intake-token";
@@ -39,19 +40,26 @@ function parseTokenStatus(value: string): IntakeTokenStatus {
   return "pending";
 }
 
+function toTimestamp(value: Date | string | null | undefined): Date | null {
+  if (value == null) {
+    return null;
+  }
+  return value instanceof Date ? value : new Date(value);
+}
+
 function pgRowToRecord(row: IntakeTokenPgRow): IntakeTokenRecord {
   return {
     id: row.id,
     patientId: row.patient_id,
     tenantId: row.tenant_id,
     tokenHash: row.token_hash,
-    expiresAt: row.expires_at,
-    revokedAt: row.revoked_at ?? null,
+    expiresAt: toTimestamp(row.expires_at)!,
+    revokedAt: toTimestamp(row.revoked_at),
     status: parseTokenStatus(row.status ?? "pending"),
-    completedAt: row.completed_at ?? null,
+    completedAt: toTimestamp(row.completed_at),
     createdBy: row.created_by,
-    createdAt: row.created_at,
-    lastUsedAt: row.last_used_at ?? null,
+    createdAt: toTimestamp(row.created_at)!,
+    lastUsedAt: toTimestamp(row.last_used_at),
     useCount: row.use_count,
   };
 }
@@ -186,9 +194,12 @@ export class DrizzleIntakeTokenStore implements IntakeTokenStore {
     );
   }
 
-  async findActiveByPatientId(patientId: string): Promise<IntakeTokenRecord | null> {
-    return withSystem({ reason: "intake_token_active_lookup_by_patient" }, async (client) =>
-      findActiveByPatientIdWithClient(client, patientId),
+  async findActiveByPatientId(
+    input: FindActiveIntakeTokenInput,
+  ): Promise<IntakeTokenRecord | null> {
+    const ctx = tenantContext(input.tenantId, input.practitionerId);
+    return withTenantContext(ctx, async (client) =>
+      findActiveByPatientIdWithClient(client, input.patientId),
     );
   }
 
