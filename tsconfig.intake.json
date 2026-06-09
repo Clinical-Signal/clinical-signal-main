@@ -14,7 +14,8 @@
   "include": [
     "apps/web/lib/db/**/*.ts",
     "apps/web/lib/intake/**/*.ts",
-    "apps/web/lib/readiness/**/*.ts",
+    "apps/web/lib/readiness.ts",
+    "apps/web/lib/readiness-collect.ts",
     "apps/web/lib/transcription/**/*.ts",
     "apps/web/lib/tokens/**/*.ts",
     "apps/web/lib/llm/**/*.ts",

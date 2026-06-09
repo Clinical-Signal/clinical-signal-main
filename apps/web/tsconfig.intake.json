@@ -19,7 +19,8 @@
   "include": [
     "lib/db/**/*.ts",
     "lib/intake/**/*.ts",
-    "lib/readiness/**/*.ts",
+    "lib/readiness.ts",
+    "lib/readiness-collect.ts",
     "lib/transcription/**/*.ts",
     "lib/tokens/**/*.ts",
     "lib/llm/**/*.ts",
