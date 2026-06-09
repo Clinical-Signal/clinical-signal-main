@@ -347,6 +347,9 @@ exports[`intake-data.schema > matches IntakeDataSchema.shape snapshot 1`] = `
       "record": "unknown",
     },
   },
+  "submitted_at": {
+    "optional": "ZodString",
+  },
   "symptoms": {
     "msq_scores": {
       "optional": {

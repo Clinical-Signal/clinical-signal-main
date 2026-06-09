@@ -36,6 +36,8 @@ export const IntakeDataSchema = StepOneSchema.extend({
   step_two: z.record(z.string(), z.unknown()).optional(),
   /** Patient email for magic-link dispatch (not collected on intake forms). */
   contact_email: z.string().email().optional(),
+  /** ISO timestamp set when the patient submits Step 2. */
+  submitted_at: z.string().datetime().optional(),
   _provenance: z.record(z.string(), ProvenanceSource),
   _ai_confirmations: z.record(z.string(), AiConfirmationSlot),
   _analysis_degraded: z.boolean(),
@@ -69,6 +71,8 @@ function normalizeRawIntake(raw: unknown): IntakeData {
         step_two: raw.step_two,
         contact_email:
           typeof raw.contact_email === "string" ? raw.contact_email : undefined,
+        submitted_at:
+          typeof raw.submitted_at === "string" ? raw.submitted_at : undefined,
         _provenance: raw._provenance ?? {},
         _ai_confirmations: raw._ai_confirmations ?? {},
         _analysis_degraded: raw._analysis_degraded === true,

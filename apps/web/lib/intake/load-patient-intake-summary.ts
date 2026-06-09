@@ -9,17 +9,21 @@ export type PatientIntakeSummaryData = {
   chatMessages: IntakeChatMessageRow[];
 };
 
-async function getLatestIntakeTokenId(
+/** Prefer the token that actually has chat messages (avoids empty view after reissue). */
+async function getIntakeTokenIdForSummary(
   tenantId: string,
   patientId: string,
 ): Promise<string | null> {
   return withTenant(tenantId, async (client) => {
     const { rows } = await client.query<{ id: string }>(
-      `SELECT id
-         FROM intake_tokens
-        WHERE patient_id = $1
-          AND tenant_id = $2
-        ORDER BY created_at DESC
+      `SELECT t.id
+         FROM intake_tokens t
+        WHERE t.patient_id = $1
+          AND t.tenant_id = $2
+        ORDER BY
+          (SELECT COUNT(*)::int FROM intake_chat_messages m WHERE m.intake_token_id = t.id) DESC,
+          CASE WHEN t.status = 'completed' THEN 0 ELSE 1 END,
+          t.created_at DESC
         LIMIT 1`,
       [patientId, tenantId],
     );
@@ -36,7 +40,7 @@ export async function loadPatientIntakeSummary(
     return null;
   }
 
-  const latestTokenId = await getLatestIntakeTokenId(tenantId, patientId);
+  const latestTokenId = await getIntakeTokenIdForSummary(tenantId, patientId);
   const chatMessages = latestTokenId
     ? await listMainIntakeChatMessages(tenantId, latestTokenId)
     : [];

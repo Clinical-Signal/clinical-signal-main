@@ -1,37 +1,12 @@
 import { writeAudit } from "@/lib/audit/write-audit";
-import { withTenantContext } from "@cs/db";
-import type { TenantContext } from "@cs/core";
+import { logSafeError } from "@/lib/log-safe";
 
-import type { IntakeStatus } from "@/lib/db/schema/patients-intake";
 import { getIntakeTokenService } from "@/lib/tokens/intake-token-service";
 import { extractClientIp } from "@/lib/tokens/intake-token-api";
 import { IntakeTokenError } from "@/lib/tokens/intake-token";
-
-function tenantContext(tenantId: string): TenantContext {
-  return {
-    tenantId,
-    practitionerId: "00000000-0000-0000-0000-000000000000",
-    sessionId: "intake-submit",
-    role: "practitioner",
-    lifecycleStatus: "active",
-  };
-}
-
-export async function setPatientIntakeStatus(
-  tenantId: string,
-  patientId: string,
-  intakeStatus: IntakeStatus,
-): Promise<void> {
-  await withTenantContext(tenantContext(tenantId), async (client) => {
-    const { rowCount } = await client.query(
-      `UPDATE patients SET intake_status = $3 WHERE id = $1 AND tenant_id = $2`,
-      [patientId, tenantId, intakeStatus],
-    );
-    if (rowCount === 0) {
-      throw new Error("Patient not found");
-    }
-  });
-}
+import { getPatientIntakeState, savePatientIntakeData } from "@/lib/intake/patient-intake-store";
+import { setPatientIntakeStatus } from "@/lib/intake/set-patient-intake-status";
+import { sendIntakeConfirmationEmail } from "@/lib/intake/send-intake-confirmation-email";
 
 /** Final patient submission: marks intake complete and invalidates the magic link. */
 export async function completeIntakeSubmission(
@@ -47,6 +22,21 @@ export async function completeIntakeSubmission(
   await getIntakeTokenService().complete(verified.tokenId);
 
   const submittedAt = new Date().toISOString();
+  const existing = await getPatientIntakeState(verified.tenantId, verified.patientId);
+  if (existing) {
+    await savePatientIntakeData(verified.tenantId, verified.patientId, {
+      ...existing.intakeData,
+      submitted_at: submittedAt,
+    });
+  }
+
+  void sendIntakeConfirmationEmail({
+    tenantId: verified.tenantId,
+    patientId: verified.patientId,
+    intakeTokenId: verified.tokenId,
+  }).catch((error) => {
+    logSafeError("[intake-submit] confirmation_email_failed", error);
+  });
 
   await writeAudit({
     tenantId: verified.tenantId,

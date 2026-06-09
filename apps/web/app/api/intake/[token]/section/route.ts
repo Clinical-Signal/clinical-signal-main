@@ -7,6 +7,7 @@ import {
   getPatientIntakeState,
   savePatientIntakeData,
 } from "@/lib/intake/patient-intake-store";
+import { setPatientIntakeStatus } from "@/lib/intake/set-patient-intake-status";
 import {
   STEP_TWO_ANSWERS_KEY,
   STEP_TWO_PLAN_KEY,
@@ -42,6 +43,19 @@ const SECTION_KEYS = [
 ] as const;
 
 type SectionKey = (typeof SECTION_KEYS)[number];
+
+const STEP_ONE_SECTIONS = new Set<SectionKey>([
+  "about_you",
+  "why_here",
+  "symptoms",
+  "history",
+  "medications",
+  "lifestyle",
+  "hormones",
+  "previous_labs",
+  "wearables",
+  "anything_else",
+]);
 
 const StepTwoSectionSchema = z.object({
   answers: z.record(z.string(), z.unknown()),
@@ -146,6 +160,15 @@ export async function POST(
       merged,
     );
 
+    let intakeStatus = existing.intakeStatus;
+    if (
+      STEP_ONE_SECTIONS.has(parsedBody.data.section) &&
+      existing.intakeStatus === "not_started"
+    ) {
+      await setPatientIntakeStatus(verified.tenantId, verified.patientId, "step1_complete");
+      intakeStatus = "step1_complete";
+    }
+
     await writeAudit({
       tenantId: verified.tenantId,
       actorId: null,
@@ -161,8 +184,7 @@ export async function POST(
     return NextResponse.json({
       savedAt,
       section: parsedBody.data.section,
-      intakeStatus: existing.intakeStatus,
-      intakeData: merged,
+      intakeStatus,
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
