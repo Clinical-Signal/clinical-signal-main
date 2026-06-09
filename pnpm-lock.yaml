@@ -139,6 +139,15 @@ importers:
         specifier: 1.6.0
         version: 1.6.0(@types/node@20.14.10)
 
+  packages/shared:
+    devDependencies:
+      typescript:
+        specifier: 5.4.5
+        version: 5.4.5
+      vitest:
+        specifier: 1.6.0
+        version: 1.6.0(@types/node@20.14.10)
+
   scripts/eslint-plugin-c-tokens: {}
 
 packages:

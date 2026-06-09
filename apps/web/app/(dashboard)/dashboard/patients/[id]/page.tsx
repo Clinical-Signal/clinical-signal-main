@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { can } from "@clinical-signal/shared";
 import { IntakeLinkStatusBadge } from "@/components/clinician/intake-link-status-badge";
 import { SendIntakeButton } from "@/components/clinician/send-intake-button";
 import { requireAuth } from "@/lib/auth";
@@ -43,6 +44,10 @@ export default async function PatientDetailPage({
     intakeLink.intakeStatus === "step2_complete" ||
     intakeLink.intakeStatus === "reviewed";
 
+  const canIssueIntake = can(user.role, "issue_intake_token");
+  const canAssignFoundational = can(user.role, "assign_foundational");
+  const canGenerateProtocol = can(user.role, "generate_protocol");
+
   const status = STATUS_COPY[summary.status] ?? {
     label: summary.status,
     tone: "neutral" as Tone,
@@ -72,10 +77,12 @@ export default async function PatientDetailPage({
         }
         description={summary.dob ? `Date of birth: ${summary.dob}` : "Date of birth not recorded"}
         actions={
-          <SendIntakeButton
-            patientId={params.id}
-            intakeFinished={intakeFinished}
-          />
+          canIssueIntake ? (
+            <SendIntakeButton
+              patientId={params.id}
+              intakeFinished={intakeFinished}
+            />
+          ) : null
         }
       />
 
@@ -134,7 +141,11 @@ export default async function PatientDetailPage({
           }
           primary={{
             href: `/dashboard/patients/${params.id}/foundations`,
-            label: summary.foundations ? "View checklist" : "Assign checklist",
+            label: summary.foundations
+              ? "View checklist"
+              : canAssignFoundational
+                ? "Assign checklist"
+                : "View checklist",
           }}
           secondary={null}
         />
@@ -156,7 +167,11 @@ export default async function PatientDetailPage({
             href: summary.protocol
               ? `/dashboard/patients/${params.id}/protocol/${summary.protocol.id}`
               : `/dashboard/patients/${params.id}/protocol`,
-            label: summary.protocol ? "Open protocol" : "Generate protocol",
+            label: summary.protocol
+              ? "Open protocol"
+              : canGenerateProtocol
+                ? "Generate protocol"
+                : "View protocols",
           }}
           secondary={
             summary.protocol

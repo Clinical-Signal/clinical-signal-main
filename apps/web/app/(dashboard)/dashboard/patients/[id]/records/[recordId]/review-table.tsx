@@ -22,9 +22,11 @@ const cellInput =
 export function LabReviewTable({
   recordId,
   initialLabs,
+  readOnly = false,
 }: {
   recordId: string;
   initialLabs: LabValue[];
+  readOnly?: boolean;
 }) {
   const [labs, setLabs] = useState<LabValue[]>(initialLabs);
   const [saved, setSaved] = useState(false);
@@ -70,7 +72,7 @@ export function LabReviewTable({
               <th className="px-3 py-3 font-medium">Unit</th>
               <th className="px-3 py-3 font-medium">Reference</th>
               <th className="px-3 py-3 font-medium">Flag</th>
-              <th className="px-3 py-3" />
+              {readOnly ? null : <th className="px-3 py-3" />}
             </tr>
           </thead>
           <tbody className="divide-y divide-line">
@@ -87,60 +89,82 @@ export function LabReviewTable({
                   }
                 >
                   <td className="px-3 py-2 align-top">
-                    <input
-                      className={cellInput}
-                      value={row.test_name}
-                      onChange={(e) => update(i, { test_name: e.target.value })}
-                      aria-label="Test name"
-                    />
+                    {readOnly ? (
+                      <span className="text-ink">{row.test_name}</span>
+                    ) : (
+                      <input
+                        className={cellInput}
+                        value={row.test_name}
+                        onChange={(e) => update(i, { test_name: e.target.value })}
+                        aria-label="Test name"
+                      />
+                    )}
                   </td>
                   <td className="px-3 py-2 align-top">
-                    <input
-                      className={`${cellInput} w-28`}
-                      value={row.value}
-                      onChange={(e) => update(i, { value: e.target.value })}
-                      aria-label="Value"
-                    />
+                    {readOnly ? (
+                      <span className="text-ink">{row.value}</span>
+                    ) : (
+                      <input
+                        className={`${cellInput} w-28`}
+                        value={row.value}
+                        onChange={(e) => update(i, { value: e.target.value })}
+                        aria-label="Value"
+                      />
+                    )}
                   </td>
                   <td className="px-3 py-2 align-top">
-                    <input
-                      className={`${cellInput} w-24`}
-                      value={row.unit ?? ""}
-                      onChange={(e) => update(i, { unit: e.target.value || null })}
-                      aria-label="Unit"
-                    />
+                    {readOnly ? (
+                      <span className="text-ink-muted">{row.unit ?? "—"}</span>
+                    ) : (
+                      <input
+                        className={`${cellInput} w-24`}
+                        value={row.unit ?? ""}
+                        onChange={(e) => update(i, { unit: e.target.value || null })}
+                        aria-label="Unit"
+                      />
+                    )}
                   </td>
                   <td className="px-3 py-2 align-top">
-                    <input
-                      className={`${cellInput} w-32`}
-                      value={row.reference_range ?? ""}
-                      onChange={(e) => update(i, { reference_range: e.target.value || null })}
-                      aria-label="Reference range"
-                    />
+                    {readOnly ? (
+                      <span className="text-ink-muted">{row.reference_range ?? "—"}</span>
+                    ) : (
+                      <input
+                        className={`${cellInput} w-32`}
+                        value={row.reference_range ?? ""}
+                        onChange={(e) => update(i, { reference_range: e.target.value || null })}
+                        aria-label="Reference range"
+                      />
+                    )}
                   </td>
                   <td className="px-3 py-2 align-top">
-                    <select
-                      className={`${cellInput} pr-7`}
-                      value={row.flag}
-                      onChange={(e) => update(i, { flag: e.target.value as LabValue["flag"] })}
-                      aria-label="Flag"
-                    >
-                      {FLAGS.map((f) => (
-                        <option key={f} value={f}>
-                          {FLAG_LABEL[f]}
-                        </option>
-                      ))}
-                    </select>
+                    {readOnly ? (
+                      <span className="text-ink-muted">{FLAG_LABEL[row.flag]}</span>
+                    ) : (
+                      <select
+                        className={`${cellInput} pr-7`}
+                        value={row.flag}
+                        onChange={(e) => update(i, { flag: e.target.value as LabValue["flag"] })}
+                        aria-label="Flag"
+                      >
+                        {FLAGS.map((f) => (
+                          <option key={f} value={f}>
+                            {FLAG_LABEL[f]}
+                          </option>
+                        ))}
+                      </select>
+                    )}
                   </td>
-                  <td className="px-3 py-2 text-right align-top">
-                    <button
-                      type="button"
-                      onClick={() => removeRow(i)}
-                      className="text-xs text-ink-subtle transition-colors hover:text-danger"
-                    >
-                      Remove
-                    </button>
-                  </td>
+                  {readOnly ? null : (
+                    <td className="px-3 py-2 text-right align-top">
+                      <button
+                        type="button"
+                        onClick={() => removeRow(i)}
+                        className="text-xs text-ink-subtle transition-colors hover:text-danger"
+                      >
+                        Remove
+                      </button>
+                    </td>
+                  )}
                 </tr>
               );
             })}
@@ -150,23 +174,27 @@ export function LabReviewTable({
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="text-xs text-ink-subtle">
-          Out-of-range values highlighted. Edits don&apos;t save until you click Save.
+          {readOnly
+            ? "Read-only view. Out-of-range values are highlighted."
+            : "Out-of-range values highlighted. Edits don't save until you click Save."}
         </div>
-        <div className="flex items-center gap-3">
-          {saved ? (
-            <span className="text-sm text-success">Saved.</span>
-          ) : null}
-          {error ? (
-            <span className="text-sm text-danger">{error}</span>
-          ) : null}
-          <Button
-            onClick={onSave}
-            loading={pending}
-            loadingText="Saving…"
-          >
-            Save corrections
-          </Button>
-        </div>
+        {readOnly ? null : (
+          <div className="flex items-center gap-3">
+            {saved ? (
+              <span className="text-sm text-success">Saved.</span>
+            ) : null}
+            {error ? (
+              <span className="text-sm text-danger">{error}</span>
+            ) : null}
+            <Button
+              onClick={onSave}
+              loading={pending}
+              loadingText="Saving…"
+            >
+              Save corrections
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );

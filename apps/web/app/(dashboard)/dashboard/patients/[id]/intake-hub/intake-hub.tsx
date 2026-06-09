@@ -68,9 +68,11 @@ const DOC_TYPE_ICON: Record<string, string> = {
 export function IntakeHub({
   patientId,
   initialDocs,
+  canReviseIntake = true,
 }: {
   patientId: string;
   initialDocs: IntakeDocSummary[];
+  canReviseIntake?: boolean;
 }) {
   const router = useRouter();
   const [docs, setDocs] = useState(initialDocs);
@@ -104,34 +106,41 @@ export function IntakeHub({
 
   return (
     <div className="flex flex-col gap-6">
-      <PrepBriefSection patientId={patientId} onGenerated={refreshDocs} />
+      <PrepBriefSection
+        patientId={patientId}
+        onGenerated={refreshDocs}
+        canReviseIntake={canReviseIntake}
+      />
 
-      {/* Tabs */}
-      <div className="flex gap-1 rounded-xl border border-line bg-surface-sunken/40 p-1">
-        {tabs.map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
-            className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-medium transition-all sm:flex-none ${
-              activeTab === tab.key
-                ? "bg-surface text-ink shadow-sm"
-                : "text-ink-subtle hover:text-ink hover:bg-surface/50"
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      {canReviseIntake ? (
+        <>
+          <div className="flex gap-1 rounded-xl border border-line bg-surface-sunken/40 p-1">
+            {tabs.map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-medium transition-all sm:flex-none ${
+                  activeTab === tab.key
+                    ? "bg-surface text-ink shadow-sm"
+                    : "text-ink-subtle hover:text-ink hover:bg-surface/50"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
 
-      {activeTab === "transcript" && (
-        <TranscriptPaste patientId={patientId} onSuccess={refreshDocs} />
-      )}
-      {activeTab === "upload" && (
-        <FileUpload patientId={patientId} onSuccess={refreshDocs} />
-      )}
-      {activeTab === "note" && (
-        <PractitionerNote patientId={patientId} onSuccess={refreshDocs} />
-      )}
+          {activeTab === "transcript" && (
+            <TranscriptPaste patientId={patientId} onSuccess={refreshDocs} />
+          )}
+          {activeTab === "upload" && (
+            <FileUpload patientId={patientId} onSuccess={refreshDocs} />
+          )}
+          {activeTab === "note" && (
+            <PractitionerNote patientId={patientId} onSuccess={refreshDocs} />
+          )}
+        </>
+      ) : null}
 
       {/* Document list */}
       <section>
@@ -158,7 +167,9 @@ export function IntakeHub({
             title={docs.length === 0 ? "No documents yet" : "No matching documents"}
             description={
               docs.length === 0
-                ? "Paste a call transcript, upload a file, or add a clinical note."
+                ? canReviseIntake
+                  ? "Paste a call transcript, upload a file, or add a clinical note."
+                  : "No documents have been uploaded for this patient yet."
                 : "Try clearing the filter."
             }
           />
@@ -554,9 +565,11 @@ interface PrepBrief {
 function PrepBriefSection({
   patientId,
   onGenerated,
+  canReviseIntake = true,
 }: {
   patientId: string;
   onGenerated: () => void;
+  canReviseIntake?: boolean;
 }) {
   const [generating, setGenerating] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
@@ -723,14 +736,16 @@ function PrepBriefSection({
               </Button>
             </>
           )}
-          <Button
-            size="sm"
-            loading={generating}
-            loadingText="Generating..."
-            onClick={generate}
-          >
-            {brief ? "Regenerate" : "Generate prep brief"}
-          </Button>
+          {canReviseIntake ? (
+            <Button
+              size="sm"
+              loading={generating}
+              loadingText="Generating..."
+              onClick={generate}
+            >
+              {brief ? "Regenerate" : "Generate prep brief"}
+            </Button>
+          ) : null}
         </div>
       </div>
 

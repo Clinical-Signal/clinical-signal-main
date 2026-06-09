@@ -22,6 +22,7 @@ export default defineConfig({
       "apps/web/app/**/route.test.ts",
       "apps/web/lib/env.test.ts",
       "apps/web/lib/auth/require-auth.test.ts",
+      "apps/web/lib/middleware/rbac-routes.test.ts",
       "apps/web/lib/intake/schemas/question-plan.schema.test.ts",
       "apps/web/lib/readiness/readiness.test.ts",
       "apps/web/lib/intake/friction-budget.test.ts",
