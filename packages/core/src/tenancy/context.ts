@@ -21,7 +21,7 @@ export type TenantLifecycleStatus =
   | "suspended"
   | "terminated";
 
-export type PractitionerRole = "owner" | "practitioner" | "viewer" | "coach";
+export type PractitionerRole = "owner" | "practitioner" | "viewer";
 
 export interface TenantContext {
   readonly tenantId: string;

@@ -16,13 +16,7 @@ interface SavedPlan {
   updatedAt: string;
 }
 
-export function FoundationsEditor({
-  patientId,
-  canAssign = true,
-}: {
-  patientId: string;
-  canAssign?: boolean;
-}) {
+export function FoundationsEditor({ patientId }: { patientId: string }) {
   const [items, setItems] = useState<ChecklistItem[]>(createDefaultItems);
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
@@ -134,28 +128,25 @@ export function FoundationsEditor({
           <h2 className="text-sm font-semibold text-ink">
             Checklist topics ({selectedCount} of {items.length} selected)
           </h2>
-          {canAssign ? (
-            <button
-              type="button"
-              className="text-xs text-accent hover:text-accent-hover"
-              onClick={() => {
-                const allSelected = items.every((i) => i.selected);
-                setItems((prev) =>
-                  prev.map((i) => ({ ...i, selected: !allSelected })),
-                );
-                setSaved(false);
-              }}
-            >
-              {items.every((i) => i.selected) ? "Deselect all" : "Select all"}
-            </button>
-          ) : null}
+          <button
+            type="button"
+            className="text-xs text-accent hover:text-accent-hover"
+            onClick={() => {
+              const allSelected = items.every((i) => i.selected);
+              setItems((prev) =>
+                prev.map((i) => ({ ...i, selected: !allSelected })),
+              );
+              setSaved(false);
+            }}
+          >
+            {items.every((i) => i.selected) ? "Deselect all" : "Select all"}
+          </button>
         </div>
 
         {items.map((item) => (
           <TopicCard
             key={item.id}
             item={item}
-            readOnly={!canAssign}
             onToggle={toggleItem}
             onNotesChange={updateItemNotes}
           />
@@ -176,7 +167,6 @@ export function FoundationsEditor({
           rows={3}
           placeholder="Any specific guidance, modifications, or context for this patient's foundational work…"
           value={notes}
-          readOnly={!canAssign}
           onChange={(e) => {
             setNotes(e.target.value);
             setSaved(false);
@@ -186,29 +176,27 @@ export function FoundationsEditor({
 
       {/* Error banner */}
       {error && (
-        <div role="alert" className="rounded-lg border border-danger/30 bg-danger-soft/30 px-4 py-3 text-sm text-danger">
+        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
         </div>
       )}
 
       {/* Save button */}
       <div className="flex items-center gap-3">
-        {canAssign ? (
-          <Button
-            onClick={handleSave}
-            loading={saving}
-            loadingText="Saving…"
-            disabled={selectedCount === 0}
-          >
-            {existingPlan ? "Update checklist" : "Assign checklist"}
-          </Button>
-        ) : null}
+        <Button
+          onClick={handleSave}
+          loading={saving}
+          loadingText="Saving…"
+          disabled={selectedCount === 0}
+        >
+          {existingPlan ? "Update checklist" : "Assign checklist"}
+        </Button>
         {saved && (
-          <span className="text-sm text-success">
+          <span className="text-sm text-green-600">
             ✓ Checklist {existingPlan ? "updated" : "assigned"} successfully
           </span>
         )}
-        {canAssign && selectedCount === 0 && (
+        {selectedCount === 0 && (
           <span className="text-sm text-ink-muted">
             Select at least one topic to assign
           </span>
@@ -220,12 +208,10 @@ export function FoundationsEditor({
 
 function TopicCard({
   item,
-  readOnly = false,
   onToggle,
   onNotesChange,
 }: {
   item: ChecklistItem;
-  readOnly?: boolean;
   onToggle: (id: string) => void;
   onNotesChange: (id: string, value: string) => void;
 }) {
@@ -244,7 +230,6 @@ function TopicCard({
         <input
           type="checkbox"
           checked={item.selected}
-          disabled={readOnly}
           onChange={() => onToggle(item.id)}
           className="mt-0.5 h-4 w-4 rounded border-line text-accent focus:ring-accent"
           aria-label={`Include ${item.title}`}
@@ -284,7 +269,6 @@ function TopicCard({
               rows={2}
               placeholder="Add personalized guidance for this patient…"
               value={item.notes}
-              readOnly={readOnly}
               onChange={(e) => onNotesChange(item.id, e.target.value)}
             />
           </div>

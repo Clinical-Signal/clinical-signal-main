@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { can } from "@clinical-signal/shared";
 import { requireAuth } from "@/lib/auth";
 import { getRecord, patientBelongsToTenant, type StructuredLabData } from "@/lib/records";
 import { Page, PageHeader } from "@/components/ui/page";
@@ -64,11 +63,7 @@ export default async function RecordReviewPage({
         </p>
       ) : null}
 
-      <LabReviewTable
-        recordId={rec.id}
-        initialLabs={labs}
-        readOnly={!can(user.role, "correct_extraction")}
-      />
+      <LabReviewTable recordId={rec.id} initialLabs={labs} />
     </Page>
   );
 }

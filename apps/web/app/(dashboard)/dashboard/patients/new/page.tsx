@@ -1,16 +1,8 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { can } from "@clinical-signal/shared";
-import { requireAuth } from "@/lib/auth";
 import { Page, PageHeader } from "@/components/ui/page";
 import { NewPatientForm } from "./form";
 
-export default async function NewPatientPage() {
-  const user = await requireAuth();
-  if (!can(user.role, "create_patient")) {
-    redirect("/dashboard");
-  }
-
+export default function NewPatientPage() {
   return (
     <Page>
       <div className="mb-2">

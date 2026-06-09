@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { can } from "@clinical-signal/shared";
 import { requireAuth } from "@/lib/auth";
 import { patientBelongsToTenant } from "@/lib/records";
 import { listIntakeDocs } from "@/lib/intake-documents";
@@ -38,11 +37,7 @@ export default async function IntakeHubPage({
         title="Intake hub"
         description="Upload call transcripts, lab PDFs, clinical notes, and any other documents. Everything here feeds into protocol generation."
       />
-      <IntakeHub
-        patientId={params.id}
-        initialDocs={docs}
-        canReviseIntake={can(user.role, "revise_intake")}
-      />
+      <IntakeHub patientId={params.id} initialDocs={docs} />
     </Page>
   );
 }

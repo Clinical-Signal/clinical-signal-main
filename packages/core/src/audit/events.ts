@@ -22,18 +22,11 @@ export type AuditAction =
   | "session_expired"
   | "analysis_generated"
   | "protocol_generated"
-  | "protocol_readiness_evaluated"
-  | "protocol_generation_blocked"
   | "intake_saved"
   | "intake_submitted"
   | "protocol_edited"
   | "protocol_status_changed"
-  | "protocol_exported"
-  | "mfa_enrolled"
-  | "mfa_verified"
-  | "mfa_failed"
-  | "mfa_required_redirect"
-  | "rbac_denied";
+  | "protocol_exported";
 
 export interface AuditEvent {
   readonly action: AuditAction;

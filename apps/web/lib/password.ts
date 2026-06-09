@@ -1,34 +1,14 @@
-import argon2 from "argon2";
 import bcrypt from "bcryptjs";
 import { createHash } from "node:crypto";
 
 const BCRYPT_ROUNDS = 12;
 const MIN_LENGTH = 8;
 
-/** OWASP 2024 recommended argon2id parameters (m=19456 KiB, t=2, p=1). */
-const ARGON2_OPTIONS: argon2.Options & { raw?: false } = {
-  type: argon2.argon2id,
-  memoryCost: 19_456,
-  timeCost: 2,
-  parallelism: 1,
-};
-
-export function isArgon2Hash(hash: string): boolean {
-  return hash.startsWith("$argon2id$");
-}
-
 export async function hashPassword(plain: string): Promise<string> {
-  return argon2.hash(plain, ARGON2_OPTIONS);
+  return bcrypt.hash(plain, BCRYPT_ROUNDS);
 }
 
 export async function verifyPassword(plain: string, hash: string): Promise<boolean> {
-  if (isArgon2Hash(hash)) {
-    try {
-      return await argon2.verify(hash, plain);
-    } catch {
-      return false;
-    }
-  }
   return bcrypt.compare(plain, hash);
 }
 

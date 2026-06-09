@@ -28,10 +28,6 @@ interface Props {
   initialClinical: Record<string, any>;
   initialClient: Record<string, any>;
   versions: VersionRow[];
-  canRegenerate: boolean;
-  canFinalize: boolean;
-  canDeliver: boolean;
-  canEditDialogue: boolean;
 }
 
 const inputClass =
@@ -205,17 +201,10 @@ export function EditForm(props: Props) {
         patientId={props.patientId}
         dirty={dirty}
         autoSavedAt={autoSavedAt}
-        canRegenerate={props.canRegenerate}
-        canFinalize={props.canFinalize}
-        canDeliver={props.canDeliver}
       />
       <TruncationWarning generation={props.initialClinical?._generation} />
       <SafetyValidationWarnings validation={props.initialClinical?._safety_validation} />
-      <ClinicalDialogueCard
-        protocolId={props.protocolId}
-        patientId={props.patientId}
-        canSubmit={props.canEditDialogue}
-      />
+      <ClinicalDialogueCard protocolId={props.protocolId} patientId={props.patientId} />
       {message ? (
         <p className="text-sm text-success">{message}</p>
       ) : null}
@@ -413,9 +402,6 @@ function Toolbar({
   patientId,
   dirty,
   autoSavedAt,
-  canRegenerate,
-  canFinalize,
-  canDeliver,
 }: {
   title: string;
   onTitleChange: (v: string) => void;
@@ -432,9 +418,6 @@ function Toolbar({
   patientId: string;
   dirty: boolean;
   autoSavedAt: string | null;
-  canRegenerate: boolean;
-  canFinalize: boolean;
-  canDeliver: boolean;
 }) {
   const router = useRouter();
   return (
@@ -457,7 +440,7 @@ function Toolbar({
         >
           <option value="draft">Draft</option>
           <option value="review">Review</option>
-          {canFinalize ? <option value="finalized">Finalized</option> : null}
+          <option value="finalized">Finalized</option>
         </select>
       </label>
       <label className="flex flex-col gap-1.5">
@@ -490,17 +473,15 @@ function Toolbar({
             Auto-saved {new Date(autoSavedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
           </span>
         ) : null}
-        {canRegenerate ? (
-          <Button
-            variant="secondary"
-            loading={regenerating}
-            loadingText="Regenerating…"
-            onClick={onRegenerate}
-            title="Re-run protocol generation against the linked analysis"
-          >
-            Regenerate
-          </Button>
-        ) : null}
+        <Button
+          variant="secondary"
+          loading={regenerating}
+          loadingText="Regenerating…"
+          onClick={onRegenerate}
+          title="Re-run protocol generation against the linked analysis"
+        >
+          Regenerate
+        </Button>
         <Button
           loading={saving}
           loadingText="Saving…"
@@ -508,28 +489,24 @@ function Toolbar({
         >
           Save as new version
         </Button>
-        {canDeliver ? (
-          <>
-            <a
-              href={`/api/patients/${patientId}/protocol/${currentId}/export?audience=clinical`}
-              target="_blank"
-              rel="noopener"
-              className="inline-flex h-8 items-center rounded-md border border-line-strong bg-surface px-2 text-xs text-ink-subtle transition-colors hover:text-ink hover:bg-surface-sunken"
-              title="Preview clinical PDF"
-            >
-              Clinical PDF
-            </a>
-            <a
-              href={`/api/patients/${patientId}/protocol/${currentId}/export?audience=client`}
-              target="_blank"
-              rel="noopener"
-              className="inline-flex h-8 items-center rounded-md border border-line-strong bg-surface px-2 text-xs text-ink-subtle transition-colors hover:text-ink hover:bg-surface-sunken"
-              title="Preview client PDF"
-            >
-              Client PDF
-            </a>
-          </>
-        ) : null}
+        <a
+          href={`/api/patients/${patientId}/protocol/${currentId}/export?audience=clinical`}
+          target="_blank"
+          rel="noopener"
+          className="inline-flex h-8 items-center rounded-md border border-line-strong bg-surface px-2 text-xs text-ink-subtle transition-colors hover:text-ink hover:bg-surface-sunken"
+          title="Preview clinical PDF"
+        >
+          Clinical PDF
+        </a>
+        <a
+          href={`/api/patients/${patientId}/protocol/${currentId}/export?audience=client`}
+          target="_blank"
+          rel="noopener"
+          className="inline-flex h-8 items-center rounded-md border border-line-strong bg-surface px-2 text-xs text-ink-subtle transition-colors hover:text-ink hover:bg-surface-sunken"
+          title="Preview client PDF"
+        >
+          Client PDF
+        </a>
       </div>
     </div>
   );
@@ -866,15 +843,7 @@ interface DialogueQuestion {
   answerText: string | null;
 }
 
-function ClinicalDialogueCard({
-  protocolId,
-  patientId,
-  canSubmit = true,
-}: {
-  protocolId: string;
-  patientId: string;
-  canSubmit?: boolean;
-}) {
+function ClinicalDialogueCard({ protocolId, patientId }: { protocolId: string; patientId: string }) {
   const [questions, setQuestions] = useState<DialogueQuestion[]>([]);
   const [loading, setLoading] = useState(true);
   const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -961,26 +930,20 @@ function ClinicalDialogueCard({
                 </span>
               </div>
               <p className="mb-3 text-sm text-ink leading-relaxed">{q.questionText}</p>
-              {canSubmit ? (
-                <>
-                  <textarea
-                    value={answers[q.id] ?? ""}
-                    onChange={(e) => setAnswers((prev) => ({ ...prev, [q.id]: e.target.value }))}
-                    placeholder="Share your thinking..."
-                    rows={2}
-                    className="mb-2 w-full rounded-md border border-line bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:border-accent-soft focus:outline-none focus:ring-1 focus:ring-accent-soft"
-                  />
-                  <button
-                    onClick={() => handleSubmit(q.id)}
-                    disabled={submitting[q.id] || !answers[q.id]?.trim()}
-                    className="inline-flex h-8 items-center rounded-md bg-accent px-3 text-xs font-medium text-ink-inverse transition-colors hover:bg-accent-hover disabled:opacity-50"
-                  >
-                    {submitting[q.id] ? "Saving..." : "Share insight"}
-                  </button>
-                </>
-              ) : (
-                <p className="text-sm text-ink-muted italic">Awaiting practitioner response.</p>
-              )}
+              <textarea
+                value={answers[q.id] ?? ""}
+                onChange={(e) => setAnswers((prev) => ({ ...prev, [q.id]: e.target.value }))}
+                placeholder="Share your thinking..."
+                rows={2}
+                className="mb-2 w-full rounded-md border border-line bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:border-accent-soft focus:outline-none focus:ring-1 focus:ring-accent-soft"
+              />
+              <button
+                onClick={() => handleSubmit(q.id)}
+                disabled={submitting[q.id] || !answers[q.id]?.trim()}
+                className="inline-flex h-8 items-center rounded-md bg-accent px-3 text-xs font-medium text-ink-inverse transition-colors hover:bg-accent-hover disabled:opacity-50"
+              >
+                {submitting[q.id] ? "Saving..." : "Share insight"}
+              </button>
             </div>
           ))}
         </div>

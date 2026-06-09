@@ -15,24 +15,13 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export default {
   test: {
     environment: "node",
-    include: [
-      "lib/__tests__/**/*.test.ts",
-      "lib/**/*.test.ts",
-      "tests/**/*.test.ts",
-      "app/**/actions.test.ts",
-      "app/**/route.test.ts",
-    ],
-    exclude: ["lib/__tests__/migrate.test.ts"],
+    include: ["lib/__tests__/**/*.test.ts"],
   },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "."),
       "@cs/core": path.resolve(__dirname, "../../packages/core/src/index.ts"),
       "@cs/db": path.resolve(__dirname, "../../packages/db/src/index.ts"),
-      "@clinical-signal/shared": path.resolve(
-        __dirname,
-        "../../packages/shared/src/index.ts",
-      ),
     },
   },
 };

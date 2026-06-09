@@ -8,21 +8,14 @@
 
 import { redirect } from "next/navigation";
 import { withSystem } from "@cs/db";
-import {
-  hashPassword,
-  isArgon2Hash,
-  validatePasswordPolicy,
-  verifyPassword,
-} from "./password";
-import { resolvePostLoginMfaPath } from "./auth/mfa-routes";
+import { hashPassword, validatePasswordPolicy, verifyPassword } from "./password";
+import { writeAudit } from "./audit";
 import {
   createSession,
   destroyCurrentSession,
   getSessionUser,
-  isSessionMfaVerified,
   type SessionUser,
 } from "./session";
-import { writeAudit } from "./audit";
 
 export type { SessionUser };
 
@@ -33,32 +26,6 @@ export async function auth(): Promise<SessionUser | null> {
 export async function requireAuth(): Promise<SessionUser> {
   const user = await auth();
   if (!user) redirect("/login");
-
-  const enrolled = await withSystem(
-    { reason: "mfa_require_auth_enrollment_lookup" },
-    async (c) => {
-      const { rows } = await c.query<{ mfa_enrolled_at: Date | null }>(
-        `SELECT mfa_enrolled_at FROM practitioners WHERE id = $1`,
-        [user.practitionerId],
-      );
-      return rows[0]?.mfa_enrolled_at !== null;
-    },
-  );
-
-  if (!enrolled) {
-    redirect("/mfa/enroll");
-  }
-
-  const verified = await isSessionMfaVerified(user.sessionId);
-  if (!verified) {
-    await writeAudit({
-      action: "mfa_required_redirect",
-      tenantId: user.tenantId,
-      practitionerId: user.practitionerId,
-    });
-    redirect("/mfa/verify");
-  }
-
   return user;
 }
 
@@ -71,9 +38,7 @@ export async function apiAuth(): Promise<SessionUser | null> {
   return auth();
 }
 
-export type AuthResult =
-  | { ok: true; redirectTo: "/mfa/enroll" | "/mfa/verify" }
-  | { ok: false; error: string };
+export type AuthResult = { ok: true } | { ok: false; error: string };
 
 /** Server-side mirror of the signup form's maxLength={120}. */
 const PRACTICE_NAME_MAX = 120;
@@ -108,16 +73,6 @@ export async function login(email: string, password: string): Promise<AuthResult
     return { ok: false, error: "Invalid email or password." };
   }
 
-  if (!isArgon2Hash(row.password_hash)) {
-    const upgradedHash = await hashPassword(password);
-    await withSystem({ reason: "auth_password_hash_upgrade" }, async (c) => {
-      await c.query("UPDATE practitioners SET password_hash = $1 WHERE id = $2", [
-        upgradedHash,
-        row.id,
-      ]);
-    });
-  }
-
   await createSession(row.id);
   await withSystem({ reason: "auth_login_last_login_stamp" }, async (c) => {
     await c.query("UPDATE practitioners SET last_login_at = now() WHERE id = $1", [row.id]);
@@ -127,8 +82,7 @@ export async function login(email: string, password: string): Promise<AuthResult
     tenantId: row.tenant_id,
     practitionerId: row.id,
   });
-  const redirectTo = await resolvePostLoginMfaPath(row.id);
-  return { ok: true, redirectTo };
+  return { ok: true };
 }
 
 export async function logout(): Promise<void> {
@@ -222,7 +176,7 @@ export async function signup(input: SignupInput): Promise<AuthResult> {
         practitionerId,
         metadata: { event: "attached_to_default_tenant" },
       });
-      return { ok: true, redirectTo: "/mfa/enroll" };
+      return { ok: true };
     } catch (err: unknown) {
       if (isDuplicateEmailError(err)) {
         return { ok: false, error: "An account with that email already exists." };
@@ -296,7 +250,7 @@ export async function signup(input: SignupInput): Promise<AuthResult> {
     practitionerId,
     metadata: { event: "practice_provisioned" },
   });
-  return { ok: true, redirectTo: "/mfa/enroll" };
+  return { ok: true };
 }
 
 function isDuplicateEmailError(err: unknown): boolean {

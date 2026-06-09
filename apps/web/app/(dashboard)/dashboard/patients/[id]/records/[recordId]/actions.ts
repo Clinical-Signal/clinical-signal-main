@@ -1,7 +1,6 @@
 "use server";
 
 import { requireAuth } from "@/lib/auth";
-import { requireCapability } from "@/lib/auth/require-role";
 import { writeAudit } from "@/lib/audit";
 import { saveLabCorrections, type LabValue } from "@/lib/records";
 
@@ -9,7 +8,6 @@ const VALID_FLAGS = new Set<LabValue["flag"]>(["normal", "high", "low", "unknown
 
 export async function saveLabsAction(recordId: string, labs: LabValue[]) {
   const user = await requireAuth();
-  await requireCapability(user, "correct_extraction");
 
   // Light validation. The UI already constrains inputs; this is defense in depth.
   const cleaned: LabValue[] = labs

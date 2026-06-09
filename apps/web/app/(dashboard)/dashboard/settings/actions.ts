@@ -1,7 +1,6 @@
 "use server";
 
 import { requireAuth } from "@/lib/auth";
-import { requireCapability } from "@/lib/auth/require-role";
 import {
   addPreference,
   updatePreference,
@@ -17,8 +16,6 @@ export async function addPreferenceAction(
   label?: string,
 ): Promise<ActionResult> {
   const user = await requireAuth();
-  await requireCapability(user, "edit_protocol");
-
   if (!ruleText.trim()) return { ok: false, error: "Rule text is required." };
   try {
     const id = await addPreference(user.tenantId, user.practitionerId, category, ruleText.trim(), label?.trim());
@@ -33,8 +30,6 @@ export async function updatePreferenceAction(
   updates: { ruleText?: string; label?: string; category?: PreferenceCategory; active?: boolean },
 ): Promise<ActionResult> {
   const user = await requireAuth();
-  await requireCapability(user, "edit_protocol");
-
   try {
     await updatePreference(user.tenantId, prefId, updates);
     return { ok: true };
@@ -47,8 +42,6 @@ export async function deletePreferenceAction(
   prefId: string,
 ): Promise<ActionResult> {
   const user = await requireAuth();
-  await requireCapability(user, "edit_protocol");
-
   try {
     await deletePreference(user.tenantId, prefId);
     return { ok: true };
