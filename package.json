@@ -8,7 +8,7 @@
   },
   "scripts": {
     "lint": "eslint --max-warnings 0 apps/web/lib/env.ts apps/web/lib/env.test.ts apps/web/lib/auth apps/web/lib/audit scripts/**/*.cjs scripts/**/*.mjs",
-    "typecheck": "pnpm --filter @clinical-signal/web typecheck",
+    "typecheck": "pnpm --filter @clinical-signal/web typecheck && pnpm --filter @clinical-signal/shared typecheck",
     "typecheck:intake": "tsc -p apps/web/tsconfig.intake.json --noEmit",
     "verify:phase1": "tsc -p tsconfig.db.json --noEmit && pnpm run loc-check",
     "loc-check": "node scripts/loc-check.mjs",

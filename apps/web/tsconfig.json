@@ -17,6 +17,8 @@
       "@cs/core/*": ["../../packages/core/src/*"],
       "@cs/db": ["../../packages/db/src/index.ts"],
       "@cs/db/*": ["../../packages/db/src/*"],
+      "@clinical-signal/shared": ["../../packages/shared/src/index.ts"],
+      "@clinical-signal/shared/*": ["../../packages/shared/src/*"],
       "pg": ["./node_modules/@types/pg/index.d.ts"]
     }
   },
@@ -26,7 +28,8 @@
     "**/*.tsx",
     ".next/types/**/*.ts",
     "../../packages/core/src/**/*.ts",
-    "../../packages/db/src/**/*.ts"
+    "../../packages/db/src/**/*.ts",
+    "../../packages/shared/src/**/*.ts"
   ],
   "exclude": ["node_modules", "lib/__tests__", "**/*.test.ts"]
 }

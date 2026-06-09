@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 
 import { writeAudit } from "@/lib/audit/write-audit";
-import { requireAuth } from "@/lib/auth/require-auth";
+import { apiAuth } from "@/lib/auth";
+import { enforceCapability } from "@/lib/auth/require-role";
 import {
   ClinicianIntakeAccessError,
   resolveClinicianIntakeByToken,
@@ -22,7 +23,14 @@ export async function POST(
   }
 
   try {
-    const session = await requireAuth();
+    const user = await apiAuth();
+    if (!user) {
+      return NextResponse.json({ error: "NOT_AUTHENTICATED" }, { status: 401 });
+    }
+
+    const denied = await enforceCapability(user, "revise_intake");
+    if (denied) return denied;
+
     const review = await resolveClinicianIntakeByToken(
       rawToken,
       extractClientIp(request),
@@ -92,7 +100,7 @@ export async function POST(
 
     await writeAudit({
       tenantId: review.tenantId,
-      actorId: session.userId,
+      actorId: user.practitionerId,
       action: "intake_synthesis_generated",
       entity: "patient",
       entityId: review.patientId,

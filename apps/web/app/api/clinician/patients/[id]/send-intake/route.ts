@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { writeAudit } from "@/lib/audit/write-audit";
 import { apiAuth } from "@/lib/auth";
+import { enforceCapability } from "@/lib/auth/require-role";
 import { buildPatientIntakeUrl } from "@/lib/intake/build-intake-url";
 import { dispatchIntakeEmail } from "@/lib/intake/dispatch-intake-email";
 import { getPatientIntakeState } from "@/lib/intake/patient-intake-store";
@@ -22,6 +23,9 @@ export async function POST(
   if (!user) {
     return NextResponse.json({ error: "NOT_AUTHENTICATED" }, { status: 401 });
   }
+
+  const denied = await enforceCapability(user, "issue_intake_token");
+  if (denied) return denied;
 
   const patientId = ctx.params.id;
   const belongs = await patientBelongsToTenant(user.tenantId, patientId);

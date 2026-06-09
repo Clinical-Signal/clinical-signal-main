@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { apiAuth } from "@/lib/auth";
+import { enforceCapability } from "@/lib/auth/require-role";
 import { apiError, ERROR_CODES } from "@/lib/api-error";
 import {
   getPendingSuggestions,
@@ -25,6 +26,9 @@ export async function POST(req: Request) {
   try {
     const user = await apiAuth();
     if (!user) return apiError(ERROR_CODES.NOT_AUTHENTICATED, 401);
+
+    const denied = await enforceCapability(user, "edit_protocol");
+    if (denied) return denied;
 
     const body = (await req.json()) as {
       action: "accept" | "dismiss";

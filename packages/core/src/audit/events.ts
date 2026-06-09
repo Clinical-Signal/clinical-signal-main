@@ -30,7 +30,8 @@ export type AuditAction =
   | "mfa_enrolled"
   | "mfa_verified"
   | "mfa_failed"
-  | "mfa_required_redirect";
+  | "mfa_required_redirect"
+  | "rbac_denied";
 
 export interface AuditEvent {
   readonly action: AuditAction;

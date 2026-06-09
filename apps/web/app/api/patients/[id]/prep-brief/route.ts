@@ -1,4 +1,5 @@
 import { apiAuth } from "@/lib/auth";
+import { enforceCapability } from "@/lib/auth/require-role";
 import { sanitizeStreamError, ERROR_CODES } from "@/lib/api-error";
 import { writeAudit } from "@/lib/audit";
 import { patientBelongsToTenant } from "@/lib/records";
@@ -61,6 +62,10 @@ export async function POST(
 ) {
   const user = await apiAuth();
   if (!user) return Response.json({ error: ERROR_CODES.NOT_AUTHENTICATED }, { status: 401 });
+
+  const denied = await enforceCapability(user, "revise_intake");
+  if (denied) return denied;
+
   const ok = await patientBelongsToTenant(user.tenantId, ctx.params.id);
   if (!ok) return Response.json({ error: ERROR_CODES.NOT_FOUND }, { status: 404 });
 

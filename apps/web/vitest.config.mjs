@@ -19,6 +19,8 @@ export default {
       "lib/__tests__/**/*.test.ts",
       "lib/**/*.test.ts",
       "tests/**/*.test.ts",
+      "app/**/actions.test.ts",
+      "app/**/route.test.ts",
     ],
     exclude: ["lib/__tests__/migrate.test.ts"],
   },
@@ -27,6 +29,10 @@ export default {
       "@": path.resolve(__dirname, "."),
       "@cs/core": path.resolve(__dirname, "../../packages/core/src/index.ts"),
       "@cs/db": path.resolve(__dirname, "../../packages/db/src/index.ts"),
+      "@clinical-signal/shared": path.resolve(
+        __dirname,
+        "../../packages/shared/src/index.ts",
+      ),
     },
   },
 };

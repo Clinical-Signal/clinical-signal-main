@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { requireAuth } from "@/lib/auth";
+import { requireCapability } from "@/lib/auth/require-role";
 import { writeAudit } from "@/lib/audit";
 import { patientBelongsToTenant } from "@/lib/records";
 import { analyzeAndGenerate } from "@/lib/analysis";
@@ -10,6 +11,8 @@ export async function generateProtocolAction(
   patientId: string,
 ): Promise<{ ok: false; error: string } | never> {
   const user = await requireAuth();
+  await requireCapability(user, "generate_protocol");
+
   const ok = await patientBelongsToTenant(user.tenantId, patientId);
   if (!ok) return { ok: false, error: "Patient not found." };
 
