@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireAuth } from "@/lib/auth";
+import { requireCapability } from "@/lib/auth/require-role";
 import { writeAudit } from "@/lib/audit";
 import { acceptLabUpload, patientBelongsToTenant, MAX_UPLOAD_BYTES } from "@/lib/records";
 
@@ -10,6 +11,8 @@ export async function uploadLabAction(
   formData: FormData,
 ) {
   const user = await requireAuth();
+  await requireCapability(user, "upload_lab");
+
   const patientId = String(formData.get("patientId") ?? "");
   if (!patientId) return { error: "Missing patient id." };
   const ok = await patientBelongsToTenant(user.tenantId, patientId);

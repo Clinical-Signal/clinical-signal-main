@@ -1,7 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { can } from "@clinical-signal/shared";
+import { IntakeLinkStatusBadge } from "@/components/clinician/intake-link-status-badge";
+import { SendIntakeButton } from "@/components/clinician/send-intake-button";
 import { requireAuth } from "@/lib/auth";
 import { getPatientSummary } from "@/lib/intake";
+import { getPatientIntakeLinkSnapshot } from "@/lib/intake/get-patient-intake-link-status";
 import { Button } from "@/components/ui/button";
 import { Badge, StatusDot } from "@/components/ui/badge";
 import { Page, PageHeader } from "@/components/ui/page";
@@ -30,8 +34,19 @@ export default async function PatientDetailPage({
   params: { id: string };
 }) {
   const user = await requireAuth();
-  const summary = await getPatientSummary(user.tenantId, params.id);
-  if (!summary) notFound();
+  const [summary, intakeLink] = await Promise.all([
+    getPatientSummary(user.tenantId, params.id),
+    getPatientIntakeLinkSnapshot(user.tenantId, params.id),
+  ]);
+  if (!summary || !intakeLink) notFound();
+
+  const intakeFinished =
+    intakeLink.intakeStatus === "step2_complete" ||
+    intakeLink.intakeStatus === "reviewed";
+
+  const canIssueIntake = can(user.role, "issue_intake_token");
+  const canAssignFoundational = can(user.role, "assign_foundational");
+  const canGenerateProtocol = can(user.role, "generate_protocol");
 
   const status = STATUS_COPY[summary.status] ?? {
     label: summary.status,
@@ -52,35 +67,40 @@ export default async function PatientDetailPage({
       <PageHeader
         title={summary.name}
         eyebrow={
-          <span className="inline-flex items-center gap-2">
-            <StatusDot tone={status.tone} />
-            {status.label}
+          <span className="inline-flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center gap-2">
+              <StatusDot tone={status.tone} />
+              {status.label}
+            </span>
+            <IntakeLinkStatusBadge status={intakeLink.linkStatus} />
           </span>
         }
         description={summary.dob ? `Date of birth: ${summary.dob}` : "Date of birth not recorded"}
+        actions={
+          canIssueIntake ? (
+            <SendIntakeButton
+              patientId={params.id}
+              intakeFinished={intakeFinished}
+            />
+          ) : null
+        }
       />
 
       <section aria-label="Care stages" className="grid gap-4 md:grid-cols-2">
         <HubCard
           title="Intake"
-          status={intakeStatus(summary)}
+          status={intakeHubStatus(summary, intakeLink.linkStatus)}
           body={
-            <ProgressBar value={summary.intake.completionPct} />
+            <div className="space-y-3">
+              <IntakeLinkStatusBadge status={intakeLink.linkStatus} />
+              <ProgressBar value={summary.intake.completionPct} />
+            </div>
           }
           primary={{
-            href: summary.intake.submittedAt
-              ? `/dashboard/patients/${params.id}/intake/review`
-              : `/dashboard/patients/${params.id}/intake`,
-            label: summary.intake.submittedAt ? "Review intake" : "Continue intake",
+            href: `/dashboard/patients/${params.id}/intake`,
+            label: "View intake summary",
           }}
-          secondary={
-            summary.intake.submittedAt
-              ? {
-                  href: `/dashboard/patients/${params.id}/intake`,
-                  label: "Edit",
-                }
-              : null
-          }
+          secondary={null}
         />
         <HubCard
           title="Documents & prep brief"
@@ -121,7 +141,11 @@ export default async function PatientDetailPage({
           }
           primary={{
             href: `/dashboard/patients/${params.id}/foundations`,
-            label: summary.foundations ? "View checklist" : "Assign checklist",
+            label: summary.foundations
+              ? "View checklist"
+              : canAssignFoundational
+                ? "Assign checklist"
+                : "View checklist",
           }}
           secondary={null}
         />
@@ -143,7 +167,11 @@ export default async function PatientDetailPage({
             href: summary.protocol
               ? `/dashboard/patients/${params.id}/protocol/${summary.protocol.id}`
               : `/dashboard/patients/${params.id}/protocol`,
-            label: summary.protocol ? "Open protocol" : "Generate protocol",
+            label: summary.protocol
+              ? "Open protocol"
+              : canGenerateProtocol
+                ? "Generate protocol"
+                : "View protocols",
           }}
           secondary={
             summary.protocol
@@ -159,12 +187,24 @@ export default async function PatientDetailPage({
   );
 }
 
-function intakeStatus(s: {
-  intake: { completionPct: number; submittedAt: string | null };
-}): string {
-  if (s.intake.submittedAt)
+function intakeHubStatus(
+  s: {
+    intake: { completionPct: number; submittedAt: string | null };
+  },
+  linkStatus: "pending" | "completed" | "none",
+): string {
+  if (linkStatus === "completed") {
+    return "Patient intake complete";
+  }
+  if (linkStatus === "pending") {
+    return "Intake link sent — awaiting patient";
+  }
+  if (s.intake.submittedAt) {
     return `Submitted ${new Date(s.intake.submittedAt).toLocaleDateString()}`;
-  if (s.intake.completionPct === 0) return "Not started";
+  }
+  if (s.intake.completionPct === 0) {
+    return "Not started — send a link to begin";
+  }
   return `${s.intake.completionPct}% complete`;
 }
 

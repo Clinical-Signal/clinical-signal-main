@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "lib": ["ES2022", "DOM"],
+    "jsx": "react-jsx",
+    "types": ["node"],
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./*"],
+      "@cs/core": ["../../packages/core/src/index.ts"],
+      "@cs/core/*": ["../../packages/core/src/*"],
+      "@cs/db": ["../../packages/db/src/index.ts"],
+      "@cs/db/*": ["../../packages/db/src/*"]
+    }
+  },
+  "include": [
+    "lib/db/**/*.ts",
+    "lib/intake/**/*.ts",
+    "lib/readiness.ts",
+    "lib/readiness-collect.ts",
+    "lib/transcription/**/*.ts",
+    "lib/tokens/**/*.ts",
+    "lib/llm/**/*.ts",
+    "lib/prompt/format-timeline-for-prompt.ts",
+    "lib/auth/require-auth.ts",
+    "lib/auth/patient-belongs-to-tenant.ts",
+    "lib/audit/write-audit.ts",
+    "lib/env.ts",
+    "app/intake/**/*.ts",
+    "app/intake/**/*.tsx",
+    "app/api/intake/**/*.ts",
+    "app/api/patients/**/intake-token/**/*.ts",
+    "app/api/patients/**/protocol-readiness/**/*.ts"
+  ],
+  "exclude": ["node_modules", "**/*.test.ts"]
+}

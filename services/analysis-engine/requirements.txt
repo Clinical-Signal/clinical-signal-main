@@ -13,6 +13,8 @@ reportlab==4.2.5
 # PR5 — engine JWT auth. PyJWT verifies the HS256 token the web tier
 # signs via packages/core/src/tenancy/jwt.ts. Pinned to current stable.
 PyJWT==2.9.0
+# SEC-11 — ClamAV INSTREAM client for /scan (clamd sidecar).
+clamd==1.0.2
 # Google Drive API — used by scripts/verify_drive_access.py and the
 # upcoming Phase 5 Drive watcher. Pinned to the current stable lines.
 google-api-python-client==2.149.0

@@ -10,7 +10,5 @@ export async function loginAction(_prev: { error?: string } | undefined, formDat
 
   const result = await login(email, password);
   if (!result.ok) return { error: result.error };
-  // Reject protocol-relative URLs like "//evil.com" to block open redirects.
-  const safeNext = next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
-  redirect(safeNext);
+  redirect(result.redirectTo);
 }

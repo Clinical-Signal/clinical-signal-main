@@ -28,8 +28,10 @@ interface PrefItem {
 
 export function PreferencesForm({
   initialPreferences,
+  readOnly = false,
 }: {
   initialPreferences: PrefItem[];
+  readOnly?: boolean;
 }) {
   const [prefs, setPrefs] = useState(initialPreferences);
   const [adding, setAdding] = useState(false);
@@ -128,22 +130,24 @@ export function PreferencesForm({
                   )}
                   <p className="text-sm text-ink">{p.ruleText}</p>
                 </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  <button
-                    onClick={() => handleToggle(p.id, p.active)}
-                    disabled={isPending}
-                    className="rounded-md border border-line-strong bg-surface px-2.5 py-1 text-xs font-medium text-ink-subtle transition-colors hover:bg-surface-sunken disabled:opacity-50"
-                  >
-                    {p.active ? "Disable" : "Enable"}
-                  </button>
-                  <button
-                    onClick={() => handleDelete(p.id)}
-                    disabled={isPending}
-                    className="rounded-md border border-line-strong bg-surface px-2.5 py-1 text-xs font-medium text-danger transition-colors hover:bg-danger-soft/20 disabled:opacity-50"
-                  >
-                    Delete
-                  </button>
-                </div>
+                {readOnly ? null : (
+                  <div className="flex shrink-0 items-center gap-2">
+                    <button
+                      onClick={() => handleToggle(p.id, p.active)}
+                      disabled={isPending}
+                      className="rounded-md border border-line-strong bg-surface px-2.5 py-1 text-xs font-medium text-ink-subtle transition-colors hover:bg-surface-sunken disabled:opacity-50"
+                    >
+                      {p.active ? "Disable" : "Enable"}
+                    </button>
+                    <button
+                      onClick={() => handleDelete(p.id)}
+                      disabled={isPending}
+                      className="rounded-md border border-line-strong bg-surface px-2.5 py-1 text-xs font-medium text-danger transition-colors hover:bg-danger-soft/20 disabled:opacity-50"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -151,7 +155,7 @@ export function PreferencesForm({
       ))}
 
       {/* Add new rule */}
-      {adding ? (
+      {!readOnly && adding ? (
         <div className="rounded-xl border border-accent-soft bg-surface p-5">
           <h3 className="mb-4 text-base font-semibold text-ink">Add a rule</h3>
 
@@ -216,14 +220,14 @@ export function PreferencesForm({
             </button>
           </div>
         </div>
-      ) : (
+      ) : !readOnly ? (
         <button
           onClick={() => setAdding(true)}
           className="inline-flex h-10 items-center justify-center rounded-md bg-accent px-4 text-sm font-medium text-ink-inverse transition-colors hover:bg-accent-hover"
         >
           + Add rule
         </button>
-      )}
+      ) : null}
     </div>
   );
 }

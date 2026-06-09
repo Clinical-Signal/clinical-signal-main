@@ -1,3 +1,6 @@
+include:
+  - infrastructure/docker/docker-compose.av.yml
+
 services:
   postgres:
     image: pgvector/pgvector:pg16
@@ -61,6 +64,9 @@ services:
       # secret to both services within a 5-minute window (the JWT TTL),
       # or stage a brief overlap by adding a list-of-secrets verifier.
       ENGINE_JWT_SECRET: ${ENGINE_JWT_SECRET:-dev_only_change_me_engine_jwt_secret_min_32}
+      # SEC-11 — clamd sidecar (infrastructure/docker/docker-compose.av.yml).
+      CLAMD_HOST: clamd
+      CLAMD_PORT: "3310"
       # Cache the sentence-transformers model across container rebuilds.
       SENTENCE_TRANSFORMERS_HOME: /models
     ports:
@@ -70,6 +76,8 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
+      clamd:
+        condition: service_healthy
     volumes:
       - ./services/analysis-engine/app:/app/app:ro
       - ./services/analysis-engine/prompts:/app/prompts:ro

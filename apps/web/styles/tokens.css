@@ -1,0 +1,20 @@
+/**
+ * Ventive supplemental tokens (intake PRD §1.4 / Phase 0.4).
+ * Dashboard palette lives in app/globals.css (RGB channels for Tailwind opacity).
+ * Hex literals are allowed ONLY in this file when defining standalone references.
+ */
+:root {
+  /* PRD reference values (documentation; runtime colors use globals.css) */
+  --ventive-canvas: #fafaf7;
+  --ventive-surface: #ffffff;
+  --ventive-ink: #1a1a1a;
+  --ventive-accent: #0f4c47;
+  --ventive-warn: #b45309;
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 14px;
+
+  --focus-ring: 2px solid rgb(var(--color-accent));
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.04);
+}

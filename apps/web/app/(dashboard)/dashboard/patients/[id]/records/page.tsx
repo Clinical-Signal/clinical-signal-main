@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { can } from "@clinical-signal/shared";
 import { requireAuth } from "@/lib/auth";
 import { listRecords, patientBelongsToTenant } from "@/lib/records";
 import { Page, PageHeader } from "@/components/ui/page";
@@ -11,6 +12,7 @@ export default async function PatientRecordsPage({ params }: { params: { id: str
   const ok = await patientBelongsToTenant(user.tenantId, params.id);
   if (!ok) notFound();
   const initial = await listRecords(user.tenantId, params.id);
+  const canUploadLab = can(user.role, "upload_lab");
 
   return (
     <Page>
@@ -29,7 +31,7 @@ export default async function PatientRecordsPage({ params }: { params: { id: str
       />
 
       <div className="flex flex-col gap-6">
-        <UploadForm patientId={params.id} />
+        {canUploadLab ? <UploadForm patientId={params.id} /> : null}
         <RecordsList patientId={params.id} initial={initial} />
       </div>
     </Page>

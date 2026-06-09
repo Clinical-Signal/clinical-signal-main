@@ -1,4 +1,5 @@
 import { apiAuth } from "@/lib/auth";
+import { enforceCapability } from "@/lib/auth/require-role";
 import { sanitizeStreamError, ERROR_CODES } from "@/lib/api-error";
 import { writeAudit } from "@/lib/audit";
 import { patientBelongsToTenant } from "@/lib/records";
@@ -10,8 +11,25 @@ import {
 } from "@/lib/analysis";
 import { getDocumentText, type DocumentWithMeta } from "@/lib/intake-documents";
 import { logDebug, logError } from "@/lib/logger";
+import type { ReadinessResult } from "@/lib/readiness";
+import {
+  assertProtocolReadinessForGeneration,
+  ProtocolReadinessBlockedError,
+} from "@/lib/readiness/protocol-generation-gate";
 
 export const maxDuration = 300;
+
+function withAnalysisConfidenceCeiling(
+  timelineText: string,
+  ceiling: ReadinessResult["confidence_ceiling"],
+): string {
+  if (ceiling === "high") return timelineText;
+  const label = ceiling === "medium" ? "moderate" : "low";
+  return (
+    `READINESS NOTE (confidence_ceiling: ${label}): reflect proportionately lower diagnostic confidence in uncertainty and data_gaps fields.\n\n` +
+    timelineText
+  );
+}
 
 export async function POST(
   _req: Request,
@@ -19,10 +37,35 @@ export async function POST(
 ) {
   const user = await apiAuth();
   if (!user) return Response.json({ error: ERROR_CODES.NOT_AUTHENTICATED }, { status: 401 });
+
+  const denied = await enforceCapability(user, "generate_protocol");
+  if (denied) return denied;
+
   const ok = await patientBelongsToTenant(user.tenantId, ctx.params.id);
   if (!ok) return Response.json({ error: ERROR_CODES.NOT_FOUND }, { status: 404 });
 
   const patientId = ctx.params.id;
+
+  let readiness: ReadinessResult;
+  try {
+    readiness = await assertProtocolReadinessForGeneration({
+      tenantId: user.tenantId,
+      practitionerId: user.practitionerId,
+      patientId,
+    });
+  } catch (err) {
+    if (err instanceof ProtocolReadinessBlockedError) {
+      return Response.json(
+        {
+          error: "Readiness gate failed",
+          blocking_gaps: err.result.blocking_gaps,
+        },
+        { status: 422 },
+      );
+    }
+    throw err;
+  }
+
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream({
@@ -61,7 +104,10 @@ export async function POST(
           detail: `${timeline.records.length} record(s), ${docs.length} document(s)`,
         });
 
-        const timelineText = formatTimelineForPrompt(timeline, docs);
+        const timelineText = withAnalysisConfidenceCeiling(
+          formatTimelineForPrompt(timeline, docs),
+          readiness.confidence_ceiling,
+        );
 
         let lastPing = Date.now();
         let tokenCount = 0;

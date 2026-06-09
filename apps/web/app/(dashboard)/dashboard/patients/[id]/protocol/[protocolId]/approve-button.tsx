@@ -58,7 +58,7 @@ export function ApproveButton({
           </button>
           <button
             onClick={handleApprove}
-            className="inline-flex h-10 items-center justify-center rounded-md bg-emerald-600 px-4 text-sm font-medium text-white transition-colors hover:bg-emerald-700"
+            className="inline-flex h-10 items-center justify-center rounded-md bg-success px-4 text-sm font-medium text-ink-inverse transition-colors hover:opacity-90"
           >
             Confirm approve
           </button>
@@ -67,7 +67,7 @@ export function ApproveButton({
         <button
           onClick={handleApprove}
           disabled={loading}
-          className="inline-flex h-10 items-center justify-center rounded-md bg-emerald-600 px-4 text-sm font-medium text-white transition-colors hover:bg-emerald-700 disabled:opacity-50"
+          className="inline-flex h-10 items-center justify-center rounded-md bg-success px-4 text-sm font-medium text-ink-inverse transition-colors hover:opacity-90 disabled:opacity-50"
         >
           {loading ? "Approving…" : "Approve protocol"}
         </button>

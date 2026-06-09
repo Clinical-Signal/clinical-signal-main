@@ -17,7 +17,7 @@ import os
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Response
+from fastapi import BackgroundTasks, Depends, FastAPI, File, HTTPException, Response, UploadFile
 from pydantic import BaseModel, Field
 
 from app._core import (
@@ -44,6 +44,7 @@ from app.knowledge.embeddings import embed_one
 from app.pipeline.db import mark_complete, mark_failed, mark_processing
 from app.pipeline.llm import extract_structured_labs
 from app.pipeline.pdf import extract_pdf_text
+from app.ingest.av import ScanVerdict, scan_bytes
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 log = logging.getLogger("engine")
@@ -66,6 +67,36 @@ async def health() -> HealthResponse:
     """Unauthenticated by design — used by container/load-balancer
     healthchecks. Returns no PHI or tenant data."""
     return HealthResponse(status="ok", service="analysis-engine", version="0.3.0")
+
+
+# ---------------------------------------------------------------------------
+# /scan — SEC-11 antivirus gate (in-memory bytes, no disk write)
+# ---------------------------------------------------------------------------
+
+
+class ScanResponse(BaseModel):
+    clean: bool = True
+
+
+@app.post("/scan", response_model=ScanResponse)
+async def scan_upload(
+    ctx: EngineCtx,
+    file: UploadFile = File(...),
+) -> ScanResponse:
+    """Scan upload bytes with clamd before the web tier persists to disk/S3."""
+    _ = ctx  # JWT verified; tenant_id available for future per-tenant policy
+    data = await file.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="empty file")
+
+    result = scan_bytes(data)
+    if result.verdict == ScanVerdict.INFECTED:
+        log.info("scan rejected infected upload")
+        raise HTTPException(status_code=422, detail="infected")
+    if result.verdict == ScanVerdict.ERROR:
+        log.warning("scan unavailable: %s", result.detail)
+        raise HTTPException(status_code=503, detail="scan_unavailable")
+    return ScanResponse(clean=True)
 
 
 # ---------------------------------------------------------------------------

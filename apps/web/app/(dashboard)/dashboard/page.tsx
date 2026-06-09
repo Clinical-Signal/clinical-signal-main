@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { can } from "@clinical-signal/shared";
 import { requireAuth } from "@/lib/auth";
 import { listPatients } from "@/lib/patients";
 import { Button } from "@/components/ui/button";
@@ -22,6 +23,7 @@ const STATUS_COPY: Record<
 export default async function DashboardPage() {
   const user = await requireAuth();
   const patients = await listPatients(user.tenantId);
+  const canCreatePatient = can(user.role, "create_patient");
 
   return (
     <Page>
@@ -33,9 +35,11 @@ export default async function DashboardPage() {
             : `${patients.length} patient${patients.length === 1 ? "" : "s"}`
         }
         actions={
-          <Link href="/dashboard/patients/new">
-            <Button>New patient</Button>
-          </Link>
+          canCreatePatient ? (
+            <Link href="/dashboard/patients/new">
+              <Button>New patient</Button>
+            </Link>
+          ) : null
         }
       />
 
@@ -44,9 +48,11 @@ export default async function DashboardPage() {
           title="No patients yet"
           description="Create your first patient to start capturing intake data and building protocols."
           action={
-            <Link href="/dashboard/patients/new">
-              <Button>Add a patient</Button>
-            </Link>
+            canCreatePatient ? (
+              <Link href="/dashboard/patients/new">
+                <Button>Add a patient</Button>
+              </Link>
+            ) : undefined
           }
         />
       ) : (

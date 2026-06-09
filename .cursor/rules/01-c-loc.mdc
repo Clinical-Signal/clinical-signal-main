@@ -1,0 +1,51 @@
+---
+description: C-LOC — enforce a strict 500-line cap per file; split before CI fails (PRD §1.4, Phase 0.2c)
+alwaysApply: true
+---
+
+# C-LOC — 500 Line-of-Code Cap
+
+**Non-negotiable.** No source file in this repo may exceed **500 lines**. CI runs `pnpm run loc-check` (via `scripts/loc-check.mjs`) and **fails the build** on any violation. Honor exclusions listed in `.loc-ignore` only when that file exists and the path is explicitly listed there.
+
+## Rule
+
+- Count **physical lines** in each file (including blanks and comments) unless excluded by `.loc-ignore`.
+- **Hard limit: 500 lines.** There is no grace buffer in CI.
+- **Soft limit: ~400 lines.** If a file you are editing approaches 400 lines, split it proactively before adding more logic.
+- Orchestrator/shell files should stay **≤200 LOC** (e.g. `step-one-form.tsx`, `step-two-renderer.tsx`, `intake-review.tsx`). Push UI and logic into sibling slice files.
+
+## When to split
+
+| Situation | Split strategy |
+|---|---|
+| Route handler growing large | Extract Zod schemas, DB queries, and helpers into `lib/` slice files; keep `route.ts` thin |
+| Component with many sub-screens | One file per screen (see C-SLICE); orchestrator only wires navigation |
+| Test file approaching cap | Split fixtures to `fixtures/`; group tests by behavior in separate `*.test.ts` files |
+| Worker/pipeline logic | One processor per file under `workers/transcription/processors/` |
+
+## Agent workflow
+
+1. Before finishing any task, estimate final line count of touched files.
+2. If adding code would push a file past 400 lines, **split first**, then implement.
+3. Never "just add a few more helpers" to a 450-line file — extract a new slice file instead.
+4. At phase boundaries, run a repo scan for files over 400 LOC and split any trending toward the gate.
+
+## Violations (examples)
+
+```tsx
+// BAD — monolithic step-one-form.tsx with all four screens inline (~600 lines)
+// BAD — stuffing 15 API helpers into a single route.ts
+// BAD — one giant *.test.ts mirroring an oversized source file
+```
+
+```tsx
+// GOOD — step-one-form.tsx (~150 lines) imports about-you, why-here, symptoms, lifestyle-snapshot
+// GOOD — route.ts delegates to lib/intake/merge-intake.ts and lib/audit/write-audit.ts
+```
+
+## Failure modes (do not do these)
+
+1. **Inlining a whole feature** into an existing file because "it's only 80 more lines" when the file is already at 430 lines.
+2. **Generating large boilerplate blocks** (repeated form fields, table-driven UI) in one file instead of extracting shared primitives to `components/ui/`.
+3. **Broad `.loc-ignore` entries** to dodge the gate — only ignore paths explicitly listed for generated artifacts (lockfiles, migration SQL), not application source.
+4. **Deferring the split** with a `// TODO: split later` comment — CI will fail before "later" arrives.

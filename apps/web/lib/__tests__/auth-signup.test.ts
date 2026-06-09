@@ -153,7 +153,7 @@ describe("signup — happy path (provisions new tenant)", () => {
       practiceName: "Alice's Functional Health",
     });
 
-    expect(result).toEqual({ ok: true });
+    expect(result).toEqual({ ok: true, redirectTo: "/mfa/enroll" });
     // BEGIN, INSERT tenants, INSERT practitioners, UPDATE tenants, COMMIT
     expect(sqlVerbs()).toEqual(["BEGIN", "INSERT", "INSERT", "UPDATE", "COMMIT"]);
     // All five SQL statements went through the same withSystem reason
@@ -213,7 +213,7 @@ describe("signup — practiceName fallback", () => {
       name: "Bob Smith",
     });
 
-    expect(result).toEqual({ ok: true });
+    expect(result).toEqual({ ok: true, redirectTo: "/mfa/enroll" });
     expect(calls[1]!.params).toEqual(["Bob Smith's practice"]);
   });
 
@@ -231,7 +231,7 @@ describe("signup — practiceName fallback", () => {
       practiceName: "   ",
     });
 
-    expect(result).toEqual({ ok: true });
+    expect(result).toEqual({ ok: true, redirectTo: "/mfa/enroll" });
     expect(calls[1]!.params).toEqual(["Carol Vega's practice"]);
   });
 });
@@ -275,7 +275,7 @@ describe("signup — practiceName length validation", () => {
       practiceName: exactly120,
     });
 
-    expect(result).toEqual({ ok: true });
+    expect(result).toEqual({ ok: true, redirectTo: "/mfa/enroll" });
     expect(calls[1]!.params).toEqual([exactly120]);
   });
 });
@@ -332,7 +332,7 @@ describe("signup — dev escape hatch (ATTACH_TO_DEFAULT_TENANT)", () => {
       name: "Dev User",
     });
 
-    expect(result).toEqual({ ok: true });
+    expect(result).toEqual({ ok: true, redirectTo: "/mfa/enroll" });
     // Single non-transactional INSERT under the attach reason
     expect(calls).toHaveLength(1);
     expect(calls[0]!.reason).toBe(ATTACH_REASON);
@@ -371,7 +371,7 @@ describe("signup — dev escape hatch (ATTACH_TO_DEFAULT_TENANT)", () => {
       name: "Prod User",
     });
 
-    expect(result).toEqual({ ok: true });
+    expect(result).toEqual({ ok: true, redirectTo: "/mfa/enroll" });
     // Provisioning path took over; no attach-default-tenant call.
     const reasons = new Set(calls.map((c) => c.reason));
     expect(reasons.has(PROVISION_REASON)).toBe(true);
@@ -393,6 +393,6 @@ describe("signup — dev escape hatch (ATTACH_TO_DEFAULT_TENANT)", () => {
       name: "Nodef User",
     });
 
-    expect(result).toEqual({ ok: true });
+    expect(result).toEqual({ ok: true, redirectTo: "/mfa/enroll" });
   });
 });

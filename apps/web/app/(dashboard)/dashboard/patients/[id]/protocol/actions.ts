@@ -2,22 +2,36 @@
 
 import { redirect } from "next/navigation";
 import { requireAuth } from "@/lib/auth";
+import { requireCapability } from "@/lib/auth/require-role";
 import { writeAudit } from "@/lib/audit";
 import { patientBelongsToTenant } from "@/lib/records";
 import { analyzeAndGenerate } from "@/lib/analysis";
+import {
+  assertProtocolReadinessForGeneration,
+  ProtocolReadinessBlockedError,
+} from "@/lib/readiness/protocol-generation-gate";
 
 export async function generateProtocolAction(
   patientId: string,
 ): Promise<{ ok: false; error: string } | never> {
   const user = await requireAuth();
+  await requireCapability(user, "generate_protocol");
+
   const ok = await patientBelongsToTenant(user.tenantId, patientId);
   if (!ok) return { ok: false, error: "Patient not found." };
 
   try {
+    const readiness = await assertProtocolReadinessForGeneration({
+      tenantId: user.tenantId,
+      practitionerId: user.practitionerId,
+      patientId,
+    });
+
     const { analysisId, protocolId } = await analyzeAndGenerate({
       tenantId: user.tenantId,
       patientId,
       practitionerId: user.practitionerId,
+      confidenceCeiling: readiness.confidence_ceiling,
     });
 
     await writeAudit({
@@ -36,6 +50,9 @@ export async function generateProtocolAction(
     redirect(`/dashboard/patients/${patientId}/protocol/${protocolId}`);
   } catch (err) {
     if (err && typeof err === "object" && "digest" in err) throw err;
+    if (err instanceof ProtocolReadinessBlockedError) {
+      return { ok: false, error: err.message };
+    }
     const msg = err instanceof Error ? err.message : String(err);
     return { ok: false, error: msg };
   }

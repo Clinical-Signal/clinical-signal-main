@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { can } from "@clinical-signal/shared";
 import { requireAuth } from "@/lib/auth";
 import { patientBelongsToTenant } from "@/lib/records";
 import { listProtocols } from "@/lib/protocols";
@@ -26,6 +27,7 @@ export default async function ProtocolIndexPage({
   if (!ok) notFound();
 
   const protocols = await listProtocols(user.tenantId, params.id);
+  const canGenerateProtocol = can(user.role, "generate_protocol");
 
   return (
     <Page>
@@ -41,7 +43,11 @@ export default async function ProtocolIndexPage({
         eyebrow="Protocol"
         title="Generate a protocol"
         description="Clinical Signal analyzes intake and completed lab records, then drafts both a clinical protocol and a phased client action plan."
-        actions={<GenerateProtocolButton patientId={params.id} />}
+        actions={
+          canGenerateProtocol ? (
+            <GenerateProtocolButton patientId={params.id} />
+          ) : null
+        }
       />
 
       <section>

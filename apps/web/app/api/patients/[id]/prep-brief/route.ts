@@ -1,4 +1,5 @@
 import { apiAuth } from "@/lib/auth";
+import { enforceCapability } from "@/lib/auth/require-role";
 import { sanitizeStreamError, ERROR_CODES } from "@/lib/api-error";
 import { writeAudit } from "@/lib/audit";
 import { patientBelongsToTenant } from "@/lib/records";
@@ -6,9 +7,14 @@ import {
   gatherPatientTimeline,
   generatePrepBrief,
 } from "@/lib/analysis";
-import { getDocumentText, type DocumentWithMeta } from "@/lib/intake-documents";
+import {
+  countIntakeDocsAfter,
+  getDocumentText,
+  getLatestPrepBrief,
+  insertPrepBriefDocument,
+  type DocumentWithMeta,
+} from "@/lib/intake-documents";
 import { getActivePreferencesForPrompt } from "@/lib/preferences";
-import { withTenant } from "@/lib/db";
 
 export const maxDuration = 300;
 
@@ -22,17 +28,7 @@ export async function GET(
   const ok = await patientBelongsToTenant(user.tenantId, ctx.params.id);
   if (!ok) return Response.json({ error: ERROR_CODES.NOT_FOUND }, { status: 404 });
 
-  const result = await withTenant(user.tenantId, async (c) => {
-    const res = await c.query(
-      `SELECT extracted_text, created_at, metadata
-       FROM intake_documents
-       WHERE tenant_id = $1 AND patient_id = $2 AND metadata->>'type' = 'prep_brief'
-       ORDER BY created_at DESC
-       LIMIT 1`,
-      [user.tenantId, ctx.params.id],
-    );
-    return res.rows[0] ?? null;
-  });
+  const result = await getLatestPrepBrief(user.tenantId, ctx.params.id);
 
   if (!result) {
     return Response.json({ exists: false });
@@ -40,28 +36,21 @@ export async function GET(
 
   let brief: Record<string, unknown> = {};
   try {
-    brief = JSON.parse(result.extracted_text);
+    brief = JSON.parse(result.extractedText);
   } catch {
     brief = {};
   }
 
-  // Check if new documents were uploaded after the brief was generated
-  const newerDocs = await withTenant(user.tenantId, async (c) => {
-    const res = await c.query(
-      `SELECT COUNT(*)::int AS cnt
-       FROM intake_documents
-       WHERE tenant_id = $1 AND patient_id = $2
-         AND (metadata->>'type' IS DISTINCT FROM 'prep_brief')
-         AND created_at > $3`,
-      [user.tenantId, ctx.params.id, result.created_at],
-    );
-    return res.rows[0]?.cnt ?? 0;
-  });
+  const newerDocs = await countIntakeDocsAfter(
+    user.tenantId,
+    ctx.params.id,
+    result.createdAt,
+  );
 
   return Response.json({
     exists: true,
     brief,
-    generatedAt: result.created_at,
+    generatedAt: result.createdAt,
     meta: result.metadata,
     newDocsSinceGeneration: newerDocs,
   });
@@ -73,6 +62,10 @@ export async function POST(
 ) {
   const user = await apiAuth();
   if (!user) return Response.json({ error: ERROR_CODES.NOT_AUTHENTICATED }, { status: 401 });
+
+  const denied = await enforceCapability(user, "revise_intake");
+  if (denied) return denied;
+
   const ok = await patientBelongsToTenant(user.tenantId, ctx.params.id);
   if (!ok) return Response.json({ error: ERROR_CODES.NOT_FOUND }, { status: 404 });
 
@@ -165,21 +158,12 @@ export async function POST(
 
         const { brief, meta } = await generatePrepBrief(timelineText, onProgress);
 
-        // Store the brief as a practitioner note so it's preserved
-        await withTenant(user.tenantId, async (c) => {
-          await c.query(
-            `INSERT INTO intake_documents
-               (tenant_id, patient_id, doc_type, original_filename,
-                extracted_text, processing_status, metadata, created_by)
-             VALUES ($1, $2, 'note', 'Pre-call prep brief', $3, 'complete', $4::jsonb, $5)`,
-            [
-              user.tenantId,
-              patientId,
-              JSON.stringify(brief, null, 2),
-              JSON.stringify({ type: "prep_brief", ...meta }),
-              user.practitionerId,
-            ],
-          );
+        await insertPrepBriefDocument({
+          tenantId: user.tenantId,
+          patientId,
+          practitionerId: user.practitionerId,
+          briefJson: JSON.stringify(brief, null, 2),
+          metadata: { type: "prep_brief", ...meta },
         });
 
         await writeAudit({

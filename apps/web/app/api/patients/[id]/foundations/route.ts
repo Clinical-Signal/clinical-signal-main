@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { apiAuth } from "@/lib/auth";
+import { enforceCapability } from "@/lib/auth/require-role";
 import { apiError, ERROR_CODES } from "@/lib/api-error";
 import { writeAudit } from "@/lib/audit";
 import { patientBelongsToTenant } from "@/lib/records";
@@ -57,6 +58,9 @@ export async function POST(
 ) {
   const user = await apiAuth();
   if (!user) return apiError(ERROR_CODES.NOT_AUTHENTICATED, 401);
+
+  const denied = await enforceCapability(user, "assign_foundational");
+  if (denied) return denied;
 
   const ok = await patientBelongsToTenant(user.tenantId, ctx.params.id);
   if (!ok) return apiError(ERROR_CODES.NOT_FOUND, 404);
@@ -147,6 +151,9 @@ export async function PATCH(
 ) {
   const user = await apiAuth();
   if (!user) return apiError(ERROR_CODES.NOT_AUTHENTICATED, 401);
+
+  const denied = await enforceCapability(user, "assign_foundational");
+  if (denied) return denied;
 
   const ok = await patientBelongsToTenant(user.tenantId, ctx.params.id);
   if (!ok) return apiError(ERROR_CODES.NOT_FOUND, 404);
