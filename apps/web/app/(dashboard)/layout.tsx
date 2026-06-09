@@ -1,11 +1,9 @@
 import Link from "next/link";
-import { can } from "@clinical-signal/shared";
 import { requireAuth } from "@/lib/auth";
 import { LogoutButton } from "./logout-button";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const user = await requireAuth();
-  const canReadAuditLog = can(user.role, "read_audit_log");
   return (
     <div className="min-h-screen">
       <header className="sticky top-0 z-10 border-b border-line bg-surface/85 backdrop-blur">
@@ -17,14 +15,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
             Clinical Signal
           </Link>
           <div className="flex items-center gap-4 text-sm">
-            {canReadAuditLog ? (
-              <Link
-                href="/dashboard/audit-log"
-                className="text-ink-subtle transition-colors hover:text-ink"
-              >
-                Audit log
-              </Link>
-            ) : null}
+            <Link
+              href="/dashboard/audit-log"
+              className="text-ink-subtle transition-colors hover:text-ink"
+            >
+              Audit log
+            </Link>
             <Link
               href="/dashboard/settings"
               className="text-ink-subtle transition-colors hover:text-ink"

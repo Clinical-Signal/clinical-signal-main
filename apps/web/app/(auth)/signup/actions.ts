@@ -17,5 +17,5 @@ export async function signupAction(_prev: { error?: string } | undefined, formDa
 
   const result = await signup({ email, password, name, practiceName });
   if (!result.ok) return { error: result.error };
-  redirect(result.redirectTo);
+  redirect("/dashboard");
 }

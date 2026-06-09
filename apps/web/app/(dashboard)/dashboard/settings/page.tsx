@@ -1,4 +1,3 @@
-import { can } from "@clinical-signal/shared";
 import { requireAuth } from "@/lib/auth";
 import { getPreferences, CATEGORY_LABELS } from "@/lib/preferences";
 import { getPendingSuggestions } from "@/lib/pattern-recognition";
@@ -8,7 +7,6 @@ import { SuggestedPreferences } from "./suggested-preferences";
 
 export default async function SettingsPage() {
   const user = await requireAuth();
-  const canEditPreferences = can(user.role, "edit_protocol");
   const preferences = await getPreferences(user.tenantId, user.practitionerId);
 
   let suggestions: Awaited<ReturnType<typeof getPendingSuggestions>> = [];
@@ -25,7 +23,7 @@ export default async function SettingsPage() {
         description="Configure your protocol playbook. These rules guide how the AI generates protocols, client documents, call decks, and email drafts."
       />
 
-      {canEditPreferences && suggestions.length > 0 && (
+      {suggestions.length > 0 && (
         <SuggestedPreferences
           initialSuggestions={suggestions.map((s) => ({
             id: s.id,
@@ -38,7 +36,6 @@ export default async function SettingsPage() {
       )}
 
       <PreferencesForm
-        readOnly={!canEditPreferences}
         initialPreferences={preferences.map((p) => ({
           id: p.id,
           category: p.category,

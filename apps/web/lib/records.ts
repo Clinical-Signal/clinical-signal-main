@@ -134,35 +134,6 @@ export interface UploadResult {
   recordId: string;
 }
 
-/** SEC-11 — AV scan via analysis-engine /scan before any disk write. */
-async function scanLabUploadBytes(
-  ctx: TenantContext,
-  bytes: Buffer,
-  filename: string,
-): Promise<void> {
-  const jwt = signEngineJwt(ctx, `scan:${randomUUID()}`);
-  const body = new FormData();
-  body.append("file", new Blob([bytes], { type: "application/pdf" }), filename);
-
-  let res: Response;
-  try {
-    res = await fetch(`${ENGINE_URL}/scan`, {
-      method: "POST",
-      headers: { authorization: `Bearer ${jwt}` },
-      body,
-    });
-  } catch {
-    throw new Error("Virus scan is temporarily unavailable. Try again later.");
-  }
-
-  if (res.status === 422) {
-    throw new Error("This file was rejected by our security scan.");
-  }
-  if (!res.ok) {
-    throw new Error("Virus scan is temporarily unavailable. Try again later.");
-  }
-}
-
 export async function acceptLabUpload(args: {
   ctx: TenantContext;
   patientId: string;
@@ -185,7 +156,6 @@ export async function acceptLabUpload(args: {
   }
 
   if (!IS_VERCEL) {
-    await scanLabUploadBytes(ctx, bytes, file.name || "upload.pdf");
     // Local dev (Docker): write to the shared uploads volume.
     await mkdir(UPLOADS_DIR, { recursive: true });
     const fsPath = path.join(UPLOADS_DIR, relKey);

@@ -2,9 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { requireAuth } from "@/lib/auth";
-import { requireCapability } from "@/lib/auth/require-role";
 import { writeAudit } from "@/lib/audit";
-import type { Capability } from "@clinical-signal/shared";
 import { patientBelongsToTenant } from "@/lib/records";
 import { getAnalysisFindings, runProtocolGeneration, insertProtocol } from "@/lib/analysis";
 import {
@@ -18,12 +16,6 @@ export type SaveResult =
   | { ok: true; protocolId: string; version: number }
   | { ok: false; error: string };
 
-function capabilityForStatus(status: ProtocolStatus): Capability {
-  return status === "finalized" || status === "approved"
-    ? "finalize_protocol"
-    : "edit_protocol";
-}
-
 export async function saveProtocolEdits(
   patientId: string,
   fromProtocolId: string,
@@ -32,8 +24,6 @@ export async function saveProtocolEdits(
   clientContent: Record<string, unknown>,
 ): Promise<SaveResult> {
   const user = await requireAuth();
-  await requireCapability(user, "edit_protocol");
-
   const ok = await patientBelongsToTenant(user.tenantId, patientId);
   if (!ok) return { ok: false, error: "Patient not found." };
   try {
@@ -65,8 +55,6 @@ export async function changeProtocolStatus(
   status: ProtocolStatus,
 ): Promise<{ ok: false; error: string } | { ok: true }> {
   const user = await requireAuth();
-  await requireCapability(user, capabilityForStatus(status));
-
   const ok = await patientBelongsToTenant(user.tenantId, patientId);
   if (!ok) return { ok: false, error: "Patient not found." };
   try {
@@ -90,8 +78,6 @@ export async function regenerateProtocol(
   fromProtocolId: string,
 ): Promise<{ ok: false; error: string } | never> {
   const user = await requireAuth();
-  await requireCapability(user, "generate_protocol");
-
   const ok = await patientBelongsToTenant(user.tenantId, patientId);
   if (!ok) return { ok: false, error: "Patient not found." };
   try {

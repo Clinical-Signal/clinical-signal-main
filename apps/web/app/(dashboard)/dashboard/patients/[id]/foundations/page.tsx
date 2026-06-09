@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { can } from "@clinical-signal/shared";
 import { requireAuth } from "@/lib/auth";
 import { getPatientSummary } from "@/lib/intake";
 import { Page, PageHeader } from "@/components/ui/page";
@@ -36,10 +35,7 @@ export default async function FoundationsPage({
         }
       />
 
-      <FoundationsEditor
-        patientId={params.id}
-        canAssign={can(user.role, "assign_foundational")}
-      />
+      <FoundationsEditor patientId={params.id} />
     </Page>
   );
 }

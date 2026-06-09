@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { can } from "@clinical-signal/shared";
 import { requireAuth } from "@/lib/auth";
 import { patientBelongsToTenant } from "@/lib/records";
 import { getProtocol } from "@/lib/protocols";
@@ -51,10 +50,6 @@ export default async function ProtocolViewPage({
   const p = await getProtocol(user.tenantId, params.protocolId);
   if (!p || p.patientId !== params.id) notFound();
 
-  const canEditProtocol = can(user.role, "edit_protocol");
-  const canFinalizeProtocol = can(user.role, "finalize_protocol");
-  const canDeliverProtocol = can(user.role, "deliver_protocol");
-
   return (
     <Page>
       <div className="mb-2">
@@ -77,7 +72,7 @@ export default async function ProtocolViewPage({
         title={p.title}
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            {canEditProtocol && p.status !== "superseded" && (
+            {p.status !== "superseded" && (
               <Link
                 href={`/dashboard/patients/${params.id}/protocol/${params.protocolId}/edit`}
                 className="inline-flex h-10 items-center justify-center rounded-md border border-line-strong bg-surface px-4 text-sm font-medium text-ink transition-colors hover:bg-surface-sunken"
@@ -88,35 +83,29 @@ export default async function ProtocolViewPage({
             {p.status === "approved" && (
               <Link
                 href={`/dashboard/patients/${params.id}/protocol/${params.protocolId}/outputs`}
-                className="inline-flex h-10 items-center justify-center rounded-md bg-success px-4 text-sm font-medium text-ink-inverse transition-colors hover:opacity-90"
+                className="inline-flex h-10 items-center justify-center rounded-md bg-emerald-600 px-4 text-sm font-medium text-white transition-colors hover:bg-emerald-700"
               >
                 View outputs
               </Link>
             )}
-            {canDeliverProtocol ? (
-              <>
-                <a
-                  href={`/api/patients/${params.id}/protocol/${params.protocolId}/export?audience=clinical`}
-                  className="inline-flex h-10 items-center justify-center rounded-md border border-line-strong bg-surface px-4 text-sm font-medium text-ink transition-colors hover:bg-surface-sunken"
-                >
-                  Clinical PDF
-                </a>
-                <a
-                  href={`/api/patients/${params.id}/protocol/${params.protocolId}/export?audience=client`}
-                  className="inline-flex h-10 items-center justify-center rounded-md bg-accent px-4 text-sm font-medium text-ink-inverse transition-colors hover:bg-accent-hover"
-                >
-                  Client PDF
-                </a>
-              </>
-            ) : null}
-            {canFinalizeProtocol &&
-              p.status !== "approved" &&
-              p.status !== "superseded" && (
-                <ApproveButton
-                  patientId={params.id}
-                  protocolId={params.protocolId}
-                />
-              )}
+            <a
+              href={`/api/patients/${params.id}/protocol/${params.protocolId}/export?audience=clinical`}
+              className="inline-flex h-10 items-center justify-center rounded-md border border-line-strong bg-surface px-4 text-sm font-medium text-ink transition-colors hover:bg-surface-sunken"
+            >
+              Clinical PDF
+            </a>
+            <a
+              href={`/api/patients/${params.id}/protocol/${params.protocolId}/export?audience=client`}
+              className="inline-flex h-10 items-center justify-center rounded-md bg-accent px-4 text-sm font-medium text-ink-inverse transition-colors hover:bg-accent-hover"
+            >
+              Client PDF
+            </a>
+            {p.status !== "approved" && p.status !== "superseded" && (
+              <ApproveButton
+                patientId={params.id}
+                protocolId={params.protocolId}
+              />
+            )}
           </div>
         }
       />

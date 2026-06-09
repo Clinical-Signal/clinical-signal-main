@@ -1,6 +1,5 @@
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
-import { can } from "@clinical-signal/shared";
+import { notFound } from "next/navigation";
 import { requireAuth } from "@/lib/auth";
 import { patientBelongsToTenant } from "@/lib/records";
 import { getProtocol, listProtocolVersions } from "@/lib/protocols";
@@ -17,9 +16,6 @@ export default async function ProtocolEditPage({
   if (!ok) notFound();
   const protocol = await getProtocol(user.tenantId, params.protocolId);
   if (!protocol || protocol.patientId !== params.id) notFound();
-  if (!can(user.role, "edit_protocol")) {
-    redirect(`/dashboard/patients/${params.id}/protocol/${params.protocolId}`);
-  }
   const versions = await listProtocolVersions(user.tenantId, params.id);
 
   return (
@@ -45,10 +41,6 @@ export default async function ProtocolEditPage({
         initialVersion={protocol.version}
         initialClinical={protocol.clinicalContent}
         initialClient={protocol.clientContent}
-        canRegenerate={can(user.role, "generate_protocol")}
-        canFinalize={can(user.role, "finalize_protocol")}
-        canDeliver={can(user.role, "deliver_protocol")}
-        canEditDialogue={can(user.role, "edit_protocol")}
         versions={versions.map((v) => ({
           id: v.id,
           version: v.version,

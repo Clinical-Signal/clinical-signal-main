@@ -49,5 +49,7 @@ export async function requestResetAction(
     practitionerId: row.id,
   });
 
+  // eslint-disable-next-line no-console
+  console.log(`[password-reset] Link for ${email}: /reset-password/confirm?token=${raw}`);
   return { message: genericMessage };
 }

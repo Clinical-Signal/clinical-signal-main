@@ -3,7 +3,6 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireAuth } from "@/lib/auth";
-import { requireCapability } from "@/lib/auth/require-role";
 import { createPatient } from "@/lib/patients";
 import { writeAudit } from "@/lib/audit";
 
@@ -12,8 +11,6 @@ export async function createPatientAction(
   formData: FormData,
 ) {
   const user = await requireAuth();
-  await requireCapability(user, "create_patient");
-
   const name = String(formData.get("name") ?? "");
   const dob = String(formData.get("dob") ?? "");
   const notes = String(formData.get("notes") ?? "");

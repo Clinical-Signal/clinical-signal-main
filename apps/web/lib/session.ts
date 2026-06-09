@@ -26,11 +26,7 @@ import { cookies, headers } from "next/headers";
 import { withSystem } from "@cs/db";
 import type { TenantContext, TenantLifecycleStatus, PractitionerRole } from "@cs/core";
 
-import {
-  MFA_VERIFIED_COOKIE_NAME,
-  ROLE_COOKIE_NAME,
-  SESSION_COOKIE_NAME as COOKIE_NAME,
-} from "./session-constants";
+import { SESSION_COOKIE_NAME as COOKIE_NAME } from "./session-constants";
 const TOKEN_BYTES = 32;
 const COOKIE_MAX_AGE_SECONDS = 24 * 60 * 60; // 24h absolute cookie lifetime
 
@@ -62,25 +58,14 @@ export async function createSession(practitionerId: string): Promise<string> {
     null;
   const ua = h.get("user-agent") ?? null;
 
-  const role = await withSystem({ reason: "session_create" }, async (c) => {
-    const { rows: practitionerRows } = await c.query<{ role: PractitionerRole }>(
-      "SELECT role FROM practitioners WHERE id = $1",
-      [practitionerId],
-    );
-    const practitionerRole = practitionerRows[0]?.role;
-    if (!practitionerRole) return null;
-
+  await withSystem({ reason: "session_create" }, async (c) => {
     await c.query(
       `INSERT INTO sessions (token_hash, practitioner_id, tenant_id, expires_at, ip_address, user_agent)
        SELECT $1, p.id, p.tenant_id, $2, $3, $4
          FROM practitioners p WHERE p.id = $5`,
       [tokenHash, newExpiry(), ip, ua, practitionerId],
     );
-    return practitionerRole;
   });
-
-  clearMfaVerifiedCookie();
-  if (role) setRoleCookie(role);
 
   cookies().set(COOKIE_NAME, raw, {
     httpOnly: true,
@@ -145,8 +130,6 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     );
   });
 
-  setRoleCookie(row.role);
-
   return {
     sessionId: row.session_id,
     practitionerId: row.practitioner_id,
@@ -158,70 +141,9 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   };
 }
 
-export async function isSessionMfaVerified(sessionId: string): Promise<boolean> {
-  return withSystem({ reason: "session_mfa_status_lookup" }, async (c) => {
-    const { rows } = await c.query<{ mfa_verified_at: Date | null }>(
-      `SELECT mfa_verified_at FROM sessions WHERE id = $1`,
-      [sessionId],
-    );
-    return rows[0]?.mfa_verified_at !== null;
-  });
-}
-
-export async function markSessionMfaVerified(sessionId: string): Promise<void> {
-  await withSystem({ reason: "session_mfa_verified_stamp" }, async (c) => {
-    await c.query(
-      `UPDATE sessions SET mfa_verified_at = now() WHERE id = $1`,
-      [sessionId],
-    );
-  });
-  setMfaVerifiedCookie();
-}
-
-export function setRoleCookie(role: PractitionerRole): void {
-  cookies().set(ROLE_COOKIE_NAME, role, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    maxAge: COOKIE_MAX_AGE_SECONDS,
-  });
-}
-
-export function clearRoleCookie(): void {
-  cookies().set(ROLE_COOKIE_NAME, "", {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    maxAge: 0,
-  });
-}
-
-export function setMfaVerifiedCookie(): void {
-  cookies().set(MFA_VERIFIED_COOKIE_NAME, "1", {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    maxAge: COOKIE_MAX_AGE_SECONDS,
-  });
-}
-
-export function clearMfaVerifiedCookie(): void {
-  cookies().set(MFA_VERIFIED_COOKIE_NAME, "", {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    maxAge: 0,
-  });
-}
-
 export async function destroyCurrentSession(): Promise<string | null> {
   const raw = cookies().get(COOKIE_NAME)?.value;
   clearSessionCookie();
-  clearMfaVerifiedCookie();
   if (!raw) return null;
   const tokenHash = hashToken(raw);
   return withSystem({ reason: "session_destroy" }, async (c) => {
@@ -241,10 +163,6 @@ export function clearSessionCookie() {
     path: "/",
     maxAge: 0,
   });
-  clearRoleCookie();
 }
 
-export {
-  MFA_VERIFIED_COOKIE_NAME,
-  SESSION_COOKIE_NAME,
-} from "./session-constants";
+export { SESSION_COOKIE_NAME } from "./session-constants";
