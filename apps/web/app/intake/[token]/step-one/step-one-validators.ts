@@ -1,6 +1,6 @@
 import {
-  AboutYouSchema,
-  WhyHereSchema,
+  AboutYouCompleteSchema,
+  WhyHereCompleteSchema,
   type AboutYou,
   type AnythingElse,
   type History,
@@ -37,7 +37,7 @@ export function canAdvanceStepOneScreen(
     case "about_you":
       return isAboutYouValid(draft.aboutYou);
     case "why_here":
-      return WhyHereSchema.safeParse(draft.whyHere).success;
+      return WhyHereCompleteSchema.safeParse(draft.whyHere).success;
     default:
       return true;
   }
@@ -45,7 +45,7 @@ export function canAdvanceStepOneScreen(
 
 export function isStepOneDraftValid(draft: StepOneDraftSlice): boolean {
   return (
-    AboutYouSchema.safeParse(draft.aboutYou).success &&
-    WhyHereSchema.safeParse(draft.whyHere).success
+    AboutYouCompleteSchema.safeParse(draft.aboutYou).success &&
+    WhyHereCompleteSchema.safeParse(draft.whyHere).success
   );
 }

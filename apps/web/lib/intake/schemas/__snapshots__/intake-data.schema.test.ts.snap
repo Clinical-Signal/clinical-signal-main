@@ -23,7 +23,9 @@ exports[`intake-data.schema > matches IntakeDataSchema.shape snapshot 1`] = `
     "record": "unknown",
   },
   "about_you": {
-    "date_of_birth": "ZodString",
+    "date_of_birth": {
+      "default": "ZodString",
+    },
     "emergency_contact_name": {
       "default": "ZodString",
     },
@@ -33,7 +35,9 @@ exports[`intake-data.schema > matches IntakeDataSchema.shape snapshot 1`] = `
     "emergency_contact_relationship": {
       "default": "ZodString",
     },
-    "full_name": "ZodString",
+    "full_name": {
+      "default": "ZodString",
+    },
     "gender_identity": {
       "default": "ZodString",
     },
@@ -416,7 +420,9 @@ exports[`intake-data.schema > matches IntakeDataSchema.shape snapshot 1`] = `
     "top_three_goals": {
       "default": "ZodString",
     },
-    "what_brings_you": "ZodString",
+    "what_brings_you": {
+      "default": "ZodString",
+    },
     "what_hasnt_worked": {
       "default": "ZodString",
     },

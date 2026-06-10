@@ -2,7 +2,9 @@
 
 exports[`step-one.schema > matches AboutYouSchema.shape snapshot 1`] = `
 {
-  "date_of_birth": "ZodString",
+  "date_of_birth": {
+    "default": "ZodString",
+  },
   "emergency_contact_name": {
     "default": "ZodString",
   },
@@ -12,7 +14,9 @@ exports[`step-one.schema > matches AboutYouSchema.shape snapshot 1`] = `
   "emergency_contact_relationship": {
     "default": "ZodString",
   },
-  "full_name": "ZodString",
+  "full_name": {
+    "default": "ZodString",
+  },
   "gender_identity": {
     "default": "ZodString",
   },
@@ -161,7 +165,9 @@ exports[`step-one.schema > matches LifestyleSchema.shape snapshot 1`] = `
 exports[`step-one.schema > matches StepOneSchema.shape snapshot 1`] = `
 {
   "about_you": {
-    "date_of_birth": "ZodString",
+    "date_of_birth": {
+      "default": "ZodString",
+    },
     "emergency_contact_name": {
       "default": "ZodString",
     },
@@ -171,7 +177,9 @@ exports[`step-one.schema > matches StepOneSchema.shape snapshot 1`] = `
     "emergency_contact_relationship": {
       "default": "ZodString",
     },
-    "full_name": "ZodString",
+    "full_name": {
+      "default": "ZodString",
+    },
     "gender_identity": {
       "default": "ZodString",
     },
@@ -541,7 +549,9 @@ exports[`step-one.schema > matches StepOneSchema.shape snapshot 1`] = `
     "top_three_goals": {
       "default": "ZodString",
     },
-    "what_brings_you": "ZodString",
+    "what_brings_you": {
+      "default": "ZodString",
+    },
     "what_hasnt_worked": {
       "default": "ZodString",
     },
@@ -597,7 +607,9 @@ exports[`step-one.schema > matches WhyHereSchema.shape snapshot 1`] = `
   "top_three_goals": {
     "default": "ZodString",
   },
-  "what_brings_you": "ZodString",
+  "what_brings_you": {
+    "default": "ZodString",
+  },
   "what_hasnt_worked": {
     "default": "ZodString",
   },

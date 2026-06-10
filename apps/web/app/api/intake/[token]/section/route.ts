@@ -149,8 +149,19 @@ export async function POST(
         parsedBody.data.data,
         existing.intakeData.step_two,
       );
-    } catch {
-      return NextResponse.json({ error: "VALIDATION_ERROR" }, { status: 400 });
+    } catch (error) {
+      // Strict rejection at the boundary: surface the exact ZodError issues as a
+      // 400 instead of swallowing them or persisting invalid data. The section
+      // schemas validate the same shape the composed IntakeDataSchema enforces,
+      // so anything that saves here is guaranteed to reload cleanly. Zod issues
+      // carry field paths/codes, not the submitted PHI values.
+      if (error instanceof z.ZodError) {
+        return NextResponse.json(
+          { error: "VALIDATION_ERROR", issues: error.issues },
+          { status: 400 },
+        );
+      }
+      throw error;
     }
 
     const merged = mergeIntakeData(existing.intakeData, sectionPayload, "patient");

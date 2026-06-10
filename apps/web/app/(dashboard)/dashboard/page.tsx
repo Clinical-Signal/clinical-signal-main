@@ -6,6 +6,8 @@ import { StatusDot } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Page, PageHeader } from "@/components/ui/page";
 
+import { IntakeLiveRefresh } from "./intake-live-refresh";
+
 const STATUS_COPY: Record<
   string,
   { label: string; tone: "neutral" | "accent" | "warning" | "success" | "danger" }
@@ -25,6 +27,7 @@ export default async function DashboardPage() {
 
   return (
     <Page>
+      <IntakeLiveRefresh />
       <PageHeader
         title="Patients"
         description={

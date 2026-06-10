@@ -85,7 +85,19 @@ function normalizeRawIntake(raw: unknown): IntakeData {
       };
 
   const parsed = IntakeDataSchema.safeParse(withMeta);
-  const base = parsed.success ? parsed.data : createEmptyIntakeData();
+  if (!parsed.success) {
+    // Non-destructive fallback. Previously this returned createEmptyIntakeData(),
+    // which let downstream writers (submit, analyze) persist an empty blob back
+    // over real patient data on any validation hiccup. Instead we surface the
+    // exact failure and keep the best-effort migrated record. `migrateLegacyStepOne`
+    // always yields a structurally complete StepOne (all keys present, valid
+    // defaults), so consumers can read it safely — only some leaf values may be
+    // off, which the display/format helpers already tolerate.
+    // NOTE: Zod issues carry paths/codes/expected values, not the submitted field
+    // values, so this does not log PHI.
+    console.error("Intake validation failed:", parsed.error.issues);
+  }
+  const base: IntakeData = parsed.success ? parsed.data : (withMeta as IntakeData);
   const contactEmail = readRawContactEmail(raw);
   return contactEmail ? { ...base, contact_email: contactEmail } : base;
 }

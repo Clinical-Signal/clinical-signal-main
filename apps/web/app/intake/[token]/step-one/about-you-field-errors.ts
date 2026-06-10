@@ -1,4 +1,4 @@
-import { AboutYouSchema, type AboutYou } from "@/lib/intake/schemas/step-one.schema";
+import { AboutYouCompleteSchema, type AboutYou } from "@/lib/intake/schemas/step-one.schema";
 
 const FIELD_LABELS: Partial<Record<keyof AboutYou, string>> = {
   full_name: "Full name",
@@ -7,7 +7,7 @@ const FIELD_LABELS: Partial<Record<keyof AboutYou, string>> = {
 };
 
 export function aboutYouFieldErrors(value: AboutYou): Partial<Record<keyof AboutYou, string>> {
-  const parsed = AboutYouSchema.safeParse(value);
+  const parsed = AboutYouCompleteSchema.safeParse(value);
   if (parsed.success) {
     return {};
   }
@@ -32,5 +32,5 @@ export function aboutYouFieldErrors(value: AboutYou): Partial<Record<keyof About
 }
 
 export function isAboutYouValid(value: AboutYou): boolean {
-  return AboutYouSchema.safeParse(value).success;
+  return AboutYouCompleteSchema.safeParse(value).success;
 }
