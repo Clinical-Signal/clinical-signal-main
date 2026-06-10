@@ -44,6 +44,13 @@ services:
       - ./database/migrations:/app/database-migrations:ro
     restart: "no"
 
+  # Local SMTP catcher — magic-link emails appear at http://localhost:8025
+  mailpit:
+    image: axllent/mailpit:v1.22
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+
   analysis-engine:
     build:
       context: ./services/analysis-engine
@@ -115,6 +122,18 @@ services:
       # service sees. Web signs; engine verifies. See the analysis-engine
       # block above for rotation guidance.
       ENGINE_JWT_SECRET: ${ENGINE_JWT_SECRET:-dev_only_change_me_engine_jwt_secret_min_32}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      SMTP_SERVER: ${SMTP_SERVER:-mailpit}
+      SMTP_PORT: ${SMTP_PORT:-1025}
+      SMTP_USER: ${SMTP_USER:-dev}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-dev}
+      EMAIL_FROM_ADDRESS: ${EMAIL_FROM_ADDRESS:-intake@example.com}
+      REDIS_URL: ${REDIS_URL:-redis://localhost:6379}
+      S3_BUCKET: ${S3_BUCKET:-dev-intake-bucket}
+      S3_REGION: ${S3_REGION:-us-east-1}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-dev}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-dev}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
     ports:
       - "3000:3000"
     depends_on:
@@ -124,10 +143,15 @@ services:
         condition: service_completed_successfully
       analysis-engine:
         condition: service_started
+      mailpit:
+        condition: service_started
     volumes:
+      - ./apps/web/.env:/app/.env:ro
       - ./apps/web/app:/app/app:ro
       - ./apps/web/components:/app/components:ro
       - ./apps/web/lib:/app/lib:ro
+      # LLM system prompts live under services/analysis-engine/prompts/ (shared with engine).
+      - ./services/analysis-engine/prompts:/app/services/analysis-engine/prompts:ro
       # Live-reload mount so edits in packages/{core,db}/src/ flow into
       # the running web container without a rebuild. Path matches the
       # tsconfig alias resolution (../../packages from /app).

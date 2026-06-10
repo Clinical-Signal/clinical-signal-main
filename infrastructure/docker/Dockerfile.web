@@ -16,6 +16,10 @@ RUN npm install
 # without a rebuild.
 COPY packages /packages
 
+# apps/web/tsconfig.json extends ../../tsconfig.base.json — from /app that
+# resolves to /tsconfig.base.json (repo root), not a path under /app.
+COPY tsconfig.base.json /tsconfig.base.json
+
 COPY apps/web/ ./
 
 EXPOSE 3000

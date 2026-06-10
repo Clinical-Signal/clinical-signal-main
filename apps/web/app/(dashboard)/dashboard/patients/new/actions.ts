@@ -5,10 +5,7 @@ import { revalidatePath } from "next/cache";
 import { requireAuth } from "@/lib/auth";
 import { createPatient } from "@/lib/patients";
 import { writeAudit } from "@/lib/audit";
-import {
-  PatientIntakeEmailDispatchError,
-  sendPatientIntakeLink,
-} from "@/lib/intake/send-patient-intake-link";
+import { sendPatientIntakeLink } from "@/lib/intake/send-patient-intake-link";
 import { logSafeError } from "@/lib/log-safe";
 
 export async function createPatientAction(
@@ -46,22 +43,14 @@ export async function createPatientAction(
     return { error: err instanceof Error ? err.message : "Could not create patient." };
   }
 
-  try {
-    await sendPatientIntakeLink({
-      tenantId: user.tenantId,
-      practitionerId: user.practitionerId,
-      patientId: id,
-      patientEmail: email,
-    });
-  } catch (err) {
+  void sendPatientIntakeLink({
+    tenantId: user.tenantId,
+    practitionerId: user.practitionerId,
+    patientId: id,
+    patientEmail: email,
+  }).catch((err) => {
     logSafeError("[create-patient] intake_email_failed", err);
-    revalidatePath("/dashboard");
-    revalidatePath(`/dashboard/patients/${id}`);
-    if (err instanceof PatientIntakeEmailDispatchError) {
-      redirect(`/dashboard/patients/${id}?intake_email_failed=1`);
-    }
-    redirect(`/dashboard/patients/${id}?intake_email_failed=1`);
-  }
+  });
 
   revalidatePath("/dashboard");
   revalidatePath(`/dashboard/patients/${id}`);

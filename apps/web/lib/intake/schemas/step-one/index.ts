@@ -4,6 +4,7 @@ import type { StepOneTriggerInput } from "../../deterministic-triggers";
 
 import {
   AboutYouSchema,
+  AboutYouCompleteSchema,
   createEmptyAboutYou,
   type AboutYou,
 } from "./about-you.schema";
@@ -48,7 +49,12 @@ import {
   type PreviousLabs,
 } from "./previous-labs.schema";
 import { WearablesSchema, createEmptyWearables, type Wearables } from "./wearables.schema";
-import { WhyHereSchema, createEmptyWhyHere, type WhyHere } from "./why-here.schema";
+import {
+  WhyHereSchema,
+  WhyHereCompleteSchema,
+  createEmptyWhyHere,
+  type WhyHere,
+} from "./why-here.schema";
 
 export const StepOneSchema = z.object({
   about_you: AboutYouSchema,
@@ -65,8 +71,23 @@ export const StepOneSchema = z.object({
 
 export type StepOne = z.infer<typeof StepOneSchema>;
 
+/**
+ * Strict completion schema for Step 1 — identical to {@link StepOneSchema} but
+ * with the two sections that carry required fields swapped for their strict
+ * completion variants. This is the single source of truth for "Step 1 is
+ * complete enough to submit" and is used for server-side submission validation.
+ * Composed from the same section schemas so it cannot drift from storage shape.
+ */
+export const StepOneCompleteSchema = StepOneSchema.extend({
+  about_you: AboutYouCompleteSchema,
+  why_here: WhyHereCompleteSchema,
+});
+
+export type StepOneComplete = z.infer<typeof StepOneCompleteSchema>;
+
 export {
   AboutYouSchema,
+  AboutYouCompleteSchema,
   AnythingElseSchema,
   HistorySchema,
   HormonesSchema,
@@ -77,6 +98,7 @@ export {
   SymptomsSchema,
   WearablesSchema,
   WhyHereSchema,
+  WhyHereCompleteSchema,
   createEmptyAboutYou,
   createEmptyAnythingElse,
   createEmptyHistory,

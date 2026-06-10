@@ -7,6 +7,7 @@ import {
   getPatientIntakeState,
   savePatientIntakeData,
 } from "@/lib/intake/patient-intake-store";
+import { setPatientIntakeStatus } from "@/lib/intake/set-patient-intake-status";
 import {
   STEP_TWO_ANSWERS_KEY,
   STEP_TWO_PLAN_KEY,
@@ -42,6 +43,19 @@ const SECTION_KEYS = [
 ] as const;
 
 type SectionKey = (typeof SECTION_KEYS)[number];
+
+const STEP_ONE_SECTIONS = new Set<SectionKey>([
+  "about_you",
+  "why_here",
+  "symptoms",
+  "history",
+  "medications",
+  "lifestyle",
+  "hormones",
+  "previous_labs",
+  "wearables",
+  "anything_else",
+]);
 
 const StepTwoSectionSchema = z.object({
   answers: z.record(z.string(), z.unknown()),
@@ -135,8 +149,19 @@ export async function POST(
         parsedBody.data.data,
         existing.intakeData.step_two,
       );
-    } catch {
-      return NextResponse.json({ error: "VALIDATION_ERROR" }, { status: 400 });
+    } catch (error) {
+      // Strict rejection at the boundary: surface the exact ZodError issues as a
+      // 400 instead of swallowing them or persisting invalid data. The section
+      // schemas validate the same shape the composed IntakeDataSchema enforces,
+      // so anything that saves here is guaranteed to reload cleanly. Zod issues
+      // carry field paths/codes, not the submitted PHI values.
+      if (error instanceof z.ZodError) {
+        return NextResponse.json(
+          { error: "VALIDATION_ERROR", issues: error.issues },
+          { status: 400 },
+        );
+      }
+      throw error;
     }
 
     const merged = mergeIntakeData(existing.intakeData, sectionPayload, "patient");
@@ -145,6 +170,15 @@ export async function POST(
       verified.patientId,
       merged,
     );
+
+    let intakeStatus = existing.intakeStatus;
+    if (
+      STEP_ONE_SECTIONS.has(parsedBody.data.section) &&
+      existing.intakeStatus === "not_started"
+    ) {
+      await setPatientIntakeStatus(verified.tenantId, verified.patientId, "step1_complete");
+      intakeStatus = "step1_complete";
+    }
 
     await writeAudit({
       tenantId: verified.tenantId,
@@ -161,8 +195,7 @@ export async function POST(
     return NextResponse.json({
       savedAt,
       section: parsedBody.data.section,
-      intakeStatus: existing.intakeStatus,
-      intakeData: merged,
+      intakeStatus,
     });
   } catch (error) {
     if (error instanceof z.ZodError) {

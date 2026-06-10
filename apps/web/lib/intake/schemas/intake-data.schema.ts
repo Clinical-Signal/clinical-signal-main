@@ -36,6 +36,8 @@ export const IntakeDataSchema = StepOneSchema.extend({
   step_two: z.record(z.string(), z.unknown()).optional(),
   /** Patient email for magic-link dispatch (not collected on intake forms). */
   contact_email: z.string().email().optional(),
+  /** ISO timestamp set when the patient submits Step 2. */
+  submitted_at: z.string().datetime().optional(),
   _provenance: z.record(z.string(), ProvenanceSource),
   _ai_confirmations: z.record(z.string(), AiConfirmationSlot),
   _analysis_degraded: z.boolean(),
@@ -69,6 +71,8 @@ function normalizeRawIntake(raw: unknown): IntakeData {
         step_two: raw.step_two,
         contact_email:
           typeof raw.contact_email === "string" ? raw.contact_email : undefined,
+        submitted_at:
+          typeof raw.submitted_at === "string" ? raw.submitted_at : undefined,
         _provenance: raw._provenance ?? {},
         _ai_confirmations: raw._ai_confirmations ?? {},
         _analysis_degraded: raw._analysis_degraded === true,
@@ -81,7 +85,19 @@ function normalizeRawIntake(raw: unknown): IntakeData {
       };
 
   const parsed = IntakeDataSchema.safeParse(withMeta);
-  const base = parsed.success ? parsed.data : createEmptyIntakeData();
+  if (!parsed.success) {
+    // Non-destructive fallback. Previously this returned createEmptyIntakeData(),
+    // which let downstream writers (submit, analyze) persist an empty blob back
+    // over real patient data on any validation hiccup. Instead we surface the
+    // exact failure and keep the best-effort migrated record. `migrateLegacyStepOne`
+    // always yields a structurally complete StepOne (all keys present, valid
+    // defaults), so consumers can read it safely — only some leaf values may be
+    // off, which the display/format helpers already tolerate.
+    // NOTE: Zod issues carry paths/codes/expected values, not the submitted field
+    // values, so this does not log PHI.
+    console.error("Intake validation failed:", parsed.error.issues);
+  }
+  const base: IntakeData = parsed.success ? parsed.data : (withMeta as IntakeData);
   const contactEmail = readRawContactEmail(raw);
   return contactEmail ? { ...base, contact_email: contactEmail } : base;
 }

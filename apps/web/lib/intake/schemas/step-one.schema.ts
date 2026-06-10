@@ -5,6 +5,7 @@
  */
 export {
   AboutYouSchema,
+  AboutYouCompleteSchema,
   AnythingElseSchema,
   HistorySchema,
   HormonesSchema,
@@ -13,9 +14,11 @@ export {
   MedicationRowSchema,
   PreviousLabsSchema,
   StepOneSchema,
+  StepOneCompleteSchema,
   SymptomsSchema,
   WearablesSchema,
   WhyHereSchema,
+  WhyHereCompleteSchema,
   createEmptyAboutYou,
   createEmptyAnythingElse,
   createEmptyHistory,
@@ -41,6 +44,7 @@ export {
   type MedicationRow,
   type PreviousLabs,
   type StepOne,
+  type StepOneComplete,
   type Symptoms,
   type Wearables,
   type WhyHere,

@@ -2,8 +2,13 @@ import { z } from "zod";
 
 const rating = z.number().int().min(1).max(10).nullable();
 
+/**
+ * Draft/storage schema (SSOT) for `why_here`. Accepts an empty/in-progress
+ * draft so the composed record validates before the patient finishes. The
+ * required-length rule lives in {@link WhyHereCompleteSchema}.
+ */
 export const WhyHereSchema = z.object({
-  what_brings_you: z.string().min(3).max(2000),
+  what_brings_you: z.string().max(2000).default(""),
   top_three_goals: z.string().max(2000).default(""),
   six_month_vision: z.string().max(2000).default(""),
   overall_health_rating: rating.default(null),
@@ -18,6 +23,15 @@ export const WhyHereSchema = z.object({
 });
 
 export type WhyHere = z.infer<typeof WhyHereSchema>;
+
+/**
+ * Completion schema — strict required-field rules for "this section is done".
+ * Derived from {@link WhyHereSchema} so the shape can never drift. Used by the
+ * client field-error/step-gating helpers, NOT for storage.
+ */
+export const WhyHereCompleteSchema = WhyHereSchema.extend({
+  what_brings_you: z.string().min(3).max(2000),
+});
 
 export function createEmptyWhyHere(): WhyHere {
   return {

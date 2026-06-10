@@ -80,3 +80,84 @@ export async function savePatientIntakeData(
 
   return { savedAt };
 }
+
+/**
+ * Targeted "finalize submission" update: stamps `intake_data.submitted_at` in
+ * place (via jsonb_set, never overwriting the rest of the blob) and advances the
+ * patient lifecycle `status` to `labs_pending` per PRD API-4 — but only from a
+ * pre-intake state, so a later stage is never rewound. `updated_at` is bumped by
+ * the `patients_touch` trigger, so the dashboard row re-sorts to the top.
+ *
+ * Keeping both column writes in one statement makes the transition atomic and
+ * keeps this a targeted partial update (no whole-record overwrite).
+ */
+export async function setIntakeSubmittedAt(
+  tenantId: string,
+  patientId: string,
+  submittedAt: string,
+): Promise<{ savedAt: string }> {
+  await withTenantContext(tenantContext(tenantId), async (client) => {
+    const { rowCount } = await client.query(
+      `UPDATE patients
+          SET intake_data = jsonb_set(
+                COALESCE(intake_data, '{}'::jsonb),
+                '{submitted_at}',
+                to_jsonb($3::text),
+                true
+              ),
+              status = CASE
+                         WHEN status IN ('new', 'intake_pending') THEN 'labs_pending'
+                         ELSE status
+                       END
+        WHERE id = $1
+          AND tenant_id = $2`,
+      [patientId, tenantId, submittedAt],
+    );
+
+    if (rowCount === 0) {
+      throw new Error("Patient not found");
+    }
+  });
+
+  return { savedAt: submittedAt };
+}
+
+/**
+ * Targeted update for the analyze pipeline: writes only the Step-2 blob
+ * (`step_two`) and the analysis-degraded flag. Leaves all Step-1 sections and
+ * provenance untouched, so a normalized fallback can never clobber
+ * patient-authored data.
+ */
+export async function saveIntakeAnalysisResult(
+  tenantId: string,
+  patientId: string,
+  result: { stepTwo: Record<string, unknown>; analysisDegraded: boolean },
+): Promise<{ savedAt: string }> {
+  const savedAt = new Date().toISOString();
+
+  await withTenantContext(tenantContext(tenantId), async (client) => {
+    const { rowCount } = await client.query(
+      `UPDATE patients
+          SET intake_data = jsonb_set(
+                jsonb_set(
+                  COALESCE(intake_data, '{}'::jsonb),
+                  '{step_two}',
+                  $3::jsonb,
+                  true
+                ),
+                '{_analysis_degraded}',
+                to_jsonb($4::boolean),
+                true
+              )
+        WHERE id = $1
+          AND tenant_id = $2`,
+      [patientId, tenantId, JSON.stringify(result.stepTwo), result.analysisDegraded],
+    );
+
+    if (rowCount === 0) {
+      throw new Error("Patient not found");
+    }
+  });
+
+  return { savedAt };
+}

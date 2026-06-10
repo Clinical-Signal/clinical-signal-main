@@ -71,7 +71,7 @@ export function MsqSymptomsScreen({
   onChange,
   onIntakeDataSynced,
 }: MsqSymptomsScreenProps) {
-  const { saveStatus, saveOnBlur, saveValue } = useSectionBlurSave({
+  const { saveStatus, saveOnBlur } = useSectionBlurSave({
     token,
     section: "symptoms",
     value,
@@ -95,7 +95,6 @@ export function MsqSymptomsScreen({
       },
     };
     onChange(next);
-    void saveValue(next);
   };
 
   const toggleCategory = (cat: MsqCategory) => {

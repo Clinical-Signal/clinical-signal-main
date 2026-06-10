@@ -6,15 +6,12 @@ import {
   buildSuccessQuestionPlan,
 } from "./build-question-plan";
 import { extractDeterministicKeysFromIntake } from "./analyze-pipeline-helpers";
-import { mergeIntakeData } from "./merge-intake";
 import {
   getPatientIntakeState,
-  savePatientIntakeData,
+  saveIntakeAnalysisResult,
 } from "./patient-intake-store";
 import {
-  STEP_TWO_ANSWERS_KEY,
   STEP_TWO_PLAN_KEY,
-  extractStepTwoAnswers,
   priorStepTwoForAnalyzeMerge,
 } from "./step-two-storage";
 import {
@@ -87,26 +84,19 @@ function llmOutputToPlan(
   };
 }
 
-function attachResolvedPlanToIntake(
+/**
+ * Builds the Step-2 blob to persist: prior patient answers (preserved) plus the
+ * freshly resolved question plan. Returned on its own so the pipeline can write
+ * it via a targeted update instead of rewriting the whole intake record.
+ */
+function buildStepTwoBlob(
   existing: IntakeData,
   resolved: QuestionPlanResolved,
-): IntakeData {
-  const merged = mergeIntakeData(
-    existing,
-    { _analysis_degraded: resolved.analysis_degraded },
-    "ai",
-  );
-
-  const priorAnswers = extractStepTwoAnswers(existing.step_two);
-  merged.step_two = {
+): Record<string, unknown> {
+  return {
     ...priorStepTwoForAnalyzeMerge(existing.step_two),
     [STEP_TWO_PLAN_KEY]: structuredClone(resolved),
-    ...(Object.keys(priorAnswers).length > 0
-      ? { [STEP_TWO_ANSWERS_KEY]: priorAnswers }
-      : {}),
   };
-
-  return merged;
 }
 
 function buildResolvedPlan(
@@ -175,8 +165,10 @@ export async function runIntakeAnalyzePipeline(
     let persistenceSaved = false;
     try {
       logStage("persistence_start");
-      const merged = attachResolvedPlanToIntake(existing.intakeData, resolved);
-      await savePatientIntakeData(input.tenantId, input.patientId, merged);
+      await saveIntakeAnalysisResult(input.tenantId, input.patientId, {
+        stepTwo: buildStepTwoBlob(existing.intakeData, resolved),
+        analysisDegraded: resolved.analysis_degraded,
+      });
       persistenceSaved = true;
       logStage("persistence_complete");
     } catch (error) {
@@ -210,8 +202,10 @@ export async function runIntakeAnalyzePipeline(
     let persistenceSaved = false;
     try {
       logStage("persistence_fallback_start");
-      const merged = attachResolvedPlanToIntake(existing.intakeData, resolved);
-      await savePatientIntakeData(input.tenantId, input.patientId, merged);
+      await saveIntakeAnalysisResult(input.tenantId, input.patientId, {
+        stepTwo: buildStepTwoBlob(existing.intakeData, resolved),
+        analysisDegraded: resolved.analysis_degraded,
+      });
       persistenceSaved = true;
       logStage("persistence_fallback_complete");
     } catch (persistError) {

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import {
   completeIntakeSubmission,
+  isIntakeIncompleteError,
   isIntakeSubmissionError,
 } from "@/lib/intake/complete-intake-submission";
 import { tokenErrorResponse } from "@/lib/tokens/intake-token-api";
@@ -23,6 +24,15 @@ export async function POST(
       tokenStatus: "completed",
     });
   } catch (error) {
+    if (isIntakeIncompleteError(error)) {
+      // Strict completion failed: tell the client exactly which fields are
+      // missing/invalid. Zod issues carry field paths/codes, not PHI values.
+      return NextResponse.json(
+        { error: "INTAKE_INCOMPLETE", issues: error.issues },
+        { status: 400 },
+      );
+    }
+
     if (isIntakeSubmissionError(error)) {
       return tokenErrorResponse(error);
     }
