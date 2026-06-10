@@ -76,20 +76,21 @@ export function useSectionBlurSave<T>({
   section,
   value,
   schema,
-  onSynced,
-  debounceMs = 1000,
+  onSynced: _onSynced,
+  debounceMs = 750,
 }: {
   token: string;
   section: StepOneSectionKey;
   value: T;
   schema: z.ZodType<T>;
-  onSynced: (next: T) => void;
+  onSynced?: (next: T) => void;
   debounceMs?: number;
 }) {
   const { reportSaveStatus } = useStepOneSaveContext();
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const skipNextAutosave = useRef(true);
   const lastSavedJson = useRef<string | null>(null);
+  const saveGeneration = useRef(0);
 
   const updateSaveStatus = useCallback(
     (status: SaveStatus) => {
@@ -111,19 +112,27 @@ export function useSectionBlurSave<T>({
         return;
       }
 
+      const generation = ++saveGeneration.current;
       updateSaveStatus("saving");
       const result = await postIntakeSection(token, section, parsed.data);
+      if (generation !== saveGeneration.current) {
+        return;
+      }
+
       if (!result.ok) {
         updateSaveStatus("error");
         return;
       }
 
       lastSavedJson.current = serialized;
-      onSynced(parsed.data);
       updateSaveStatus("saved");
-      window.setTimeout(() => updateSaveStatus("idle"), 2000);
+      window.setTimeout(() => {
+        if (generation === saveGeneration.current) {
+          updateSaveStatus("idle");
+        }
+      }, 2000);
     },
-    [onSynced, schema, section, token, updateSaveStatus],
+    [schema, section, token, updateSaveStatus],
   );
 
   const saveOnBlur = useCallback(() => saveValue(value), [saveValue, value]);

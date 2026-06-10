@@ -3,9 +3,10 @@ import type { IntakeStatus } from "@/lib/db/schema/patients-intake";
 import type { IntakeData } from "@/lib/intake/schemas/intake-data.schema";
 import type { IntakeChatMessageRow } from "@/lib/intake/intake-chat-store";
 
-import { StepOneSummary } from "@/app/clinician/intake/[token]/step-one-summary";
+import { StepTwoInsights } from "@/app/clinician/intake/[token]/step-two-insights";
 
 import { PatientIntakeChatTranscript } from "./patient-intake-chat-transcript";
+import { PatientIntakeStepOneSummary } from "./patient-intake-step-one-summary";
 
 const STATUS_LABELS: Record<IntakeStatus, string> = {
   not_started: "Not started",
@@ -41,7 +42,12 @@ export function PatientIntakeSummary({
 
       <section>
         <h2 className="mb-4 font-serif text-xl text-ink">Step 1 — Baseline intake</h2>
-        <StepOneSummary intakeData={intakeData} />
+        <PatientIntakeStepOneSummary intakeData={intakeData} />
+      </section>
+
+      <section>
+        <h2 className="mb-4 font-serif text-xl text-ink">Step 2 — Structured follow-up</h2>
+        <StepTwoInsights intakeData={intakeData} />
       </section>
 
       <section>

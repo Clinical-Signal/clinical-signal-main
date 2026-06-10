@@ -1,7 +1,6 @@
-import { Badge } from "@/components/ui/badge";
-import { INTAKE_CHAT_KICKOFF_MESSAGE } from "@/lib/intake/intake-chat-constants";
-import { stripCompleteMarker } from "@/lib/intake/intake-chat-markers";
 import type { IntakeChatMessageRow } from "@/lib/intake/intake-chat-store";
+import { NOT_PROVIDED } from "@/lib/intake/format-step-one-for-display";
+import { pairIntakeChatMessages } from "@/lib/intake/pair-intake-chat-messages";
 
 import { ReviewSection } from "@/app/clinician/intake/[token]/review-primitives";
 
@@ -9,58 +8,44 @@ type PatientIntakeChatTranscriptProps = {
   messages: IntakeChatMessageRow[];
 };
 
-function visibleMessages(messages: IntakeChatMessageRow[]): IntakeChatMessageRow[] {
-  return messages.filter(
-    (message) =>
-      !(message.role === "user" && message.content.trim() === INTAKE_CHAT_KICKOFF_MESSAGE),
-  );
-}
-
-function ChatBubble({ message }: { message: IntakeChatMessageRow }) {
-  const { displayText } = stripCompleteMarker(message.content);
-  if (!displayText.trim()) {
-    return null;
-  }
-
-  const isAssistant = message.role === "assistant";
-
-  return (
-    <article
-      className={`rounded-lg border px-4 py-3 ${
-        isAssistant
-          ? "border-line bg-surface-sunken"
-          : "border-accent/20 bg-accent-soft"
-      }`}
-    >
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <Badge tone={isAssistant ? "accent" : "neutral"}>
-          {isAssistant ? "Clinical assistant" : "Patient"}
-        </Badge>
-        <time className="text-xs text-ink-subtle" dateTime={message.createdAt.toISOString()}>
-          {message.createdAt.toLocaleString()}
-        </time>
-      </div>
-      <p className="whitespace-pre-wrap text-sm text-ink">{displayText}</p>
-    </article>
-  );
-}
-
 export function PatientIntakeChatTranscript({ messages }: PatientIntakeChatTranscriptProps) {
-  const transcript = visibleMessages(messages);
+  const pairs = pairIntakeChatMessages(messages);
 
   return (
     <ReviewSection title="Step 2 follow-up conversation">
-      {transcript.length === 0 ? (
+      {pairs.length === 0 ? (
         <p className="text-sm text-ink-muted">
           No Step 2 chat responses yet. The patient has not started the follow-up
           conversation.
         </p>
       ) : (
-        <div className="flex flex-col gap-3">
-          {transcript.map((message) => (
-            <ChatBubble key={message.id} message={message} />
+        <dl className="flex flex-col gap-4">
+          {pairs.map((pair, index) => (
+            <article
+              key={`${index}-${pair.question.slice(0, 24)}`}
+              className="rounded-lg border border-line bg-surface-sunken px-4 py-4"
+            >
+              <div className="mb-3">
+                <dt className="text-xs font-medium uppercase tracking-wide text-ink-subtle">
+                  Question
+                </dt>
+                <dd className="mt-1 whitespace-pre-wrap text-sm text-ink">{pair.question}</dd>
+              </div>
+              <div>
+                <dt className="text-xs font-medium uppercase tracking-wide text-ink-subtle">
+                  Answer
+                </dt>
+                <dd
+                  className={`mt-1 whitespace-pre-wrap text-sm ${
+                    pair.answer.trim() ? "text-ink" : "text-ink-faint italic"
+                  }`}
+                >
+                  {pair.answer.trim() || NOT_PROVIDED}
+                </dd>
+              </div>
+            </article>
           ))}
-        </div>
+        </dl>
       )}
     </ReviewSection>
   );

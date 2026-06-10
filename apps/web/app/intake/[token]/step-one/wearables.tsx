@@ -38,7 +38,7 @@ export function WearablesScreen({
   onChange,
   onIntakeDataSynced,
 }: WearablesScreenProps) {
-  const { saveStatus, saveOnBlur, saveValue } = useSectionBlurSave({
+  const { saveStatus, saveOnBlur } = useSectionBlurSave({
     token,
     section: "wearables",
     value,
@@ -52,7 +52,6 @@ export function WearablesScreen({
       : [...value.devices, device];
     const updated = { ...value, devices: next };
     onChange(updated);
-    void saveValue(updated);
   };
 
   return (
